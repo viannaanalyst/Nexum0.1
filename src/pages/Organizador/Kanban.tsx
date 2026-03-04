@@ -8,7 +8,10 @@ import {
   useSensor, 
   useSensors,
   type DragStartEvent,
-  type DragEndEvent
+  type DragEndEvent,
+  rectIntersection,
+  pointerWithin,
+  getFirstCollision
 } from '@dnd-kit/core';
 import { 
   arrayMove, 
@@ -44,25 +47,27 @@ interface Column {
   position: number;
 }
 
+interface Tag {
+  id: string;
+  name: string;
+  color: string;
+}
+
 interface Card {
   id: string;
   column_id: string;
   title: string;
   priority: 'low' | 'medium' | 'high' | 'urgent';
   due_date?: string;
+  created_at: string;
   is_blocked: boolean;
   assigned_to?: string;
+  client_id?: string;
   position: number;
+  tags?: Tag[];
 }
 
-interface ChecklistItem {
-  id: string;
-  description: string;
-  is_completed: boolean;
-  needs_approval: boolean;
-  approver_id?: string;
-  approval_status: 'pending' | 'approved' | 'rejected';
-}
+// ... existing interfaces ...
 
 // --- Componente Principal ---
 const OrganizadorKanban = () => {
@@ -70,11 +75,18 @@ const OrganizadorKanban = () => {
   const [columns, setColumns] = useState<Column[]>([]);
   const [cards, setCards] = useState<Card[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
-  const [selectedCardId, setSelectedCardId] = useState<string | { id: string; columnId?: string } | null>(null); // Updated type
+  const [selectedCardId, setSelectedCardId] = useState<string | { id: string; columnId?: string } | null>(null);
   const [loading, setLoading] = useState(true);
+  
+  // Auxiliary Data Maps
+  const [clientsMap, setClientsMap] = useState<Record<string, string>>({});
+  const [membersMap, setMembersMap] = useState<Record<string, string>>({});
 
   const [newColumnTitle, setNewColumnTitle] = useState('');
   const [isNewColumnModalOpen, setIsNewColumnModalOpen] = useState(false);
+  const [editColumnTitle, setEditColumnTitle] = useState('');
+  const [editingColumn, setEditingColumn] = useState<Column | null>(null);
+  const [isEditColumnModalOpen, setIsEditColumnModalOpen] = useState(false);
 
   // Sensores para Drag and Drop
   const sensors = useSensors(
@@ -113,14 +125,56 @@ const OrganizadorKanban = () => {
           { title: 'Em Progresso', color: 'blue', position: 1, is_done_column: false },
           { title: 'Concluído', color: 'green', position: 2, is_done_column: true }
         ];
-        
         // Insert default columns logic here
-        // For simplicity in this demo, we'll just set them in state, 
-        // but in a real app we should insert them into DB
-        // We'll skip auto-insert for now to avoid side-effects in this specific turn
       }
       
       setCards(crds || []);
+
+      // 3. Fetch Tags for Cards
+      const { data: tagsData } = await supabase
+        .from('kanban_card_tags')
+        .select('card_id, kanban_tags(id, name, color)')
+        .in('card_id', crds?.map(c => c.id) || []);
+      
+      setCards(prevCards => prevCards.map(card => {
+            const cardTags = (tagsData || [])
+                .filter((t: any) => t.card_id === card.id)
+                .map((t: any) => t.kanban_tags);
+            return { ...card, tags: cardTags };
+      }));
+
+      // 4. Fetch Auxiliary Data (Clients and Members)
+      const { data: clientsData } = await supabase
+        .from('clients')
+        .select('id, name')
+        .eq('company_id', selectedCompany.id);
+
+      if (clientsData) {
+        const clientMap = clientsData.reduce((acc, client) => ({ ...acc, [client.id]: client.name }), {});
+        setClientsMap(clientMap);
+      }
+
+      const { data: membersData } = await supabase
+        .from('organization_members')
+        .select('user_id')
+        .eq('company_id', selectedCompany.id);
+
+      if (membersData && membersData.length > 0) {
+        const userIds = membersData.map(m => m.user_id);
+        const { data: profilesData } = await supabase
+          .from('profiles')
+          .select('id, full_name, email')
+          .in('id', userIds);
+
+        if (profilesData) {
+          const memberMap = profilesData.reduce((acc, profile) => ({ 
+            ...acc, 
+            [profile.id]: profile.full_name || profile.email 
+          }), {});
+          setMembersMap(memberMap);
+        }
+      }
+
     } catch (error) {
       console.error('Error fetching kanban:', error);
     } finally {
@@ -150,12 +204,31 @@ const OrganizadorKanban = () => {
     }
   };
 
-  const handleCreateTask = () => {
-    if (columns.length > 0) {
-      setSelectedCardId({ id: 'new', columnId: columns[0].id });
-    } else {
-      alert('Crie pelo menos uma coluna antes de adicionar tarefas.');
+  const handleUpdateColumn = async () => {
+    if (!editColumnTitle.trim() || !editingColumn) return;
+
+    try {
+      const { error } = await supabase
+        .from('kanban_columns')
+        .update({ title: editColumnTitle })
+        .eq('id', editingColumn.id);
+
+      if (error) throw error;
+
+      setIsEditColumnModalOpen(false);
+      setEditingColumn(null);
+      setEditColumnTitle('');
+      fetchKanbanData();
+    } catch (error) {
+      console.error('Error updating column:', error);
+      alert('Erro ao atualizar coluna');
     }
+  };
+
+  const handleOpenEditColumn = (column: Column) => {
+    setEditingColumn(column);
+    setEditColumnTitle(column.title);
+    setIsEditColumnModalOpen(true);
   };
 
   const handleDeleteColumn = async (columnId: string) => {
@@ -173,6 +246,18 @@ const OrganizadorKanban = () => {
 
   const handleAddCard = (columnId: string) => {
     setSelectedCardId({ id: 'new', columnId });
+  };
+
+  const handleDeleteCard = async (cardId: string) => {
+    if (!confirm('Tem certeza que deseja excluir este card?')) return;
+    try {
+        const { error } = await supabase.from('kanban_cards').delete().eq('id', cardId);
+        if (error) throw error;
+        setCards(cards.filter(c => c.id !== cardId));
+    } catch (error) {
+        console.error('Error deleting card:', error);
+        alert('Erro ao excluir card.');
+    }
   };
 
   const handleDragStart = (event: DragStartEvent) => {
@@ -201,6 +286,13 @@ const OrganizadorKanban = () => {
       if (overCard) overColumnId = overCard.column_id;
     }
 
+    // Se 'over' for a área de drop da coluna (caso a coluna esteja vazia ou drop no espaço em branco)
+    if (!overColumnId) {
+        // Tenta encontrar se o ID do over corresponde a uma coluna (mesmo que não tenha cards)
+        const columnFound = columns.find(col => col.id === overId);
+        if (columnFound) overColumnId = columnFound.id;
+    }
+
     if (!overColumnId) return;
 
     // --- Lógica de Bloqueio (Super Card) ---
@@ -214,17 +306,30 @@ const OrganizadorKanban = () => {
     // Atualizar estado local
     setCards((items) => {
       const oldIndex = items.findIndex((item) => item.id === activeId);
-      const newIndex = items.findIndex((item) => item.id === overId); // Aproximação
-
+      
       // Se mudou de coluna
       if (activeCard.column_id !== overColumnId) {
+        // Encontrar índice na nova coluna
+        // Se estiver soltando sobre um card, pega o índice dele
+        // Se estiver soltando na coluna vazia, vai para o final
+        let newIndex;
+        if (columns.find(c => c.id === overId)) {
+            newIndex = items.length; // Final da lista (simplificação)
+        } else {
+            const overCardIndex = items.findIndex((item) => item.id === overId);
+            newIndex = overCardIndex >= 0 ? overCardIndex : items.length;
+        }
+
         const updatedItems = items.map(item => {
           if (item.id === activeId) return { ...item, column_id: overColumnId! };
           return item;
         });
-        return arrayMove(updatedItems, oldIndex, newIndex !== -1 ? newIndex : oldIndex);
+        
+        return arrayMove(updatedItems, oldIndex, newIndex);
       }
 
+      // Mesma coluna
+      const newIndex = items.findIndex((item) => item.id === overId);
       return arrayMove(items, oldIndex, newIndex);
     });
 
@@ -237,34 +342,40 @@ const OrganizadorKanban = () => {
       .eq('id', activeId);
   };
 
+  // Custom Collision Detection Strategy
+  const customCollisionDetection = React.useCallback((args: any) => {
+    // First, look for a pointer intersection
+    const pointerCollisions = pointerWithin(args);
+    if (pointerCollisions.length > 0) {
+      return pointerCollisions;
+    }
+
+    // If no pointer intersection, fallback to rectangle intersection
+    return rectIntersection(args);
+  }, []);
+
   if (loading) return <div className="p-8 text-white">Carregando quadro...</div>;
 
   return (
     <div className="p-8 h-full flex flex-col">
       <div className="flex justify-between items-center mb-6">
         <div>
-          <h1 className="text-3xl font-bold text-white">Quadro Kanban</h1>
-          <p className="text-gray-400">Gerencie tarefas com fluxo de aprovação.</p>
+          <h1 className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-white to-gray-400">Quadro Kanban</h1>
+          <p className="text-gray-400 mt-2">Gerencie tarefas com fluxo de aprovação.</p>
         </div>
         <div className="flex gap-3">
           <button 
             onClick={() => setIsNewColumnModalOpen(true)}
-            className="flex items-center gap-2 bg-white/5 text-white px-4 py-2 rounded-lg hover:bg-white/10 transition-all border border-white/10"
-          >
-            <Plus size={18} /> Nova Coluna
-          </button>
-          <button 
-            onClick={handleCreateTask}
             className="flex items-center gap-2 bg-primary text-white px-4 py-2 rounded-lg hover:bg-secondary transition-all shadow-lg shadow-primary/20"
           >
-            <Plus size={18} /> Nova Tarefa
+            <Plus size={18} /> Nova Coluna
           </button>
         </div>
       </div>
 
       <DndContext 
         sensors={sensors} 
-        collisionDetection={closestCorners} 
+        collisionDetection={customCollisionDetection} 
         onDragStart={handleDragStart} 
         onDragEnd={handleDragEnd}
       >
@@ -277,6 +388,10 @@ const OrganizadorKanban = () => {
               onCardClick={(card) => setSelectedCardId(card.id)}
               onDeleteColumn={handleDeleteColumn}
               onAddCard={handleAddCard}
+              onDeleteCard={handleDeleteCard}
+              onEditColumn={handleOpenEditColumn}
+              clientsMap={clientsMap}
+              membersMap={membersMap}
             />
           ))}
         </div>
@@ -315,6 +430,27 @@ const OrganizadorKanban = () => {
         </div>
       )}
 
+      {/* Modal Editar Coluna */}
+      {isEditColumnModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <div className="glass-card w-full max-w-md p-6 rounded-2xl border border-white/10 relative bg-[#0a0a1a]">
+            <h2 className="text-xl font-bold text-white mb-4">Editar Coluna</h2>
+            <input 
+              autoFocus
+              className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-white focus:border-primary focus:outline-none mb-4"
+              placeholder="Nome da coluna"
+              value={editColumnTitle}
+              onChange={e => setEditColumnTitle(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && handleUpdateColumn()}
+            />
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setIsEditColumnModalOpen(false)} className="px-4 py-2 text-gray-400 hover:text-white">Cancelar</button>
+              <button onClick={handleUpdateColumn} className="bg-primary hover:bg-secondary text-white px-4 py-2 rounded-lg font-bold">Salvar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Modal de Detalhes do Card */}
       {selectedCardId && (
         <KanbanCardModal 
@@ -332,7 +468,27 @@ const OrganizadorKanban = () => {
 
 // --- Sub-componentes ---
 
-const KanbanColumn = ({ column, cards, onCardClick, onDeleteColumn, onAddCard }: { column: Column, cards: Card[], onCardClick: (c: Card) => void, onDeleteColumn: (id: string) => void, onAddCard: (colId: string) => void }) => {
+const KanbanColumn = ({ 
+  column, 
+  cards, 
+  onCardClick, 
+  onDeleteColumn, 
+  onAddCard,
+  onDeleteCard,
+  onEditColumn,
+  clientsMap,
+  membersMap
+}: { 
+  column: Column, 
+  cards: Card[], 
+  onCardClick: (c: Card) => void, 
+  onDeleteColumn: (id: string) => void, 
+  onAddCard: (colId: string) => void,
+  onDeleteCard: (cardId: string) => void,
+  onEditColumn: (column: Column) => void,
+  clientsMap: Record<string, string>,
+  membersMap: Record<string, string>
+}) => {
   const { setNodeRef } = useSortable({ id: column.id });
 
   return (
@@ -361,7 +517,7 @@ const KanbanColumn = ({ column, cards, onCardClick, onDeleteColumn, onAddCard }:
               <div className="p-1">
                 <button 
                   className="w-full text-left px-3 py-2 text-sm text-gray-300 hover:bg-white/5 rounded-lg flex items-center gap-2"
-                  onClick={() => alert('Em breve: Edição de colunas')}
+                  onClick={() => onEditColumn(column)}
                 >
                   <Filter size={14} /> Editar
                 </button>
@@ -381,7 +537,14 @@ const KanbanColumn = ({ column, cards, onCardClick, onDeleteColumn, onAddCard }:
       <div className="flex-1 bg-white/5 rounded-2xl p-3 border border-white/5 overflow-y-auto custom-scrollbar space-y-3">
         <SortableContext items={cards.map(c => c.id)} strategy={verticalListSortingStrategy}>
           {cards.map(card => (
-            <KanbanCard key={card.id} card={card} onClick={() => onCardClick(card)} />
+            <KanbanCard 
+              key={card.id} 
+              card={card} 
+              onClick={() => onCardClick(card)} 
+              onDelete={() => onDeleteCard(card.id)}
+              clientName={card.client_id ? clientsMap[card.client_id] : undefined}
+              memberName={card.assigned_to ? membersMap[card.assigned_to] : undefined}
+            />
           ))}
         </SortableContext>
       </div>
@@ -389,7 +552,26 @@ const KanbanColumn = ({ column, cards, onCardClick, onDeleteColumn, onAddCard }:
   );
 };
 
-const KanbanCard = ({ card, onClick }: { card: Card, onClick: () => void }) => {
+const priorityConfig = {
+  low: { label: 'Baixa', color: 'bg-blue-500/20 text-blue-400' },
+  medium: { label: 'Média', color: 'bg-yellow-500/20 text-yellow-400' },
+  high: { label: 'Alta', color: 'bg-orange-500/20 text-orange-400' },
+  urgent: { label: 'Urgente', color: 'bg-red-500/20 text-red-400' }
+};
+
+const KanbanCard = ({ 
+  card, 
+  onClick,
+  onDelete,
+  clientName,
+  memberName
+}: { 
+  card: Card, 
+  onClick: () => void,
+  onDelete: () => void,
+  clientName?: string,
+  memberName?: string
+}) => {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: card.id });
   
   const style = {
@@ -397,6 +579,8 @@ const KanbanCard = ({ card, onClick }: { card: Card, onClick: () => void }) => {
     transition,
     opacity: isDragging ? 0.5 : 1,
   };
+
+  const priorityInfo = priorityConfig[card.priority] || priorityConfig['medium'];
 
   return (
     <div 
@@ -408,51 +592,96 @@ const KanbanCard = ({ card, onClick }: { card: Card, onClick: () => void }) => {
       className={`bg-[#1a1a2e] p-4 rounded-xl border group hover:border-primary/50 transition-all cursor-grab active:cursor-grabbing shadow-lg ${card.is_blocked ? 'border-red-500/30 bg-red-500/5' : 'border-white/10'}`}
     >
       {/* Tags e Bloqueio */}
-      <div className="flex justify-between items-start mb-2">
-        <div className="flex justify-between items-start mb-2">
-          <span className={`text-[10px] px-2 py-0.5 rounded font-bold uppercase ${
-            card.priority === 'urgent' ? 'bg-red-500 text-white' : 
-            card.priority === 'high' ? 'bg-orange-500 text-white' : 
-            'bg-gray-700 text-gray-300'
-          }`}>
-            {card.priority}
+      <div className="flex justify-between items-start mb-3">
+        <div className="flex items-center gap-2">
+          <span className={`text-[10px] px-2 py-0.5 rounded font-bold uppercase ${priorityInfo.color}`}>
+            {priorityInfo.label}
           </span>
-          {card.is_blocked && <Lock size={14} className="text-red-400" />}
-          
-          {/* Menu de Ações do Card */}
-          <div 
-            className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
-            onPointerDown={(e) => e.stopPropagation()} // Impede que o clique inicie o drag
-          >
-            <div className="relative group/menu">
-              <button className="text-gray-400 hover:text-white p-1 bg-[#1a1a2e] rounded-full">
-                <MoreHorizontal size={16} />
-              </button>
-              <div className="absolute right-0 top-full mt-1 w-32 bg-[#1a1a2e] border border-white/10 rounded-lg shadow-xl overflow-hidden z-20 opacity-0 invisible group-hover/menu:opacity-100 group-hover/menu:visible transition-all">
-                <div className="p-1">
-                  <button className="w-full text-left px-3 py-2 text-xs text-gray-300 hover:bg-white/5 rounded flex items-center gap-2" onClick={onClick}>
-                    <Filter size={12} /> Editar
-                  </button>
-                  <button className="w-full text-left px-3 py-2 text-xs text-red-400 hover:bg-red-500/10 rounded flex items-center gap-2">
-                    <Trash2 size={12} /> Excluir
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
+          {clientName && (
+              <span className="text-[10px] px-2 py-0.5 rounded font-bold uppercase bg-white/10 text-gray-400 max-w-[100px] truncate">
+                {clientName}
+              </span>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+            {card.is_blocked && <Lock size={14} className="text-red-400" />}
+            <button 
+                onClick={(e) => {
+                    e.stopPropagation();
+                    onDelete();
+                }}
+                className="text-gray-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity p-1"
+                title="Excluir Card"
+            >
+                <Trash2 size={14} />
+            </button>
         </div>
       </div>
 
-      <h4 className="text-white font-medium mb-3 line-clamp-2">{card.title}</h4>
+      <h4 className="text-white font-medium mb-3 line-clamp-2 text-sm">{card.title}</h4>
 
-      <div className="flex items-center justify-between text-gray-500 text-xs mt-3 pt-3 border-t border-white/5">
-        <div className="flex items-center gap-1">
-          <Calendar size={14} />
-          <span>{card.due_date ? new Date(card.due_date).toLocaleDateString('pt-BR') : 'S/ Data'}</span>
+      {card.tags && card.tags.length > 0 && (
+          <div className="flex flex-wrap gap-1 mb-3">
+              {card.tags.map(tag => (
+                  <span 
+                    key={tag.id} 
+                    className="text-[9px] px-1.5 py-0.5 rounded font-bold border border-white/10"
+                    style={{ backgroundColor: tag.color + '40', color: tag.color }}
+                  >
+                      {tag.name}
+                  </span>
+              ))}
+          </div>
+      )}
+
+      <div className="flex flex-col gap-2 pt-3 border-t border-white/5">
+        <div className="flex items-center justify-between text-xs text-gray-500">
+            <span className="flex items-center gap-1">
+                <Calendar size={12} />
+                Criação: {new Date(card.created_at).toLocaleDateString('pt-BR')}
+            </span>
         </div>
-        {/* Avatar (Mock) */}
-        <div className="w-6 h-6 rounded-full bg-indigo-500 flex items-center justify-center text-white font-bold text-[10px]">
-          A
+        
+        <div className="flex items-center justify-between text-xs">
+             <span className={`flex items-center gap-1 ${card.due_date ? 'text-gray-300' : 'text-gray-600'}`}>
+                <AlertCircle size={12} />
+                Prev: {card.due_date ? new Date(card.due_date).toLocaleDateString('pt-BR') : 'S/ Data'}
+            </span>
+
+            {/* Avatar (Mock ou Real) */}
+            {memberName ? (
+                <div className="flex items-center gap-1" title={memberName}>
+                    <div className="w-6 h-6 rounded-full bg-indigo-500 flex items-center justify-center text-white font-bold text-[10px]">
+                        {memberName.charAt(0).toUpperCase()}
+                    </div>
+                </div>
+            ) : (
+                <div className="w-6 h-6 rounded-full bg-white/5 flex items-center justify-center text-gray-500 border border-white/10" title="Sem responsável">
+                    <User size={12} />
+                </div>
+            )}
+        </div>
+      </div>
+      
+      {/* Menu de Ações do Card (Hover) */}
+      <div 
+        className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
+        onPointerDown={(e) => e.stopPropagation()} // Impede que o clique inicie o drag
+      >
+        <div className="relative group/menu">
+          <button className="text-gray-400 hover:text-white p-1 bg-[#1a1a2e] rounded-full shadow-sm border border-white/5">
+            <MoreHorizontal size={16} />
+          </button>
+          <div className="absolute right-0 top-full mt-1 w-32 bg-[#1a1a2e] border border-white/10 rounded-lg shadow-xl overflow-hidden z-20 opacity-0 invisible group-hover/menu:opacity-100 group-hover/menu:visible transition-all">
+            <div className="p-1">
+              <button className="w-full text-left px-3 py-2 text-xs text-gray-300 hover:bg-white/5 rounded flex items-center gap-2" onClick={onClick}>
+                <Filter size={12} /> Editar
+              </button>
+              <button className="w-full text-left px-3 py-2 text-xs text-red-400 hover:bg-red-500/10 rounded flex items-center gap-2">
+                <Trash2 size={12} /> Excluir
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     </div>
