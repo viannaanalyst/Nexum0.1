@@ -521,8 +521,16 @@ const Clientes = () => {
                       <div>
                         <label className="label">Instagram</label>
                         <div className="relative">
-                          <span className="absolute left-3 top-3 text-gray-500">@</span>
-                          <input type="text" className="input pl-8" value={formData.instagram} onChange={e => setFormData({...formData, instagram: e.target.value})} placeholder="usuario" />
+                          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <span className="text-white font-bold text-lg">@</span>
+                          </div>
+                          <input 
+                            type="text" 
+                            className="input !pl-8" 
+                            value={formData.instagram.replace('@', '')} 
+                            onChange={e => setFormData({...formData, instagram: e.target.value.replace('@', '')})} 
+                            placeholder="usuario" 
+                          />
                         </div>
                       </div>
                       <div className="col-span-2">

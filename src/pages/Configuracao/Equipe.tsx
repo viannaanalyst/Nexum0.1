@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { UserPlus, CheckCircle2, XCircle, Edit } from 'lucide-react';
 import { useCompany } from '../../context/CompanyContext';
 import { supabase } from '../../lib/supabase';
+import { IMaskInput } from 'react-imask';
 
 interface Member {
   id: string;
@@ -286,10 +287,11 @@ const Equipe = () => {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-400 mb-1">WhatsApp</label>
-                  <input 
+                  <IMaskInput
+                    mask="(00) 00000-0000"
                     type="tel" 
                     value={formData.whatsapp}
-                    onChange={e => setFormData({...formData, whatsapp: e.target.value})}
+                    onAccept={(value: string) => setFormData({...formData, whatsapp: value})}
                     className="w-full bg-black/20 border border-white/10 rounded-lg p-3 text-white focus:ring-2 focus:ring-primary outline-none" 
                     placeholder="(00) 00000-0000" 
                   />
