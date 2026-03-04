@@ -1,0 +1,78 @@
+
+/* Reset basic styles for FullCalendar inside our glass container */
+.fc {
+  height: 700px;
+  font-family: inherit;
+  --fc-border-color: rgba(255, 255, 255, 0.1);
+  --fc-today-bg-color: rgba(99, 102, 241, 0.1);
+  --fc-neutral-bg-color: transparent;
+  --fc-page-bg-color: transparent;
+  --fc-list-event-hover-bg-color: rgba(255, 255, 255, 0.05);
+}
+
+.fc-theme-standard td, 
+.fc-theme-standard th {
+  border-color: var(--fc-border-color);
+}
+
+.fc-toolbar-title {
+  color: white;
+  font-size: 1.5rem !important;
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+/* Buttons */
+.fc-button-primary {
+  background-color: rgba(255, 255, 255, 0.05) !important;
+  border-color: rgba(255, 255, 255, 0.1) !important;
+  color: #9ca3af !important;
+  transition: all 0.2s ease;
+  text-transform: capitalize;
+  font-weight: 500;
+}
+
+.fc-button-primary:hover {
+  background-color: rgba(255, 255, 255, 0.1) !important;
+  color: white !important;
+}
+
+.fc-button-primary:not(:disabled).fc-button-active, 
+.fc-button-primary:not(:disabled):active {
+  background-color: #6366f1 !important;
+  border-color: #6366f1 !important;
+  color: white !important;
+}
+
+.fc-button-primary:disabled {
+  background-color: rgba(255, 255, 255, 0.05) !important;
+  opacity: 0.5;
+}
+
+/* Day Numbers */
+.fc-daygrid-day-number {
+  color: #d1d5db;
+  text-decoration: none !important;
+  padding: 8px !important;
+}
+
+.fc-col-header-cell-cushion {
+  color: #9ca3af;
+  text-decoration: none !important;
+  text-transform: lowercase;
+}
+
+/* Events */
+.fc-event {
+  cursor: pointer;
+  padding: 2px 4px;
+}
+
+.fc-event-title {
+  font-weight: 500;
+}
+
+/* Today Highlight */
+.fc-day-today {
+  background-color: rgba(99, 102, 241, 0.05) !important;
+}
