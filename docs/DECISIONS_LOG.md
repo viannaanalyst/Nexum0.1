@@ -89,9 +89,9 @@ Toda decisão estrutural futura deve ser adicionada aqui antes ou imediatamente 
 ## DEC-010
 
 **Data:** 2025 (data exata não identificada)
-**Decisão:** Adotar Recharts para gráficos no módulo Financeiro
+**Decisão:** Adotar Recharts para gráficos no módulo Financeiro e Dashboard
 **Motivo:** Biblioteca React-native para gráficos com suporte a `ResponsiveContainer`, composição declarativa e integração simples com dados derivados de `useMemo`.
-**Impacto no sistema:** Usado exclusivamente em `src/pages/Financeiro/VisaoGeral.tsx`. Implementados: `BarChart` (fluxo de caixa) e `PieChart` (custos por categoria). Dados preparados via `useMemo` antes do render. O gráfico de fluxo de caixa anual possui dados zerados para todos os meses exceto o mês corrente (limitação declarada no código como placeholder).
+**Impacto no sistema:** Usado em `src/pages/Financeiro/VisaoGeral.tsx` e `src/pages/Atividades/index.tsx`.
 
 ---
 
@@ -119,6 +119,42 @@ Toda decisão estrutural futura deve ser adicionada aqui antes ou imediatamente 
 **Decisão:** Rota raiz `/` redireciona para `/atividades` como página inicial padrão
 **Motivo:** `/atividades` foi definida como a landing page principal após o login.
 **Impacto no sistema:** `<Route index element={<Navigate to="/atividades" replace />} />` em `App.tsx`. Alterar a página inicial exige modificar este redirect.
+
+---
+
+## DEC-014
+
+**Data:** 2025 (data exata não identificada)
+**Decisão:** Utilização da tabela `audit_logs` para rastreamento de produtividade e feed de atividades
+**Motivo:** Centralizar todos os eventos do sistema (criação, edição, movimentação de cards) em uma tabela única para facilitar a geração de métricas de produtividade e histórico.
+**Impacto no sistema:** Kanban e Modais agora inserem registros em `audit_logs` a cada ação relevante. O dashboard usa esses dados para calcular gráficos de desempenho.
+
+---
+
+## DEC-015
+
+**Data:** 2025 (data exata não identificada)
+**Decisão:** Implementação de `DashboardContext` para persistência de dados do Dashboard
+**Motivo:** Evitar recarregamento desnecessário e "flicker" de tela ao navegar entre abas, mantendo os dados do dashboard em cache na memória.
+**Impacto no sistema:** Novo provider em `App.tsx`. Componente `Atividades` agora consome dados do contexto em vez de buscar localmente.
+
+---
+
+## DEC-016
+
+**Data:** 2025 (data exata não identificada)
+**Decisão:** Criação do módulo "Cronograma" separado do Kanban
+**Motivo:** Separar a etapa de Planejamento Estratégico (Cronograma) da etapa de Execução (Kanban). Foco na geração de PDF e aprovação via WhatsApp/Email.
+**Impacto no sistema:** Novas tabelas `monthly_schedules` e `schedule_posts`. Nova rota `/organizador/cronograma`.
+
+---
+
+## DEC-017
+
+**Data:** 2025 (data exata não identificada)
+**Decisão:** Adoção de `jspdf` e `html2canvas` para geração de PDF client-side
+**Motivo:** Permitir a exportação do Cronograma em formato PDF multipágina diretamente pelo navegador, sem necessidade de backend de renderização.
+**Impacto no sistema:** Dependências adicionadas ao projeto. Lógica de renderização oculta/temporária para captura de canvas.
 
 ---
 

@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { CompanyProvider, useCompany } from './context/CompanyContext';
+import { DashboardProvider } from './context/DashboardContext';
 import Login from './pages/Login';
 import MainLayout from './layouts/MainLayout';
 import EmpresaConfig from './pages/Configuracao/Empresa';
@@ -81,8 +82,9 @@ function App() {
     <BrowserRouter>
       <AuthProvider>
         <CompanyProvider>
-          <Routes>
-            <Route path="/login" element={<Login />} />
+          <DashboardProvider>
+            <Routes>
+              <Route path="/login" element={<Login />} />
             <Route path="/trocar-senha" element={<TrocarSenha />} />
             
             <Route path="/super-admin" element={
@@ -127,8 +129,9 @@ function App() {
   
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
-        </CompanyProvider>
-      </AuthProvider>
+        </DashboardProvider>
+      </CompanyProvider>
+    </AuthProvider>
     </BrowserRouter>
   );
 }

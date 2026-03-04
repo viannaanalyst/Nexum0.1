@@ -33,10 +33,19 @@ const MainLayout = () => {
   const { selectedCompany, selectCompany } = useCompany();
   const location = useLocation();
   const navigate = useNavigate();
-  const [configOpen, setConfigOpen] = useState(true); // Open by default for now
-  const [financeiroOpen, setFinanceiroOpen] = useState(true);
-  const [organizadorOpen, setOrganizadorOpen] = useState(true);
+  
+  // Initialize closed by default, allow useEffect to open based on route
+  const [configOpen, setConfigOpen] = useState(false);
+  const [financeiroOpen, setFinanceiroOpen] = useState(false);
+  const [organizadorOpen, setOrganizadorOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+
+  // Auto-expand sidebar section based on current route
+  React.useEffect(() => {
+    if (location.pathname.includes('/configuracao')) setConfigOpen(true);
+    if (location.pathname.includes('/financeiro')) setFinanceiroOpen(true);
+    if (location.pathname.includes('/organizador')) setOrganizadorOpen(true);
+  }, [location.pathname]);
 
   const toggleConfig = () => setConfigOpen(!configOpen);
   const toggleFinanceiro = () => setFinanceiroOpen(!financeiroOpen);

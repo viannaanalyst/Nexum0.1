@@ -10,7 +10,7 @@ Sem SSR, sem API routes próprias.
 ```
 Browser
   └── React SPA (Vite)
-        ├── React Context (Auth, Company)
+        ├── React Context (Auth, Company, Dashboard)
         ├── React Router DOM (client-side routing)
         └── Supabase JS SDK (direto nos componentes)
               └── Supabase Cloud (PostgreSQL + Auth)
@@ -23,14 +23,14 @@ Browser
 | Camada | Responsabilidade | Onde está |
 |--------|-----------------|-----------|
 | UI | Renderização, estilos, interações | `src/pages/`, `src/layouts/` |
-| Estado global | Auth e empresa selecionada | `src/context/` |
+| Estado global | Auth, empresa selecionada, dashboard cache | `src/context/` |
 | Estado local | Dados de página, modais, formulários | `useState` dentro dos componentes |
 | Acesso a dados | Queries Supabase diretamente nos componentes | inline em cada `page/*.tsx` |
 | Configuração do client | Instância Supabase singleton | `src/lib/supabase.ts` |
 | Banco de dados | PostgreSQL gerenciado pelo Supabase | Supabase Cloud |
 
 Não existe camada de serviço ou repositório separada.
-Não existe cache local além do estado React em memória.
+Não existe cache local além do estado React em memória (e DashboardContext).
 
 ---
 
@@ -75,7 +75,7 @@ const { error } = await supabase.from('tabela').delete().eq('id', id);
 - **Variáveis de ambiente** — `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`
 
 Recursos **não identificados explicitamente** no código atual:
-- Row Level Security (RLS) — não configurável pelo frontend
+- Row Level Security (RLS) — configurado via migrações SQL
 - Realtime subscriptions
 - Storage
 - Edge Functions
@@ -158,12 +158,12 @@ BrowserRouter
   ├── /super-admin                    → SuperAdminDashboard (SuperAdminRoute)
   └── /                               → ProtectedRoute > MainLayout (Outlet)
         ├── index                     → redirect /atividades
-        ├── /atividades               → Atividades
+        ├── /atividades               → Atividades (Dashboard Pessoal)
         ├── /organizador              → redirect /organizador/kanban
         │     ├── /organizador/kanban     → OrganizadorKanban
         │     ├── /organizador/lista      → OrganizadorLista
-        │     ├── /organizador/atividades → OrganizadorAtividades
-        │     └── /organizador/cronograma → OrganizadorCronograma
+        │     ├── /organizador/atividades → OrganizadorAtividades (Feed de Auditoria)
+        │     └── /organizador/cronograma → OrganizadorCronograma (Planejamento Estratégico)
         ├── /calendario               → Calendario
         ├── /relatorios               → placeholder (Em construção)
         ├── /financeiro               → redirect /financeiro/visao-geral
@@ -225,13 +225,30 @@ interface CompanyContextType {
 - Recarrega empresas ao mudar `user`
 - Persiste `selectedCompanyId` no `localStorage`
 
+### DashboardContext
+
+```typescript
+// src/context/DashboardContext.tsx
+interface DashboardContextType {
+  metrics: DashboardMetrics;
+  priorityTasks: PriorityTask[];
+  productivityData: ProductivityData[];
+  // ... outros dados cacheados
+  refreshDashboard: () => Promise<void>;
+}
+```
+
+- Armazena métricas de produtividade para evitar re-fetch ao navegar entre abas.
+- Implementa estratégia de cache (5 minutos) ou atualização forçada.
+
 ### Hierarquia de providers
 
 ```
 <BrowserRouter>
   <AuthProvider>        ← auth + user
-    <CompanyProvider>   ← companies + selectedCompany (depende de AuthContext)
-      <Routes>
+    <CompanyProvider>   ← companies + selectedCompany
+      <DashboardProvider> ← métricas cacheadas
+        <Routes>
 ```
 
 ---
@@ -283,6 +300,7 @@ const sensors = useSensors(
 3. Bloqueia drop em `is_done_column` se card `is_blocked === true`
 4. Atualiza estado local via `arrayMove`
 5. Persiste `column_id` no Supabase via `update`
+6. Registra ação em `audit_logs` (move)
 
 **`DragOverlay`:** renderiza preview visual do card durante o drag.
 
@@ -292,25 +310,37 @@ const sensors = useSensors(
 
 ## Integração: Recharts
 
-**Localização:** `src/pages/Financeiro/VisaoGeral.tsx`
+**Localização:** 
+- `src/pages/Financeiro/VisaoGeral.tsx`
+- `src/pages/Atividades/index.tsx`
 
 **Componentes utilizados:**
-- `BarChart` + `Bar` — fluxo de caixa (receita vs despesa por mês)
-- `PieChart` + `Pie` + `Cell` — custos por categoria
-- `ResponsiveContainer` — responsividade automática
+- `BarChart`, `PieChart`, `AreaChart`
+- `ResponsiveContainer` — responsividade automática (wrapper customizado adicionado para evitar erros de resize)
 - `XAxis`, `YAxis`, `CartesianGrid`, `Tooltip`, `Legend`
 
 **Padrão de dados:**
 ```typescript
 // Dados preparados via useMemo antes de passar para os gráficos
 const cashFlowData = useMemo(() => [...], [stats, month]);
-const categoryData = useMemo(() => [...], [filteredTransactions]);
 ```
 
 **Estilo:** Tooltip com background `#1f2937`, sem bordas, cor branca — integrado ao tema dark.
 
-**Limitação identificada:** `cashFlowData` popula apenas o mês corrente; os demais meses ficam com valores zerados (placeholder declarado no código).
+---
 
+## Integração: jsPDF + html2canvas
+
+**Localização:** `src/pages/Organizador/Cronograma.tsx`
+
+**Objetivo:** Gerar PDF de planejamento estratégico mensal.
+
+**Lógica:**
+1. Renderiza componentes invisíveis (ou em aba separada) com dimensões fixas (A4 Landscape).
+2. `html2canvas` captura cada componente como imagem.
+3. `jsPDF` monta o documento multipágina.
+
+---
 
 # 🔒 Regras Arquiteturais Imutáveis
 
@@ -343,7 +373,7 @@ const categoryData = useMemo(() => [...], [filteredTransactions]);
 Este projeto possui contrato estrutural fixo.
 
 1. Cada página é responsável por:
-   - Buscar seus próprios dados
+   - Buscar seus próprios dados (ou usar Contexto específico como DashboardContext)
    - Gerenciar seu próprio estado local
    - Executar CRUD diretamente
 

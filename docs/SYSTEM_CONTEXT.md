@@ -15,7 +15,10 @@ RBAC com 4 papéis: `SUPER ADMIN`, `admin`, `editor`, `visualizador`.
 O sistema contém exclusivamente os seguintes módulos:
 
 - Login / Troca de senha
-- Kanban (Organizador)
+- Dashboard de Produtividade (`/atividades`)
+- Kanban (Organizador - Execução)
+- Feed de Atividades (Organizador - Auditoria)
+- Cronograma (Organizador - Planejamento)
 - Calendário
 - Financeiro
 - Clientes
@@ -41,6 +44,8 @@ O sistema contém exclusivamente os seguintes módulos:
 | Recharts | 3.7.0 | Gráficos |
 | Lucide React | 0.576.0 | Ícones |
 | react-imask | 7.6.1 | Máscaras |
+| jspdf | * | Geração de PDF |
+| html2canvas | * | Captura de tela para PDF |
 
 ⚠️ Não substituir bibliotecas sem justificativa técnica formal.
 
@@ -53,7 +58,8 @@ src/
 ├── assets/
 ├── context/
 │ ├── AuthContext.tsx
-│ └── CompanyContext.tsx
+│ ├── CompanyContext.tsx
+│ └── DashboardContext.tsx
 ├── layouts/
 │ └── MainLayout.tsx
 ├── lib/
@@ -94,7 +100,7 @@ src/
 
 ## State Management
 
-- Global: React Context API (`useAuth`, `useCompany`)
+- Global: React Context API (`useAuth`, `useCompany`, `useDashboard`)
 - Local: `useState` + `useEffect`
 - Empresa persistida via `localStorage`
 - Não utilizar Redux, Zustand ou outra lib externa
@@ -174,6 +180,9 @@ src/
 - kanban_attachments
 - transactions
 - clients
+- audit_logs (Novo: Log de atividades e produtividade)
+- monthly_schedules (Novo: Planejamento estratégico)
+- schedule_posts (Novo: Posts do cronograma)
 
 ---
 

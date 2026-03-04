@@ -5,6 +5,7 @@ import {
   CheckCircle, AlertCircle, Lock, Copy 
 } from 'lucide-react';
 import { useCompany } from '../../../context/CompanyContext';
+import { useAuth } from '../../../context/AuthContext';
 import { supabase } from '../../../lib/supabase';
 import { IMaskInput } from 'react-imask';
 import './styles.css';
@@ -53,6 +54,7 @@ interface Log {
 
 const Clientes = () => {
   const { selectedCompany } = useCompany();
+  const { user } = useAuth();
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -137,19 +139,47 @@ const Clientes = () => {
 
   const fetchClients = async () => {
     try {
-      if (!selectedCompany) return;
+      if (!selectedCompany || !user) return;
+      
+      let clientIdsToFetch: string[] | null = null;
+
+      // Check permissions
+      // Assuming 'admin' and 'SUPER ADMIN' roles see everything.
+      // 'editor' and 'visualizador' only see assigned clients.
+      const isUserAdmin = user.role === 'admin' || user.role === 'SUPER ADMIN' || user.is_super_admin;
+
+      if (!isUserAdmin) {
+          const { data: myAllocations } = await supabase
+              .from('client_team')
+              .select('client_id')
+              .eq('user_id', user.id);
+          
+          if (myAllocations && myAllocations.length > 0) {
+              clientIdsToFetch = myAllocations.map(a => a.client_id);
+          } else {
+              // User has no clients assigned
+              setClients([]);
+              return;
+          }
+      }
       
       // Fetch clients
-      const { data: clientsData, error: clientsError } = await supabase
+      let query = supabase
         .from('clients')
         .select('*')
         .eq('company_id', selectedCompany.id)
         .order('name');
         
+      if (clientIdsToFetch !== null) {
+          query = query.in('id', clientIdsToFetch);
+      }
+
+      const { data: clientsData, error: clientsError } = await query;
+        
       if (clientsError) throw clientsError;
       
       if (clientsData) {
-        // Fetch team members for these clients
+        // Fetch team members for these clients (UI Logic)
         const clientIds = clientsData.map(c => c.id);
         const { data: teamData, error: teamError } = await supabase
             .from('client_team')

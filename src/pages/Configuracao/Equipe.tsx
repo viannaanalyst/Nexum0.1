@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { UserPlus, CheckCircle2, XCircle } from 'lucide-react';
+import { UserPlus, CheckCircle2, XCircle, Edit } from 'lucide-react';
 import { useCompany } from '../../context/CompanyContext';
 import { supabase } from '../../lib/supabase';
 
@@ -8,6 +8,7 @@ interface Member {
   user_id: string;
   role: 'admin' | 'editor' | 'visualizador';
   is_approver: boolean;
+  status: 'active' | 'inactive' | 'invited';
   profiles: {
     full_name: string;
     email: string;
@@ -19,6 +20,7 @@ const Equipe = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(false);
+  const [editingMember, setEditingMember] = useState<Member | null>(null);
   
   // Form State
   const [formData, setFormData] = useState({
@@ -27,7 +29,8 @@ const Equipe = () => {
     password: '',
     whatsapp: '',
     role: 'visualizador',
-    is_approver: false
+    is_approver: false,
+    status: true // true = active, false = inactive
   });
 
   useEffect(() => {
@@ -46,7 +49,8 @@ const Equipe = () => {
           id,
           user_id,
           role,
-          is_approver
+          is_approver,
+          status
         `)
         .eq('company_id', selectedCompany.id);
 
@@ -76,47 +80,79 @@ const Equipe = () => {
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
+  const handleEdit = (member: Member) => {
+    setEditingMember(member);
+    setFormData({
+        name: member.profiles?.full_name || '',
+        email: member.profiles?.email || '',
+        password: '',
+        whatsapp: '',
+        role: member.role,
+        is_approver: member.is_approver,
+        status: member.status === 'active'
+    });
+    setIsModalOpen(true);
+  };
 
-    try {
-      // NOTE: Creating a user with a specific password requires the Supabase Admin API
-      // We will use the Edge Function 'create-user' that you have deployed.
-      
-      const { data: userData, error: userError } = await supabase.functions.invoke('create-user', {
-        body: {
-          email: formData.email,
-          password: formData.password,
-          name: formData.name,
-          whatsapp: formData.whatsapp,
-          company_id: selectedCompany?.id,
-          role: formData.role,
-          is_approver: formData.is_approver
-        }
-      });
-
-      if (userError) {
-         // Try to parse if it's a known error
-         throw userError;
-      }
-      
-      // If success
-      alert('Usuário convidado com sucesso!');
-      
+  const closeModal = () => {
       setIsModalOpen(false);
+      setEditingMember(null);
       setFormData({
         name: '',
         email: '',
         password: '',
         whatsapp: '',
         role: 'visualizador',
-        is_approver: false
+        is_approver: false,
+        status: true
       });
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+
+    try {
+      if (editingMember) {
+          // Edit Mode - Update permissions in organization_members
+          const { error } = await supabase
+            .from('organization_members')
+            .update({
+                role: formData.role,
+                is_approver: formData.is_approver,
+                status: formData.status ? 'active' : 'inactive'
+            })
+            .eq('id', editingMember.id);
+
+          if (error) throw error;
+          alert('Membro atualizado com sucesso!');
+      } else {
+          // Create Mode (Invite)
+          // NOTE: Creating a user with a specific password requires the Supabase Admin API
+          // We will use the Edge Function 'create-user' that you have deployed.
+          
+          const { data: userData, error: userError } = await supabase.functions.invoke('create-user', {
+            body: {
+              email: formData.email,
+              password: formData.password,
+              name: formData.name,
+              whatsapp: formData.whatsapp,
+              company_id: selectedCompany?.id,
+              role: formData.role,
+              is_approver: formData.is_approver,
+              status: formData.status ? 'active' : 'inactive'
+            }
+          });
+
+          if (userError) throw userError;
+          alert('Usuário convidado com sucesso!');
+      }
+      
+      closeModal();
       fetchMembers(); // Refresh list
     } catch (error) {
-      console.error('Error creating member:', error);
-      alert('Erro ao convidar membro.');
+      console.error('Error saving member:', error);
+      alert('Erro ao salvar membro.');
     } finally {
       setLoading(false);
     }
@@ -164,8 +200,9 @@ const Equipe = () => {
                 <tr key={member.id} className="hover:bg-white/5 transition-colors group">
                   <td className="px-6 py-4">
                     <div className="flex items-center space-x-3">
-                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center text-primary font-bold border border-primary/20">
+                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center text-primary font-bold border border-primary/20 relative">
                         {member.profiles?.full_name?.charAt(0) || '?'}
+                        <div className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-[#0f0f1a] ${member.status === 'active' ? 'bg-green-500' : 'bg-red-500'}`}></div>
                       </div>
                       <div>
                         <div className="text-white font-medium">{member.profiles?.full_name || 'Sem nome'}</div>
@@ -182,7 +219,13 @@ const Equipe = () => {
                     )}
                   </td>
                   <td className="px-6 py-4 text-right">
-                    <button className="text-gray-500 hover:text-white transition-colors">Editar</button>
+                    <button 
+                        onClick={() => handleEdit(member)}
+                        className="p-2 text-gray-500 hover:text-primary hover:bg-primary/10 rounded-lg transition-all"
+                        title="Editar Membro"
+                    >
+                        <Edit size={18} />
+                    </button>
                   </td>
                 </tr>
               ))
@@ -195,7 +238,9 @@ const Equipe = () => {
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
           <div className="glass-card w-full max-w-lg p-8 rounded-2xl border border-white/10 relative">
-            <h2 className="text-2xl font-bold text-white mb-6">Convidar Novo Membro</h2>
+            <h2 className="text-2xl font-bold text-white mb-6">
+                {editingMember ? 'Editar Membro' : 'Convidar Novo Membro'}
+            </h2>
             
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
@@ -205,9 +250,10 @@ const Equipe = () => {
                     type="text" 
                     value={formData.name}
                     onChange={e => setFormData({...formData, name: e.target.value})}
-                    className="w-full bg-black/20 border border-white/10 rounded-lg p-3 text-white focus:ring-2 focus:ring-primary outline-none" 
+                    className="w-full bg-black/20 border border-white/10 rounded-lg p-3 text-white focus:ring-2 focus:ring-primary outline-none disabled:opacity-50" 
                     placeholder="Ex: João Silva" 
                     required
+                    disabled={!!editingMember} // Name editing restricted for now
                   />
                 </div>
                 
@@ -217,23 +263,26 @@ const Equipe = () => {
                     type="email" 
                     value={formData.email}
                     onChange={e => setFormData({...formData, email: e.target.value})}
-                    className="w-full bg-black/20 border border-white/10 rounded-lg p-3 text-white focus:ring-2 focus:ring-primary outline-none" 
+                    className="w-full bg-black/20 border border-white/10 rounded-lg p-3 text-white focus:ring-2 focus:ring-primary outline-none disabled:opacity-50" 
                     placeholder="joao@email.com" 
                     required
+                    disabled={!!editingMember} // Email editing restricted
                   />
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-400 mb-1">Senha Temporária</label>
-                  <input 
-                    type="password" 
-                    value={formData.password}
-                    onChange={e => setFormData({...formData, password: e.target.value})}
-                    className="w-full bg-black/20 border border-white/10 rounded-lg p-3 text-white focus:ring-2 focus:ring-primary outline-none" 
-                    placeholder="••••••••" 
-                    required
-                  />
-                </div>
+                {!editingMember && (
+                    <div>
+                    <label className="block text-sm font-medium text-gray-400 mb-1">Senha Temporária</label>
+                    <input 
+                        type="password" 
+                        value={formData.password}
+                        onChange={e => setFormData({...formData, password: e.target.value})}
+                        className="w-full bg-black/20 border border-white/10 rounded-lg p-3 text-white focus:ring-2 focus:ring-primary outline-none" 
+                        placeholder="••••••••" 
+                        required
+                    />
+                    </div>
+                )}
 
                 <div>
                   <label className="block text-sm font-medium text-gray-400 mb-1">WhatsApp</label>
@@ -260,26 +309,44 @@ const Equipe = () => {
                 </div>
               </div>
 
-              <div className="flex items-center justify-between p-4 bg-white/5 rounded-xl border border-white/5 mt-4">
-                <div className="flex flex-col">
-                  <span className="text-sm font-medium text-white">É Aprovador?</span>
-                  <span className="text-xs text-gray-500">Pode aprovar solicitações financeiras</span>
-                </div>
-                <label className="relative inline-flex items-center cursor-pointer">
-                  <input 
-                    type="checkbox" 
-                    checked={formData.is_approver}
-                    onChange={e => setFormData({...formData, is_approver: e.target.checked})}
-                    className="sr-only peer" 
-                  />
-                  <div className="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
-                </label>
+              <div className="grid grid-cols-2 gap-4 bg-white/5 p-4 rounded-xl border border-white/5 mt-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex flex-col">
+                      <span className="text-sm font-medium text-white">É Aprovador?</span>
+                      <span className="text-xs text-gray-500">Pode aprovar solicitações</span>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input 
+                        type="checkbox" 
+                        checked={formData.is_approver}
+                        onChange={e => setFormData({...formData, is_approver: e.target.checked})}
+                        className="sr-only peer" 
+                      />
+                      <div className="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+                    </label>
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <div className="flex flex-col">
+                      <span className="text-sm font-medium text-white">Status</span>
+                      <span className="text-xs text-gray-500">{formData.status ? 'Ativo (Acesso Liberado)' : 'Inativo (Bloqueado)'}</span>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input 
+                        type="checkbox" 
+                        checked={formData.status}
+                        onChange={e => setFormData({...formData, status: e.target.checked})}
+                        className="sr-only peer" 
+                      />
+                      <div className="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-500"></div>
+                    </label>
+                  </div>
               </div>
 
               <div className="flex space-x-4 mt-8 pt-4">
-                <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 py-3 bg-white/5 hover:bg-white/10 text-white rounded-lg transition-colors">Cancelar</button>
+                <button type="button" onClick={closeModal} className="flex-1 py-3 bg-white/5 hover:bg-white/10 text-white rounded-lg transition-colors">Cancelar</button>
                 <button type="submit" disabled={loading} className="flex-1 py-3 bg-primary hover:bg-secondary text-white rounded-lg shadow-lg shadow-primary/20 transition-all font-bold">
-                  {loading ? 'Enviando...' : 'Enviar Convite'}
+                  {loading ? 'Salvando...' : (editingMember ? 'Salvar Alterações' : 'Enviar Convite')}
                 </button>
               </div>
             </form>

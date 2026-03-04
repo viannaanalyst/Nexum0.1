@@ -194,6 +194,19 @@ const OrganizadorKanban = () => {
       });
       
       if (error) throw error;
+
+      // Audit Log
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        await supabase.from('audit_logs').insert({
+          company_id: selectedCompany.id,
+          user_id: user.id,
+          action_type: 'create',
+          entity_type: 'column',
+          entity_id: null,
+          details: { title: newColumnTitle }
+        });
+      }
       
       setNewColumnTitle('');
       setIsNewColumnModalOpen(false);
@@ -234,9 +247,25 @@ const OrganizadorKanban = () => {
   const handleDeleteColumn = async (columnId: string) => {
     if (!confirm('Tem certeza? Todos os cards desta coluna serão apagados.')) return;
 
+    const colToDelete = columns.find(c => c.id === columnId);
+
     try {
       const { error } = await supabase.from('kanban_columns').delete().eq('id', columnId);
       if (error) throw error;
+
+      // Audit Log
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user && selectedCompany) {
+        await supabase.from('audit_logs').insert({
+          company_id: selectedCompany.id,
+          user_id: user.id,
+          action_type: 'delete',
+          entity_type: 'column',
+          entity_id: columnId,
+          details: { title: colToDelete?.title }
+        });
+      }
+
       fetchKanbanData();
     } catch (error) {
       console.error('Error deleting column:', error);
@@ -250,9 +279,29 @@ const OrganizadorKanban = () => {
 
   const handleDeleteCard = async (cardId: string) => {
     if (!confirm('Tem certeza que deseja excluir este card?')) return;
+    
+    const cardToDelete = cards.find(c => c.id === cardId);
+
     try {
         const { error } = await supabase.from('kanban_cards').delete().eq('id', cardId);
         if (error) throw error;
+
+        // Audit Log
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user && selectedCompany && cardToDelete) {
+          await supabase.from('audit_logs').insert({
+            company_id: selectedCompany.id,
+            user_id: user.id,
+            action_type: 'delete',
+            entity_type: 'card',
+            entity_id: cardId,
+            details: { 
+              card_title: cardToDelete.title,
+              column_title: columns.find(c => c.id === cardToDelete.column_id)?.title 
+            }
+          });
+        }
+
         setCards(cards.filter(c => c.id !== cardId));
     } catch (error) {
         console.error('Error deleting card:', error);
@@ -340,6 +389,27 @@ const OrganizadorKanban = () => {
       .from('kanban_cards')
       .update({ column_id: overColumnId })
       .eq('id', activeId);
+
+    // Audit Log
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user && selectedCompany) {
+      const fromColumn = columns.find(c => c.id === activeCard.column_id)?.title;
+      const toColumn = columns.find(c => c.id === overColumnId)?.title;
+      
+      await supabase.from('audit_logs').insert({
+        company_id: selectedCompany.id,
+        user_id: user.id,
+        action_type: 'move',
+        entity_type: 'card',
+        entity_id: activeId,
+        details: {
+          card_title: activeCard.title,
+          from: fromColumn,
+          to: toColumn,
+          column_title: toColumn
+        }
+      });
+    }
   };
 
   // Custom Collision Detection Strategy

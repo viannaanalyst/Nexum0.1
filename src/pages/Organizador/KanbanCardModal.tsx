@@ -344,6 +344,29 @@ const KanbanCardModal = ({ cardId, columnId, onClose }: KanbanCardModalProps) =>
     }
   };
 
+  // Helper for Audit Logs
+  const createAuditLog = async (action: string, entityType: string, entityId: string, details: any) => {
+    if (!selectedCompany) return;
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    try {
+      await supabase.from('audit_logs').insert({
+        company_id: selectedCompany.id,
+        user_id: user.id,
+        action_type: action,
+        entity_type: entityType,
+        entity_id: entityId,
+        details: {
+          ...details,
+          card_title: title // Use current title state
+        }
+      });
+    } catch (e) {
+      console.error('Error creating audit log:', e);
+    }
+  };
+
   const handleSave = async () => {
     if (!selectedCompany) return;
     setSaving(true);
@@ -369,6 +392,9 @@ const KanbanCardModal = ({ cardId, columnId, onClose }: KanbanCardModalProps) =>
         const { data, error } = await supabase.from('kanban_cards').insert(cardData).select('id').single();
         if (error) throw error;
         finalCardId = data.id;
+        
+        // Audit Log: Create
+        await createAuditLog('create', 'card', finalCardId, { column_id: columnId });
       } else {
         const { error } = await supabase
           .from('kanban_cards')
@@ -384,6 +410,13 @@ const KanbanCardModal = ({ cardId, columnId, onClose }: KanbanCardModalProps) =>
               const newUser = members.find(m => m.id === assignedTo)?.name || 'Ninguém';
               const { data: { user } } = await supabase.auth.getUser();
               await createSystemLog(finalCardId, `Alterou o responsável de "${oldUser}" para "${newUser}".`, user?.id);
+              
+              // Audit Log
+              await createAuditLog('update', 'card', finalCardId, { 
+                  field: 'assigned_to', 
+                  from: oldUser, 
+                  to: newUser 
+              });
           }
 
           if (dueDate !== originalDueDate) {
@@ -391,6 +424,13 @@ const KanbanCardModal = ({ cardId, columnId, onClose }: KanbanCardModalProps) =>
               const newDate = dueDate ? new Date(dueDate).toLocaleDateString('pt-BR') : 'Não definida';
               const { data: { user } } = await supabase.auth.getUser();
               await createSystemLog(finalCardId, `Alterou a data de entrega de "${oldDate}" para "${newDate}".`, user?.id);
+              
+              // Audit Log
+              await createAuditLog('update', 'card', finalCardId, { 
+                  field: 'due_date', 
+                  from: oldDate, 
+                  to: newDate 
+              });
           }
       }
 
@@ -551,6 +591,12 @@ const KanbanCardModal = ({ cardId, columnId, onClose }: KanbanCardModalProps) =>
       setChecklist(checklist.map(item => 
         item.id === itemId ? { ...item, is_completed: !currentStatus } : item
       ));
+
+      // Audit Log for Approval
+      if (needsApproval && !currentStatus) {
+           const itemDesc = checklist.find(i => i.id === itemId)?.description || 'item';
+           await createAuditLog('approve', 'card', cardId, { status: 'approved', checklist_item: itemDesc });
+      }
     } catch (error) {
       console.error('Error toggling checklist:', error);
     }
@@ -598,8 +644,10 @@ const KanbanCardModal = ({ cardId, columnId, onClose }: KanbanCardModalProps) =>
         if (status) {
             const approverName = members.find(m => m.id === approverId)?.name || 'um gestor';
             await createSystemLog(cardId, `Solicitou aprovação de "${approverName}" para o item: "${itemDesc}".`, user?.id);
+            await createAuditLog('approve', 'card', cardId, { status: 'requested', checklist_item: itemDesc, approver: approverName });
         } else {
             await createSystemLog(cardId, `Removeu a solicitação de aprovação do item: "${itemDesc}".`, user?.id);
+            await createAuditLog('approve', 'card', cardId, { status: 'removed', checklist_item: itemDesc });
         }
 
       } catch (error) {
@@ -724,6 +772,9 @@ const KanbanCardModal = ({ cardId, columnId, onClose }: KanbanCardModalProps) =>
       
       setComments([...comments, commentWithUser]);
       setNewComment('');
+
+      // Audit Log
+      await createAuditLog('comment', 'card', cardId, { content: newComment });
     } catch (error) {
       console.error('Error adding comment:', error);
     }
@@ -799,6 +850,7 @@ const KanbanCardModal = ({ cardId, columnId, onClose }: KanbanCardModalProps) =>
             if (dbError) throw dbError;
             setFiles([data, ...files]);
             await createSystemLog(cardId, `Anexou o arquivo: ${file.name}`, user.id);
+            await createAuditLog('update', 'card', cardId, { action: 'file_upload', file_name: file.name });
         }
 
     } catch (error) {
@@ -852,6 +904,7 @@ const KanbanCardModal = ({ cardId, columnId, onClose }: KanbanCardModalProps) =>
         // 5. System Log
         const { data: { user } } = await supabase.auth.getUser();
         await createSystemLog(cardId, `Excluiu o arquivo: ${fileName}`, user?.id);
+        await createAuditLog('delete', 'file', cardId, { file_name: fileName }); // Using cardId as entity_id or fileId? Using cardId but marking file details.
 
     } catch (error) {
         console.error('Error deleting file:', error);

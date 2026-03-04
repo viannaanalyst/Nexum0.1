@@ -52,34 +52,59 @@ export const CompanyProvider = ({ children }: { children: ReactNode }) => {
   const fetchCompanies = async (savedCompanyId?: string | null) => {
     try {
       setLoading(true);
-      const { data, error } = await supabase
-        .from('companies')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
+      
+      let data: Company[] = [];
+      
+      if (user?.is_super_admin) {
+          const { data: allCompanies, error } = await supabase
+            .from('companies')
+            .select('*')
+            .order('created_at', { ascending: false });
+          if (error) throw error;
+          data = allCompanies as Company[];
+      } else {
+          // For normal users, fetch only companies where they are an ACTIVE member
+          // Using !inner join to filter companies by member status
+          const { data: myCompanies, error } = await supabase
+            .from('companies')
+            .select('*, organization_members!inner(user_id, status)')
+            .eq('organization_members.user_id', user.id)
+            .eq('organization_members.status', 'active')
+            .order('created_at', { ascending: false });
+            
+          if (error) throw error;
+          // Clean up the data to remove the organization_members nested object from the result type if needed, 
+          // but casting to Company[] usually ignores extra props unless strict.
+          data = myCompanies?.map(c => {
+              const { organization_members, ...rest } = c as any;
+              return rest as Company;
+          }) || [];
+      }
 
       if (data) {
-        setCompanies(data as Company[]);
+        setCompanies(data);
         
         let companyToSelect: Company | undefined;
 
         // 1. Try to select from localStorage
         if (savedCompanyId) {
-            companyToSelect = (data as Company[]).find(c => c.id === savedCompanyId);
+            companyToSelect = data.find(c => c.id === savedCompanyId);
         }
 
-        // 2. If no saved company (or invalid), and not super admin, select first available
+        // 2. If no saved company (or invalid/inactive), and not super admin, select first available
         if (!companyToSelect && !user?.is_super_admin && data.length > 0) {
-            companyToSelect = data[0] as Company;
+            companyToSelect = data[0];
         }
 
-        // 3. If super admin and no saved company, we don't select any by default (they stay in dashboard)
-        // But if they HAD a saved company, we restore it.
+        // 3. If super admin and no saved company, we don't select any by default
         
         if (companyToSelect) {
            setSelectedCompany(companyToSelect);
            localStorage.setItem('selectedCompanyId', companyToSelect.id);
+        } else if (!user?.is_super_admin && data.length === 0) {
+            // User has no active companies
+            setSelectedCompany(null);
+            localStorage.removeItem('selectedCompanyId');
         }
       }
     } catch (error) {
