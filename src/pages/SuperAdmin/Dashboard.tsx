@@ -3,6 +3,7 @@ import { Plus, Building2, ExternalLink, LogOut } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useCompany, type Company } from '../../context/CompanyContext';
 import { useNavigate } from 'react-router-dom';
+import { IMaskInput } from 'react-imask';
 
 const SuperAdminDashboard = () => {
   const { user, logout } = useAuth();
@@ -12,9 +13,7 @@ const SuperAdminDashboard = () => {
   const [newCompany, setNewCompany] = useState<Partial<Company>>({
     name: '',
     cnpj: '',
-    email: '',
     whatsapp: '',
-    plan: 'basic',
   });
 
   const handleCreateCompany = (e: React.FormEvent) => {
@@ -22,7 +21,7 @@ const SuperAdminDashboard = () => {
     if (newCompany.name && newCompany.cnpj) {
       addCompany(newCompany as Company);
       setIsModalOpen(false);
-      setNewCompany({ name: '', cnpj: '', email: '', whatsapp: '', plan: 'basic' });
+      setNewCompany({ name: '', cnpj: '', whatsapp: '' });
     }
   };
 
@@ -97,10 +96,6 @@ const SuperAdminDashboard = () => {
                   <span className="w-20">CNPJ:</span> 
                   <span className="text-gray-300">{company.cnpj}</span>
                 </p>
-                <p className="text-sm text-gray-400 flex items-center">
-                  <span className="w-20">Plano:</span> 
-                  <span className="text-primary capitalize">{company.plan}</span>
-                </p>
               </div>
 
               <button
@@ -135,37 +130,27 @@ const SuperAdminDashboard = () => {
               
               <div>
                 <label className="block text-sm font-medium text-gray-400 mb-1">CNPJ</label>
-                <input
+                <IMaskInput
+                  mask="00.000.000/0000-00"
                   type="text"
                   required
                   value={newCompany.cnpj}
-                  onChange={e => setNewCompany({...newCompany, cnpj: e.target.value})}
+                  onAccept={(value: string) => setNewCompany({...newCompany, cnpj: value})}
                   className="w-full bg-black/20 border border-white/10 rounded-lg p-3 text-white focus:outline-none focus:ring-2 focus:ring-primary"
+                  placeholder="00.000.000/0000-00"
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                 <div>
-                    <label className="block text-sm font-medium text-gray-400 mb-1">Email</label>
-                    <input
-                      type="email"
-                      value={newCompany.email}
-                      onChange={e => setNewCompany({...newCompany, email: e.target.value})}
-                      className="w-full bg-black/20 border border-white/10 rounded-lg p-3 text-white focus:outline-none focus:ring-2 focus:ring-primary"
-                    />
-                 </div>
-                 <div>
-                    <label className="block text-sm font-medium text-gray-400 mb-1">Plano</label>
-                    <select
-                      value={newCompany.plan}
-                      onChange={e => setNewCompany({...newCompany, plan: e.target.value as any})}
-                      className="w-full bg-black/20 border border-white/10 rounded-lg p-3 text-white focus:outline-none focus:ring-2 focus:ring-primary"
-                    >
-                      <option value="basic">Basic</option>
-                      <option value="pro">Pro</option>
-                      <option value="enterprise">Enterprise</option>
-                    </select>
-                 </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-400 mb-1">WhatsApp</label>
+                <IMaskInput
+                    mask="(00) 00000-0000"
+                    type="text"
+                    value={newCompany.whatsapp}
+                    onAccept={(value: string) => setNewCompany({...newCompany, whatsapp: value})}
+                    className="w-full bg-black/20 border border-white/10 rounded-lg p-3 text-white focus:outline-none focus:ring-2 focus:ring-primary"
+                    placeholder="(00) 00000-0000"
+                />
               </div>
 
               <div className="flex space-x-4 mt-8 pt-4">
