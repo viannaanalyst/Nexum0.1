@@ -10,6 +10,7 @@ export interface User {
   name: string;
   role: UserRole; // This will be the "current" role or "SUPER ADMIN"
   is_super_admin: boolean;
+  avatar_url?: string;
   must_change_password?: boolean;
 }
 
@@ -17,6 +18,7 @@ interface AuthContextType {
   user: User | null;
   login: (email: string, password: string) => Promise<boolean>;
   logout: () => Promise<void>;
+  refreshUser: () => Promise<void>;
   isAuthenticated: boolean;
   loading: boolean;
 }
@@ -69,6 +71,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       let role: UserRole = isSuperAdmin ? 'SUPER ADMIN' : 'visualizador'; // Default to visualizador if not found
       let name = profile?.full_name || session.user.user_metadata?.full_name || session.user.email;
       const mustChangePassword = session.user.user_metadata?.must_change_password || false;
+      const avatarUrl = profile?.avatar_url;
 
       // 2. If not Super Admin, try to fetch a membership role (just to populate the initial state)
       // The CompanyContext will handle the specific company role later.
@@ -91,6 +94,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         name,
         role,
         is_super_admin: isSuperAdmin,
+        avatar_url: avatarUrl,
         must_change_password: mustChangePassword,
       });
     } catch (error) {
@@ -118,8 +122,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setUser(null);
   };
 
+  const refreshUser = async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session) {
+      await fetchProfile(session);
+    }
+  };
+
   return (
-    <AuthContext.Provider value={{ user, login, logout, isAuthenticated: !!user, loading }}>
+    <AuthContext.Provider value={{ user, login, logout, refreshUser, isAuthenticated: !!user, loading }}>
       {!loading && children}
     </AuthContext.Provider>
   );
