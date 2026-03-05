@@ -45,6 +45,7 @@ const KanbanCardModal = ({ cardId, columnId, onClose }: KanbanCardModalProps) =>
   const [clientId, setClientId] = useState(''); 
   
   const [checklist, setChecklist] = useState<any[]>([]);
+  const [checklistTitle, setChecklistTitle] = useState('Checklist Principal'); // New State for Checklist Title
   const [comments, setComments] = useState<any[]>([]);
   const [files, setFiles] = useState<any[]>([]);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
@@ -236,13 +237,15 @@ const KanbanCardModal = ({ cardId, columnId, onClose }: KanbanCardModalProps) =>
         // 2. Get profile details
         const { data: profilesData } = await supabase
           .from('profiles')
-          .select('id, full_name, email')
+          .select('id, full_name, email, avatar_url')
           .in('id', userIds);
 
         if (profilesData) {
           setMembers(profilesData.map(p => ({
             id: p.id,
-            name: p.full_name || p.email || 'Sem nome'
+            name: p.full_name || p.email || 'Sem nome',
+            email: p.email,
+            avatar_url: p.avatar_url
           })));
         }
       } else {
@@ -293,7 +296,7 @@ const KanbanCardModal = ({ cardId, columnId, onClose }: KanbanCardModalProps) =>
         .from('kanban_comments')
         .select('*')
         .eq('card_id', cardId)
-        .order('created_at', { ascending: true });
+        .order('created_at', { ascending: false });
 
       if (commentError) throw commentError;
 
@@ -306,7 +309,7 @@ const KanbanCardModal = ({ cardId, columnId, onClose }: KanbanCardModalProps) =>
           if (userIds.length > 0) {
               const { data: profiles } = await supabase
                 .from('profiles')
-                .select('id, email, full_name')
+                .select('id, email, full_name, avatar_url')
                 .in('id', userIds);
                 
               if (profiles) {
@@ -1131,17 +1134,39 @@ const KanbanCardModal = ({ cardId, columnId, onClose }: KanbanCardModalProps) =>
       </div>
 
       {/* 2. Container Glass Premium */}
-      <div className="relative z-10 w-full max-w-[1400px] h-[90vh] flex rounded-[22px] overflow-hidden shadow-2xl animate-in zoom-in-95 duration-300 border border-white/10 bg-[#0a0a1a]/95 backdrop-blur-xl">
+      <div className="relative z-10 w-full max-w-[1600px] h-[90vh] flex rounded-[22px] overflow-hidden shadow-2xl animate-in zoom-in-95 duration-300 border border-white/10 bg-[#0a0a1a]/90 backdrop-blur-xl">
         
         {/* Glow Effects */}
         <div className="absolute inset-0 rounded-[22px] border border-white/5 pointer-events-none"></div>
         
+        {/* Glow Roxo no Topo (Estilo Equipe) */}
+        <div className="absolute top-[-50px] left-1/2 -translate-x-1/2 w-[80%] h-[100px] bg-primary/30 blur-[80px] pointer-events-none rounded-[100%] z-0"></div>
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-1/3 h-[1px] bg-gradient-to-r from-transparent via-primary/50 to-transparent shadow-[0_0_20px_2px_rgba(99,102,241,0.4)] z-0"></div>
+        
         {/* ================= ESQUERDA: CONTEÚDO PRINCIPAL (70%) ================= */}
-        <div className="flex-1 flex flex-col border-r border-white/5 overflow-hidden relative z-20 bg-[#0a0a1a]/50">
-            
-            {/* Header: Título e Status */}
-            <div className="p-6 border-b border-white/5 flex justify-between items-start shrink-0">
-                <div className="flex-1 mr-8">
+         <div className="flex-1 flex flex-col border-r border-white/5 overflow-hidden relative z-20 bg-transparent">
+             
+             {/* Ações de Topo (Flutuantes) */}
+            <div className="absolute top-6 right-6 z-50 flex gap-2">
+                {userRole !== 'visualizador' && (
+                    <button 
+                        onClick={handleSave}
+                        disabled={saving}
+                        className="bg-primary hover:bg-primary/80 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 shadow-lg shadow-primary/20"
+                    >
+                        {saving ? 'Salvando...' : 'Salvar Alterações'}
+                    </button>
+                )}
+                <button onClick={onClose} className="p-2 hover:bg-white/5 rounded-lg text-gray-500 hover:text-white transition-colors">
+                    <X size={20} />
+                </button>
+            </div>
+
+            {/* Corpo Unificado Scrollável */}
+            <div className="flex-1 overflow-y-auto p-8 custom-scrollbar space-y-8">
+                
+                {/* Cabeçalho (Agora parte do fluxo) */}
+                <div className="pr-32"> {/* Padding right para não sobrepor botões */}
                     {/* Breadcrumbs / ID */}
                     <div className="flex items-center gap-3 mb-3">
                         <span className="text-[10px] bg-white/[0.05] border border-white/5 text-gray-400 px-2 py-0.5 rounded-full font-mono tracking-wider">
@@ -1158,33 +1183,13 @@ const KanbanCardModal = ({ cardId, columnId, onClose }: KanbanCardModalProps) =>
 
                     {/* Título Grande */}
                     <input 
-                        className="text-3xl font-semibold text-white/90 bg-transparent border-none focus:outline-none w-full placeholder:text-gray-600/50 leading-tight"
+                        className="text-4xl font-bold text-white bg-transparent border-none focus:outline-none w-full placeholder:text-gray-600/50 leading-tight tracking-tight"
                         value={title}
                         onChange={e => setTitle(e.target.value)}
                         placeholder="Título da Tarefa"
                         disabled={userRole === 'visualizador'}
                     />
                 </div>
-
-                {/* Ações de Topo */}
-                <div className="flex gap-2">
-                    {userRole !== 'visualizador' && (
-                        <button 
-                            onClick={handleSave}
-                            disabled={saving}
-                            className="bg-primary hover:bg-primary/80 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 shadow-lg shadow-primary/20"
-                        >
-                            {saving ? 'Salvando...' : 'Salvar Alterações'}
-                        </button>
-                    )}
-                    <button onClick={onClose} className="p-2 hover:bg-white/5 rounded-lg text-gray-500 hover:text-white transition-colors">
-                        <X size={20} />
-                    </button>
-                </div>
-            </div>
-
-            {/* Corpo Scrollável */}
-            <div className="flex-1 overflow-y-auto p-8 custom-scrollbar space-y-8">
                 
                 {/* 1. Propriedades (Lista Estilo ClickUp) */}
                 <div className="grid grid-cols-2 gap-x-12 gap-y-1">
@@ -1645,7 +1650,7 @@ const KanbanCardModal = ({ cardId, columnId, onClose }: KanbanCardModalProps) =>
                             <h3 className="text-sm font-bold uppercase tracking-wide">Descrição</h3>
                         </div>
                         <textarea
-                            className="w-full min-h-[60px] bg-transparent text-gray-300 resize-y focus:outline-none placeholder:text-gray-700 leading-relaxed text-sm font-light border border-transparent focus:border-white/10 rounded-xl p-3 transition-all hover:bg-white/[0.01]"
+                            className="w-full min-h-[60px] bg-white/[0.02] hover:bg-white/[0.04] text-gray-300 resize-y focus:outline-none placeholder:text-gray-600 leading-relaxed text-sm font-light border border-white/5 focus:border-primary/20 rounded-xl p-4 transition-all focus:bg-white/[0.05] focus:shadow-[0_0_15px_-3px_rgba(99,102,241,0.1)]"
                             placeholder="Clique para adicionar uma descrição detalhada..."
                             value={description}
                             onChange={(e) => setDescription(e.target.value)}
@@ -1657,10 +1662,24 @@ const KanbanCardModal = ({ cardId, columnId, onClose }: KanbanCardModalProps) =>
                 <div className="space-y-2">
                     {/* Cabeçalho e Filtros */}
                     <div className="flex items-center justify-between pb-2 mb-2">
-                         <div className="flex items-center gap-2 text-gray-400">
-                            <GitBranch size={16} />
-                            <h3 className="text-sm font-bold uppercase tracking-wide">Subtarefas</h3>
-                            <span className="text-xs text-gray-600 bg-white/5 px-2 py-0.5 rounded-full">{subtasks.length}</span>
+                         <div className="flex items-center gap-4">
+                            <div className="flex items-center gap-2 text-white">
+                                <GitBranch size={16} />
+                                <h3 className="text-sm font-bold uppercase tracking-wide">Subtarefas</h3>
+                            </div>
+                            
+                            {/* Barra de Progresso Subtarefas (Igual Checklist) */}
+                            <div className="flex items-center gap-2">
+                                <div className="h-1.5 w-16 bg-white/10 rounded-full overflow-hidden">
+                                    <div 
+                                        className="h-full bg-blue-500 rounded-full transition-all duration-500"
+                                        style={{ width: `${subtasks.length > 0 ? (subtasks.filter(t => t.column_id && columnsMap[t.column_id]?.toLowerCase() === 'concluído').length / subtasks.length) * 100 : 0}%` }}
+                                    ></div>
+                                </div>
+                                <span className="text-xs text-blue-500 font-medium">
+                                    {subtasks.filter(t => t.column_id && columnsMap[t.column_id]?.toLowerCase() === 'concluído').length}/{subtasks.length}
+                                </span>
+                            </div>
                         </div>
                         <div className="flex gap-4">
                              <button className="text-xs font-medium text-gray-500 hover:text-white transition-colors flex items-center gap-1">
@@ -1672,23 +1691,29 @@ const KanbanCardModal = ({ cardId, columnId, onClose }: KanbanCardModalProps) =>
                         </div>
                     </div>
 
-                    <div className="bg-[#0f0f1a]/50 rounded-xl border border-white/5 overflow-hidden">
-                        {/* Tabela Header */}
-                        <div className="grid grid-cols-[1fr_80px_80px_100px_40px] gap-2 px-4 py-3 border-b border-white/5 text-[10px] font-bold text-gray-500 uppercase tracking-wider bg-white/[0.02]">
-                            <div>Nome</div>
-                            <div className="text-center">Responsável</div>
-                            <div className="text-center">Prioridade</div>
-                             <div className="text-right">Data entrega</div>
+                    <div className="rounded-xl border border-white/5 overflow-hidden">
+                        {/* Tabela Header - ClickUp Style Minimal */}
+                        <div className="grid grid-cols-[1fr_100px_100px_140px_40px] gap-4 px-4 py-2 text-[11px] font-medium text-gray-500 bg-[#0a0a1a]/40 border-b border-white/5">
+                            <div className="pl-8">Nome</div> {/* pl-8 para alinhar com o texto da task, pulando o ícone de status */}
+                            <div className="text-left">Responsável</div>
+                            <div className="text-left">Prioridade</div>
+                             <div className="text-left">Data de vencimento</div>
                              <div></div>
                          </div>
 
-                        {/* Lista */}
+                        {/* Lista - ClickUp Style */}
                         <div className="divide-y divide-white/5">
                             {subtasks.map(task => (
-                                <div key={task.id} className="group grid grid-cols-[1fr_80px_80px_100px_40px] gap-2 items-center px-4 py-3 hover:bg-[#151525] transition-all relative">
-                                    {/* Nome */}
+                                <div key={task.id} className="group grid grid-cols-[1fr_100px_100px_140px_40px] gap-4 items-center px-4 py-2 hover:bg-white/[0.02] transition-colors relative text-sm">
+                                    {/* Nome e Status */}
                                     <div className="flex items-center gap-3 min-w-0">
-                                        <div className="relative">
+                                        {/* Expand/Collapse Placeholder (futuro) */}
+                                        <div className="w-4 flex justify-center text-gray-600">
+                                            <div className="w-1 h-1 rounded-full bg-gray-600"></div>
+                                        </div>
+
+                                        {/* Status Circle Button */}
+                                        <div className="relative shrink-0">
                                             <button 
                                                 onClick={() => {
                                                     if (userRole === 'visualizador') return;
@@ -1698,15 +1723,13 @@ const KanbanCardModal = ({ cardId, columnId, onClose }: KanbanCardModalProps) =>
                                                     setShowSubtaskPrioritySelect(null);
                                                     setShowSubtaskDateSelect(null);
                                                 }}
-                                                className="shrink-0 hover:opacity-80 transition-opacity"
+                                                className="w-4 h-4 rounded-full border border-gray-600 hover:border-gray-400 flex items-center justify-center transition-colors"
+                                                style={{ borderColor: task.column_id ? columns.find(c => c.id === task.column_id)?.color : '#4b5563' }}
                                             >
-                                                 {/* Status Icon */}
-                                                 <div className="p-0.5 rounded-full border border-gray-600/50 hover:border-gray-400 transition-colors">
-                                                     <div 
-                                                        className="w-2 h-2 rounded-full"
-                                                        style={{ backgroundColor: task.column_id ? (columns.find(c => c.id === task.column_id)?.color) : 'transparent' }}
-                                                     />
-                                                 </div>
+                                                <div 
+                                                    className="w-2 h-2 rounded-full"
+                                                    style={{ backgroundColor: task.column_id ? (columns.find(c => c.id === task.column_id)?.color) : 'transparent' }}
+                                                />
                                             </button>
 
                                             {/* Popover Status Subtarefa */}
@@ -1730,13 +1753,13 @@ const KanbanCardModal = ({ cardId, columnId, onClose }: KanbanCardModalProps) =>
                                             )}
                                         </div>
 
-                                        <span className="text-sm text-gray-300 group-hover:text-white truncate transition-colors cursor-pointer font-medium">
+                                        <span className="text-gray-300 group-hover:text-white truncate transition-colors cursor-pointer font-normal">
                                             {task.title}
                                         </span>
                                     </div>
 
-                                    {/* Responsável */}
-                                    <div className="flex justify-center relative">
+                                    {/* Responsável - ClickUp Style (Icon + Plus) */}
+                                    <div className="flex justify-start relative pl-2">
                                         <button 
                                             onClick={() => {
                                                 if (userRole === 'visualizador') return;
@@ -1745,19 +1768,23 @@ const KanbanCardModal = ({ cardId, columnId, onClose }: KanbanCardModalProps) =>
                                                 setShowSubtaskPrioritySelect(null);
                                                 setShowSubtaskDateSelect(null);
                                             }}
-                                            className={`w-6 h-6 rounded-full flex items-center justify-center transition-all ${task.assigned_to ? 'bg-primary/20 text-primary border border-primary/30 ring-2 ring-[#0a0a1a]' : 'border border-dashed border-gray-600 text-gray-600 hover:border-gray-400 hover:text-gray-400 opacity-0 group-hover:opacity-100'}`}
+                                            className="group/member flex items-center"
                                             title={task.assigned_to ? members.find(m => m.id === task.assigned_to)?.name : 'Atribuir responsável'}
                                         >
                                             {task.assigned_to ? (
-                                                <span className="text-[10px] font-bold">{members.find(m => m.id === task.assigned_to)?.name?.charAt(0) || 'U'}</span>
+                                                <div className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center text-[10px] font-bold text-primary shrink-0 border border-primary/30 ring-2 ring-[#0a0a1a]">
+                                                    {members.find(m => m.id === task.assigned_to)?.name?.charAt(0) || 'U'}
+                                                </div>
                                             ) : (
-                                                <IconUser size={12} />
+                                                <div className="w-6 h-6 rounded-full border border-dashed border-gray-700 flex items-center justify-center text-gray-500 hover:text-gray-300 hover:border-gray-500 transition-colors">
+                                                    <IconUser size={12} />
+                                                </div>
                                             )}
                                         </button>
 
                                         {/* Popover Responsável Subtarefa */}
                                         {showSubtaskMemberSelect === task.id && (
-                                            <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-48 bg-[#1a1a2e] border border-white/10 rounded-xl shadow-xl z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+                                            <div className="absolute top-full left-0 mt-2 w-48 bg-[#1a1a2e] border border-white/10 rounded-xl shadow-xl z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
                                                 <div className="max-h-40 overflow-y-auto custom-scrollbar p-1">
                                                     {members.map(m => (
                                                         <button
@@ -1779,8 +1806,8 @@ const KanbanCardModal = ({ cardId, columnId, onClose }: KanbanCardModalProps) =>
                                         )}
                                     </div>
 
-                                    {/* Prioridade */}
-                                    <div className="flex justify-center relative">
+                                    {/* Prioridade - ClickUp Style (Flag Icon Only) */}
+                                    <div className="flex justify-start relative pl-2">
                                          <button
                                             onClick={() => {
                                                 if (userRole === 'visualizador') return;
@@ -1789,18 +1816,19 @@ const KanbanCardModal = ({ cardId, columnId, onClose }: KanbanCardModalProps) =>
                                                 setShowSubtaskMemberSelect(null);
                                                 setShowSubtaskDateSelect(null);
                                             }}
-                                            className="hover:bg-white/5 p-1 rounded transition-colors"
+                                            className="hover:bg-white/5 p-1.5 rounded transition-colors"
                                          >
                                             <IconFlag 
-                                                size={14} 
-                                                className={`${task.priority === 'urgent' ? 'text-red-500' : task.priority === 'high' ? 'text-orange-500' : task.priority === 'medium' ? 'text-blue-500' : 'text-gray-600'} ${!task.priority || task.priority === 'low' ? 'opacity-50 group-hover:opacity-100' : ''} transition-opacity`}
+                                                size={16} 
+                                                className={`${task.priority === 'urgent' ? 'text-red-500' : task.priority === 'high' ? 'text-orange-500' : task.priority === 'medium' ? 'text-blue-500' : 'text-gray-600'} transition-colors`}
                                                 fill={task.priority && task.priority !== 'low' ? "currentColor" : "none"}
+                                                stroke={1.5}
                                             />
                                          </button>
 
                                          {/* Popover Prioridade Subtarefa */}
                                          {showSubtaskPrioritySelect === task.id && (
-                                            <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-32 bg-[#1a1a2e] border border-white/10 rounded-xl shadow-xl z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-200 p-1">
+                                            <div className="absolute top-full left-0 mt-2 w-32 bg-[#1a1a2e] border border-white/10 rounded-xl shadow-xl z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-200 p-1">
                                                 {[
                                                     { value: 'urgent', label: 'Urgente', text: 'text-red-500' },
                                                     { value: 'high', label: 'Alta', text: 'text-orange-500' },
@@ -1823,11 +1851,11 @@ const KanbanCardModal = ({ cardId, columnId, onClose }: KanbanCardModalProps) =>
                                          )}
                                     </div>
 
-                                    {/* Data */}
-                                    <div className="text-right text-xs text-gray-500 group-hover:text-gray-400 transition-colors relative flex justify-end">
-                                        <div className="relative min-w-[60px] h-6 flex items-center justify-end">
+                                    {/* Data - ClickUp Style (Text only) */}
+                                    <div className="text-left text-xs relative flex justify-start pl-2">
+                                        <div className="relative min-w-[60px] h-6 flex items-center">
                                             <span 
-                                                className={`cursor-pointer hover:text-white transition-colors ${!task.due_date ? 'opacity-0 group-hover:opacity-50' : ''}`}
+                                                className={`cursor-pointer hover:text-white transition-colors ${!task.due_date ? 'text-gray-600 hover:text-gray-400' : 'text-gray-300'}`}
                                             >
                                                 {task.due_date ? new Date(task.due_date + 'T12:00:00').toLocaleDateString('pt-BR').slice(0,5) : '-'}
                                             </span>
@@ -1842,22 +1870,23 @@ const KanbanCardModal = ({ cardId, columnId, onClose }: KanbanCardModalProps) =>
                                         </div>
                                     </div>
 
-                                    {/* Ações */}
+                                    {/* Ações (More Icon) */}
                                     <div className="flex justify-end opacity-0 group-hover:opacity-100 transition-opacity">
-                                         <button onClick={() => handleUnlinkSubtask(task.id)} className="text-gray-600 hover:text-red-400 transition-colors p-1 hover:bg-white/5 rounded">
+                                         <button onClick={() => handleUnlinkSubtask(task.id)} className="text-gray-600 hover:text-red-400 transition-colors p-1.5 hover:bg-white/5 rounded">
                                             <Trash2 size={14} />
                                          </button>
                                     </div>
                                 </div>
                             ))}
 
-                            {/* New Task Input Inline */}
+                            {/* New Task Input Inline - ClickUp Style */}
                             {userRole !== 'visualizador' && (
-                                <div className="flex items-center gap-3 px-4 py-3 text-gray-500 hover:text-gray-300 transition-colors cursor-text group bg-white/[0.01] hover:bg-white/[0.03]" onClick={() => document.getElementById('new-subtask-input')?.focus()}>
-                                    <Plus size={16} className="text-gray-600 group-hover:text-primary transition-colors" />
+                                <div className="flex items-center gap-3 px-4 py-2 text-gray-500 hover:text-gray-300 transition-colors cursor-text group hover:bg-white/[0.02]" onClick={() => document.getElementById('new-subtask-input')?.focus()}>
+                                    <div className="w-4 flex justify-center opacity-0"><div className="w-1 h-1 rounded-full bg-gray-600"></div></div> {/* Spacer */}
+                                    <Plus size={14} className="text-gray-600 group-hover:text-primary transition-colors shrink-0" />
                                     <input 
                                         id="new-subtask-input"
-                                        className="bg-transparent text-sm focus:outline-none w-full placeholder:text-gray-600 text-gray-300"
+                                        className="bg-transparent text-sm focus:outline-none w-full placeholder:text-gray-600 text-gray-300 h-6"
                                         placeholder="Adicionar nova subtarefa..."
                                         onKeyDown={(e) => {
                                             if (e.key === 'Enter') {
@@ -1872,65 +1901,131 @@ const KanbanCardModal = ({ cardId, columnId, onClose }: KanbanCardModalProps) =>
                     </div>
                 </div>
 
-                {/* 4. Checklist */}
+                {/* 4. Checklists (ClickUp Style) */}
                 <div className="space-y-4">
+                     {/* Header Geral da Seção */}
                      <div className="flex items-center justify-between">
-                         <div className="flex items-center gap-2 text-gray-400">
-                            <CheckSquare size={16} />
-                            <h3 className="text-sm font-bold uppercase tracking-wide">Checklist ({checklist.filter(i => i.is_completed).length}/{checklist.length})</h3>
+                         <div className="flex items-center gap-4">
+                            <h3 className="text-sm font-bold uppercase tracking-wide text-white">Checklists</h3>
+                            {/* Barra de Progresso Global (Pill Style) */}
+                            <div className="flex items-center gap-2">
+                                <div className="h-1.5 w-16 bg-white/10 rounded-full overflow-hidden">
+                                    <div 
+                                        className="h-full bg-emerald-500 rounded-full transition-all duration-500"
+                                        style={{ width: `${checklist.length > 0 ? (checklist.filter(i => i.is_completed).length / checklist.length) * 100 : 0}%` }}
+                                    ></div>
+                                </div>
+                                <span className="text-xs text-emerald-500 font-medium">
+                                    {checklist.filter(i => i.is_completed).length}/{checklist.length}
+                                </span>
+                            </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <button className="p-1.5 rounded hover:bg-white/10 text-gray-400 hover:text-white transition-colors">
+                                <IconPlayerPlay size={14} className="rotate-90" /> {/* Expand All Icon Placeholder */}
+                            </button>
+                            <button className="p-1.5 rounded hover:bg-white/10 text-gray-400 hover:text-white transition-colors">
+                                <Plus size={16} />
+                            </button>
                         </div>
                     </div>
 
-                    <div className="space-y-2">
-                        {/* Progress Bar */}
-                        {checklist.length > 0 && (
-                            <div className="w-full bg-white/5 rounded-full h-1 overflow-hidden mb-4">
-                                <div 
-                                    className="bg-emerald-500 h-1 rounded-full transition-all duration-500"
-                                    style={{ width: `${(checklist.filter(i => i.is_completed).length / checklist.length) * 100}%` }}
-                                ></div>
-                            </div>
-                        )}
-
-                        {checklist.map(item => (
-                             <div key={item.id} className="flex items-start gap-3 p-2 hover:bg-white/5 rounded-lg group transition-colors">
-                                <button 
-                                     onClick={() => handleToggleChecklist(item.id, item.is_completed, item.needs_approval, item.approver_id)}
-                                     disabled={item.needs_approval && !item.is_completed && (item.approver_id ? item.approver_id !== currentUserId : !currentUserApprover)}
-                                     className={`mt-0.5 w-4 h-4 rounded border flex items-center justify-center transition-all 
-                                        ${item.is_completed 
-                                            ? 'bg-emerald-500 border-emerald-500 text-white' 
-                                            : 'border-white/20 hover:border-emerald-500'
-                                        }`}
-                                >
-                                    {item.is_completed && <CheckSquare size={10} />}
-                                </button>
-                                <span className={`text-sm flex-1 ${item.is_completed ? 'text-gray-500 line-through' : 'text-gray-300'}`}>
-                                    {item.description}
-                                </span>
-                                
-                                {/* Ações do Item */}
-                                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                    <button onClick={() => handleToggleApprovalReq(item.id, item.needs_approval)} className={`p-1 rounded hover:bg-white/10 ${item.needs_approval ? 'text-yellow-500' : 'text-gray-500'}`} title="Aprovação">
-                                        <Lock size={12} />
-                                    </button>
-                                    <button onClick={() => handleDeleteChecklist(item.id)} className="p-1 rounded hover:bg-white/10 text-gray-500 hover:text-red-400" title="Excluir">
-                                        <Trash2 size={12} />
-                                    </button>
-                                </div>
-                             </div>
-                        ))}
-
-                        {userRole !== 'visualizador' && (
-                            <div className="flex items-center gap-2 p-2 opacity-60 hover:opacity-100 transition-opacity">
-                                <Plus size={16} className="text-gray-500" />
+                    {/* Card do Checklist "Principal" (Simulando um bloco) */}
+                    <div className="border border-white/10 rounded-xl overflow-hidden shadow-sm">
+                        
+                        {/* Header do Bloco */}
+                        <div className="px-4 py-3 flex items-center justify-between group cursor-pointer hover:bg-white/[0.02] transition-colors">
+                            <div className="flex items-center gap-3 flex-1">
                                 <input 
-                                    value={newChecklistItem}
-                                    onChange={(e) => setNewChecklistItem(e.target.value)}
-                                    onKeyDown={(e) => e.key === 'Enter' && handleAddChecklistItem()}
-                                    className="bg-transparent text-sm text-white focus:outline-none w-full placeholder:text-gray-600"
-                                    placeholder="Adicionar item ao checklist..."
+                                    className="text-sm font-bold text-white bg-transparent border-none focus:outline-none w-full placeholder:text-gray-500 hover:text-gray-200 transition-colors"
+                                    value={checklistTitle}
+                                    onChange={(e) => setChecklistTitle(e.target.value)}
+                                    placeholder="Nome do Checklist"
+                                    disabled={userRole === 'visualizador'}
                                 />
+                                <span className="text-xs text-gray-500 font-medium shrink-0">
+                                    {checklist.filter(i => i.is_completed).length} de {checklist.length}
+                                </span>
+                            </div>
+                        </div>
+
+                        {/* Lista de Itens Pendentes */}
+                        <div className="px-2 pb-2">
+                            {checklist.filter(i => !i.is_completed).map(item => (
+                                 <div key={item.id} className="group flex items-start gap-3 px-3 py-2 hover:bg-white/[0.04] rounded-lg transition-colors relative text-sm group/item">
+                                    <button 
+                                         onClick={() => handleToggleChecklist(item.id, item.is_completed, item.needs_approval, item.approver_id)}
+                                         disabled={item.needs_approval && (item.approver_id ? item.approver_id !== currentUserId : !currentUserApprover)}
+                                         className="mt-0.5 w-4 h-4 rounded border border-gray-600 hover:border-gray-400 bg-transparent flex items-center justify-center transition-all shrink-0"
+                                    >
+                                    </button>
+                                    
+                                    <span className="flex-1 text-gray-300 group-hover/item:text-white transition-colors font-normal leading-relaxed break-words">
+                                        {item.description}
+                                    </span>
+                                    
+                                    {/* Ações do Item */}
+                                    <div className="flex items-center gap-1">
+                                        <button onClick={() => handleToggleApprovalReq(item.id, item.needs_approval)} className={`p-1.5 rounded hover:bg-white/10 ${item.needs_approval ? 'text-yellow-500' : 'text-gray-600 hover:text-yellow-400'}`} title="Aprovação">
+                                            <Lock size={14} />
+                                        </button>
+                                        <button onClick={() => handleDeleteChecklist(item.id)} className="p-1.5 rounded hover:bg-white/10 text-gray-600 hover:text-red-400" title="Excluir">
+                                            <Trash2 size={14} />
+                                        </button>
+                                    </div>
+                                 </div>
+                            ))}
+
+                            {/* Input de Adicionar Item (Estilo Botão Texto) */}
+                            {userRole !== 'visualizador' && (
+                                <div className="px-3 py-2 mt-1">
+                                    <div className="flex items-center gap-2 text-gray-500 hover:text-gray-300 transition-colors cursor-pointer group" onClick={() => document.getElementById('new-checklist-input')?.focus()}>
+                                        <Plus size={14} className="group-hover:text-primary transition-colors" />
+                                        <input 
+                                            id="new-checklist-input"
+                                            value={newChecklistItem}
+                                            onChange={(e) => setNewChecklistItem(e.target.value)}
+                                            onKeyDown={(e) => e.key === 'Enter' && handleAddChecklistItem()}
+                                            className="bg-transparent text-sm focus:outline-none w-full placeholder:text-gray-500 text-gray-300 h-6 font-medium"
+                                            placeholder="Adicionar item"
+                                        />
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Seção de Concluídos (Accordion) */}
+                        {checklist.filter(i => i.is_completed).length > 0 && (
+                            <div className="border-t border-white/5">
+                                <details className="group/details">
+                                    <summary className="px-4 py-2 flex items-center gap-2 cursor-pointer hover:bg-white/[0.02] transition-colors list-none text-xs font-medium text-gray-500 select-none">
+                                        <ChevronDown size={12} className="transition-transform group-open/details:rotate-180" />
+                                        <span>Mostrar {checklist.filter(i => i.is_completed).length} concluído(s)</span>
+                                    </summary>
+                                    
+                                    <div className="px-2 pb-2 pt-1 animate-in slide-in-from-top-2 duration-200">
+                                        {checklist.filter(i => i.is_completed).map(item => (
+                                            <div key={item.id} className="group flex items-start gap-3 px-3 py-2 hover:bg-white/[0.04] rounded-lg transition-colors relative text-sm opacity-60 hover:opacity-100">
+                                                <button 
+                                                    onClick={() => handleToggleChecklist(item.id, item.is_completed, item.needs_approval, item.approver_id)}
+                                                    className="mt-0.5 w-4 h-4 rounded border border-emerald-500 bg-emerald-500 text-white flex items-center justify-center transition-all shrink-0"
+                                                >
+                                                    <CheckSquare size={10} strokeWidth={3} />
+                                                </button>
+                                                
+                                                <span className="flex-1 text-gray-500 line-through transition-colors font-normal leading-relaxed break-words">
+                                                    {item.description}
+                                                </span>
+                                                
+                                                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                    <button onClick={() => handleDeleteChecklist(item.id)} className="p-1.5 rounded hover:bg-white/10 text-gray-600 hover:text-red-400" title="Excluir">
+                                                        <Trash2 size={14} />
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </details>
                             </div>
                         )}
                     </div>
@@ -1979,31 +2074,41 @@ const KanbanCardModal = ({ cardId, columnId, onClose }: KanbanCardModalProps) =>
             </div>
 
             {/* Feed Scrollável */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar bg-[#050510]/50">
+            <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar bg-[#050510]/50 flex flex-col-reverse">
                 {comments.length === 0 ? (
                     <div className="text-center py-10 opacity-30">
                         <MessageSquare size={32} className="mx-auto mb-2" />
                         <p className="text-xs">Nenhuma atividade registrada.</p>
                     </div>
                 ) : (
-                    comments.map(comment => (
-                        <div key={comment.id} className={`flex gap-3 ${comment.is_system_log ? 'opacity-50' : ''}`}>
-                             <div className={`w-6 h-6 rounded-lg flex items-center justify-center text-[10px] font-bold shrink-0 ${comment.is_system_log ? 'bg-white/5 text-gray-400' : 'bg-primary/20 text-primary'}`}>
-                                {comment.is_system_log ? <Info size={12} /> : (comment.user?.email?.[0]?.toUpperCase() || 'U')}
+                    comments.map(comment => {
+                        const hasUser = !!comment.user_id;
+                        const userAvatar = comment.user?.avatar_url;
+                        const userInitial = (comment.user?.email?.[0] || comment.user?.full_name?.[0] || 'S').toUpperCase();
+                        const userName = comment.user_id ? (comment.user?.email || 'Usuário') : 'Sistema';
+                        
+                        return (
+                        <div key={comment.id} className={`flex gap-3 ${comment.is_system_log ? 'opacity-70' : ''}`}>
+                             <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 overflow-hidden border border-white/10 ${hasUser ? 'bg-primary/20 text-primary' : 'bg-white/5 text-gray-400'}`}>
+                                {userAvatar ? (
+                                    <img src={userAvatar} alt={userName} className="w-full h-full object-cover" />
+                                ) : (
+                                    hasUser ? userInitial : <Info size={14} />
+                                )}
                             </div>
                             <div className="flex-1 min-w-0">
                                 <div className="flex justify-between items-baseline mb-0.5">
-                                    <span className={`text-xs font-bold ${comment.is_system_log ? 'text-gray-500' : 'text-gray-300'}`}>
-                                        {comment.user_id ? (comment.user?.email || 'Usuário') : 'Sistema'}
+                                    <span className={`text-xs font-bold ${comment.is_system_log ? 'text-gray-400' : 'text-gray-200'}`}>
+                                        {userName}
                                     </span>
                                     <span className="text-[9px] text-gray-600">{new Date(comment.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
                                 </div>
-                                <p className={`text-xs ${comment.is_system_log ? 'text-gray-500 italic' : 'text-gray-300'} break-words leading-relaxed`}>
+                                <p className={`text-xs ${comment.is_system_log ? 'text-gray-500' : 'text-gray-300'} break-words leading-relaxed`}>
                                     {comment.content}
                                 </p>
                             </div>
                         </div>
-                    ))
+                    )})
                 )}
             </div>
 
@@ -2011,17 +2116,21 @@ const KanbanCardModal = ({ cardId, columnId, onClose }: KanbanCardModalProps) =>
             <div className="p-4 border-t border-white/5 bg-[#0a0a1a]">
                 {/* Mentions Popup */}
                 {mentionQuery !== null && filteredMembers.length > 0 && (
-                    <div className="absolute bottom-20 left-4 right-4 bg-[#1a1a2e] border border-white/10 rounded-xl shadow-2xl overflow-hidden z-50 max-h-40 overflow-y-auto">
+                    <div className="absolute bottom-20 left-4 right-4 bg-[#1a1a2e] border border-white/10 rounded-xl shadow-2xl overflow-hidden z-50 max-h-40 overflow-y-auto custom-scrollbar">
                         {filteredMembers.map(member => (
                             <button
                                 key={member.id}
                                 onClick={() => selectMention(member)}
-                                className="w-full text-left px-3 py-2 hover:bg-white/5 text-xs text-gray-300 flex items-center gap-2"
+                                className="w-full text-left px-3 py-2.5 hover:bg-white/5 text-xs text-gray-300 flex items-center gap-3 transition-colors"
                             >
-                                <div className="w-5 h-5 rounded bg-primary/20 flex items-center justify-center text-primary text-[9px] font-bold">
-                                    {member.name.charAt(0)}
+                                <div className="w-6 h-6 rounded-lg bg-primary/20 flex items-center justify-center text-primary text-[10px] font-bold overflow-hidden">
+                                    {member.avatar_url ? (
+                                        <img src={member.avatar_url} alt={member.name} className="w-full h-full object-cover" />
+                                    ) : (
+                                        member.name.charAt(0).toUpperCase()
+                                    )}
                                 </div>
-                                {member.name}
+                                <span className="truncate">{member.name}</span>
                             </button>
                         ))}
                     </div>
