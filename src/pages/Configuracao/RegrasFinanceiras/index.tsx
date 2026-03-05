@@ -3,6 +3,7 @@ import { Plus, Trash2, Save, DollarSign } from 'lucide-react';
 import { useCompany } from '../../../context/CompanyContext';
 import { supabase } from '../../../lib/supabase';
 import { IMaskInput } from 'react-imask';
+import { useUI } from '../../../context/UIContext';
 
 interface Partner {
   id: string;
@@ -12,6 +13,7 @@ interface Partner {
 
 const RegrasFinanceiras = () => {
   const { selectedCompany } = useCompany();
+  const { toast } = useUI();
   const [partners, setPartners] = useState<Partner[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -24,7 +26,7 @@ const RegrasFinanceiras = () => {
   const fetchPartners = async () => {
     try {
       if (!selectedCompany) return;
-      
+
       const { data, error } = await supabase
         .from('company_partners')
         .select('*')
@@ -57,12 +59,12 @@ const RegrasFinanceiras = () => {
           .from('company_partners')
           .delete()
           .eq('id', id);
-        
+
         if (error) throw error;
         setPartners(partners.filter(p => p.id !== id));
       } catch (error) {
         console.error('Error removing partner:', error);
-        alert('Erro ao remover sócio.');
+        toast.error('Erro ao remover sócio.', 'Erro');
       }
     }
   };
@@ -82,7 +84,7 @@ const RegrasFinanceiras = () => {
 
     const totalPercentage = partners.reduce((sum, p) => sum + Number(p.percentage), 0);
     if (totalPercentage !== 100 && partners.length > 0) {
-      alert(`A soma das porcentagens deve ser 100%. Atual: ${totalPercentage}%`);
+      toast.warning(`A soma deve ser 100%. Atual: ${totalPercentage}%`, 'Porcentagem inválida');
       setLoading(false);
       return;
     }
@@ -108,11 +110,11 @@ const RegrasFinanceiras = () => {
 
       if (error) throw error;
 
-      alert('Sócios salvos com sucesso!');
+      toast.success('Sócios salvos com sucesso!', 'Sucesso');
       fetchPartners(); // Refresh IDs
     } catch (error) {
       console.error('Error saving partners:', error);
-      alert('Erro ao salvar sócios. Verifique se a tabela existe.');
+      toast.error('Erro ao salvar sócios. Verifique se a tabela existe.', 'Erro');
     } finally {
       setLoading(false);
     }
@@ -129,7 +131,7 @@ const RegrasFinanceiras = () => {
           </h1>
           <p className="text-gray-400 mt-2">Defina a estrutura societária e regras de distribuição.</p>
         </div>
-        <button 
+        <button
           onClick={handleSave}
           disabled={loading}
           className="flex items-center space-x-2 bg-primary hover:bg-secondary text-white px-6 py-3 rounded-lg shadow-lg shadow-primary/20 transition-all duration-300 transform hover:scale-105"
@@ -145,7 +147,7 @@ const RegrasFinanceiras = () => {
             <DollarSign className="text-green-400" />
             <span>Estrutura Societária (CapTable)</span>
           </h2>
-          <button 
+          <button
             onClick={handleAddPartner}
             className="flex items-center space-x-1 text-sm bg-white/5 hover:bg-white/10 text-white px-3 py-2 rounded-lg transition-colors border border-white/10"
           >
@@ -189,7 +191,7 @@ const RegrasFinanceiras = () => {
                   </div>
                 </div>
                 <div className="pt-4">
-                  <button 
+                  <button
                     onClick={() => handleRemovePartner(partner.id)}
                     className="text-gray-500 hover:text-red-400 transition-colors p-2"
                     title="Remover sócio"
@@ -206,11 +208,10 @@ const RegrasFinanceiras = () => {
           <div className="mt-6 pt-4 border-t border-white/10 flex justify-end">
             <div className="flex items-center space-x-2 text-sm">
               <span className="text-gray-400">Total:</span>
-              <span className={`font-bold ${
-                partners.reduce((sum, p) => sum + Number(p.percentage), 0) === 100 
-                  ? 'text-green-400' 
-                  : 'text-red-400'
-              }`}>
+              <span className={`font-bold ${partners.reduce((sum, p) => sum + Number(p.percentage), 0) === 100
+                ? 'text-green-400'
+                : 'text-red-400'
+                }`}>
                 {partners.reduce((sum, p) => sum + Number(p.percentage), 0).toFixed(2)}%
               </span>
             </div>

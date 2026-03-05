@@ -1,11 +1,12 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { 
-  Search, Calendar, MessageCircle, Mail, 
+import {
+  Search, Calendar, MessageCircle, Mail,
   CheckCircle2, Clock, AlertCircle, Send,
   LayoutGrid, List as ListIcon, Filter
 } from 'lucide-react';
 import { useCompany } from '../../context/CompanyContext';
 import { supabase } from '../../lib/supabase';
+import { useUI } from '../../context/UIContext';
 
 // Types
 interface Client {
@@ -32,12 +33,13 @@ interface Notification {
 
 const FinanceiroCobranca = () => {
   const { selectedCompany } = useCompany();
+  const { toast } = useUI();
   const [view, setView] = useState<'status' | 'flow'>('status');
   const [searchTerm, setSearchTerm] = useState('');
   const [month, setMonth] = useState(new Date().getMonth() + 1);
   const [year, setYear] = useState(new Date().getFullYear());
   const [loading, setLoading] = useState(true);
-  
+
   // Data States
   const [clients, setClients] = useState<Client[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -52,7 +54,7 @@ const FinanceiroCobranca = () => {
       const endDate = new Date(year, month, 0).toISOString().split('T')[0];
 
       const [clientsRes, transRes, notifRes] = await Promise.all([
-        supabase.from('clients').select('*').eq('company_id', selectedCompany.id).eq('status', 'active'),
+        supabase.from('clients').select('*').eq('company_id', selectedCompany.id).eq('status', 'active').lte('start_date', endDate),
         supabase.from('transactions').select('*').eq('company_id', selectedCompany.id).gte('due_date', startDate).lte('due_date', endDate),
         supabase.from('billing_notifications').select('*').eq('company_id', selectedCompany.id).eq('month', month).eq('year', year)
       ]);
@@ -85,20 +87,20 @@ const FinanceiroCobranca = () => {
       .filter(client => client.name.toLowerCase().includes(searchTerm.toLowerCase()))
       .forEach(client => {
         const payment = transactions.find(t => t.client_id === client.id && t.status === 'paid');
-        
+
         // Logic for "Overdue" depends on current date vs due date
         // If we are looking at a past month, anyone without payment is overdue
         // If current month, only if due_day < today
-        
+
         if (payment) {
           categorized.paid.push(client);
         } else {
-          const isPastDue = 
-            (year < currentYear) || 
+          const isPastDue =
+            (year < currentYear) ||
             (year === currentYear && month < currentMonth) ||
             (year === currentYear && month === currentMonth && client.due_day < today);
-            
-          const isDueToday = 
+
+          const isDueToday =
             (year === currentYear && month === currentMonth && client.due_day === today);
 
           if (isDueToday) {
@@ -132,14 +134,14 @@ const FinanceiroCobranca = () => {
       });
 
       if (error) throw error;
-      
+
       // Here we would integrate with WhatsApp/Email API
       // For now, just simulate success
-      alert(`Notificação enviada para ${client.name}!`);
+      toast.success(`Notificação enviada para ${client.name}!`, 'Enviado');
       fetchData();
     } catch (error) {
       console.error('Error sending notification:', error);
-      alert('Erro ao registrar envio.');
+      toast.error('Erro ao registrar envio.', 'Erro');
     }
   };
 
@@ -170,13 +172,13 @@ const FinanceiroCobranca = () => {
         </div>
 
         <div className="flex items-center gap-4 bg-white/5 p-1 rounded-2xl border border-white/10">
-          <button 
+          <button
             onClick={() => setView('status')}
             className={`flex items-center gap-2 px-4 py-2 rounded-xl transition-all ${view === 'status' ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'text-gray-400 hover:text-white'}`}
           >
             <LayoutGrid size={18} /> <span>Status</span>
           </button>
-          <button 
+          <button
             onClick={() => setView('flow')}
             className={`flex items-center gap-2 px-4 py-2 rounded-xl transition-all ${view === 'flow' ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'text-gray-400 hover:text-white'}`}
           >
@@ -189,49 +191,49 @@ const FinanceiroCobranca = () => {
       <div className="flex flex-col md:flex-row gap-6">
         <div className="relative flex-1">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={20} />
-          <input 
-            type="text" 
+          <input
+            type="text"
             placeholder="Buscar cliente por nome..."
             className="w-full bg-white/5 border border-white/10 rounded-2xl py-3 pl-12 pr-4 text-white focus:outline-none focus:border-primary transition-colors"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
         </div>
-        
+
         <div className="flex gap-4">
-            <SummaryMiniCard label="Pagos" count={billingStats.paid.length} color="text-emerald-400" bg="bg-emerald-400/10" />
-            <SummaryMiniCard label="Vence Hoje" count={billingStats.dueToday.length} color="text-blue-400" bg="bg-blue-400/10" />
-            <SummaryMiniCard label="Atrasados" count={billingStats.overdue.length} color="text-pink-400" bg="bg-pink-400/10" />
+          <SummaryMiniCard label="Pagos" count={billingStats.paid.length} color="text-emerald-400" bg="bg-emerald-400/10" />
+          <SummaryMiniCard label="Vence Hoje" count={billingStats.dueToday.length} color="text-blue-400" bg="bg-blue-400/10" />
+          <SummaryMiniCard label="Atrasados" count={billingStats.overdue.length} color="text-pink-400" bg="bg-pink-400/10" />
         </div>
       </div>
 
       {/* Visão Kanban de Status */}
       {view === 'status' && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-          <BillingColumn 
-            title="Inadimplentes" 
-            color="border-pink-500/30" 
-            icon={<AlertCircle className="text-pink-400" />} 
-            clients={billingStats.overdue} 
-            type="overdue" 
+          <BillingColumn
+            title="Inadimplentes"
+            color="border-pink-500/30"
+            icon={<AlertCircle className="text-pink-400" />}
+            clients={billingStats.overdue}
+            type="overdue"
             onWhatsApp={getWhatsAppLink}
             onEmail={getMailToLink}
           />
-          <BillingColumn 
-            title="Vence Hoje" 
-            color="border-blue-500/30" 
-            icon={<Clock className="text-blue-400" />} 
-            clients={billingStats.dueToday} 
-            type="today" 
+          <BillingColumn
+            title="Vence Hoje"
+            color="border-blue-500/30"
+            icon={<Clock className="text-blue-400" />}
+            clients={billingStats.dueToday}
+            type="today"
             onWhatsApp={getWhatsAppLink}
             onEmail={getMailToLink}
           />
-          <BillingColumn 
-            title="Pagos" 
-            color="border-emerald-500/30" 
-            icon={<CheckCircle2 className="text-emerald-400" />} 
-            clients={billingStats.paid} 
-            type="paid" 
+          <BillingColumn
+            title="Pagos"
+            color="border-emerald-500/30"
+            icon={<CheckCircle2 className="text-emerald-400" />}
+            clients={billingStats.paid}
+            type="paid"
             onWhatsApp={getWhatsAppLink}
             onEmail={getMailToLink}
           />
@@ -270,7 +272,7 @@ const FinanceiroCobranca = () => {
                       <NotificationStatus status={sentOverdue ? 'sent' : 'pending'} />
                     </td>
                     <td className="px-6 py-4 text-right">
-                      <button 
+                      <button
                         onClick={() => handleSendNotification(client, 'due_today')}
                         className="p-2 bg-primary/10 text-primary rounded-lg hover:bg-primary hover:text-white transition-all opacity-0 group-hover:opacity-100"
                         title="Registrar envio manual"
@@ -306,10 +308,10 @@ const BillingColumn = ({ title, color, icon, clients, type, onWhatsApp, onEmail 
     </div>
     <div className="space-y-4 overflow-y-auto flex-1 pr-2 custom-scrollbar">
       {clients.map((client: Client) => (
-        <ClientBillingCard 
-          key={client.id} 
-          client={client} 
-          type={type} 
+        <ClientBillingCard
+          key={client.id}
+          client={client}
+          type={type}
           whatsappLink={onWhatsApp(client)}
           emailLink={onEmail(client)}
         />
@@ -335,7 +337,7 @@ const ClientBillingCard = ({ client, type, whatsappLink, emailLink }: any) => (
         <p className="text-white font-black">R$ {client.mrr?.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
       </div>
       <div className="flex gap-2">
-        <a 
+        <a
           href={whatsappLink}
           target="_blank"
           rel="noopener noreferrer"
@@ -344,7 +346,7 @@ const ClientBillingCard = ({ client, type, whatsappLink, emailLink }: any) => (
         >
           <MessageCircle size={16} />
         </a>
-        <a 
+        <a
           href={emailLink}
           className="p-2 bg-blue-500/10 text-blue-400 rounded-xl hover:bg-blue-500 hover:text-white transition-all"
           title="Enviar E-mail"

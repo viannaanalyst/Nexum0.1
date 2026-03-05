@@ -1,23 +1,24 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { 
-  TrendingUp, 
-  TrendingDown, 
-  DollarSign, 
-  AlertCircle, 
+import {
+  TrendingUp,
+  TrendingDown,
+  DollarSign,
+  AlertCircle,
   PieChart as PieIcon,
   ArrowUpRight,
   Calendar,
   Filter,
   ArrowDownRight
 } from 'lucide-react';
-import { 
-  BarChart, 
-  Bar, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
-  Legend, 
+import { Select } from '../../components/ui/Select';
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
   ResponsiveContainer,
   PieChart,
   Pie,
@@ -45,15 +46,19 @@ interface Client {
   status: 'active' | 'paused' | 'canceled';
   mrr: number;
   due_day: number;
+  start_date?: string;
+  end_date?: string;
 }
 
 const FinanceiroVisaoGeral = () => {
   const { selectedCompany } = useCompany();
   const [loading, setLoading] = useState(true);
-  const [month, setMonth] = useState(new Date().getMonth() + 1);
+
+  // Now arrays to support multiple selection
+  const [selectedMonths, setSelectedMonths] = useState<number[]>([new Date().getMonth() + 1]);
   const [year, setYear] = useState(new Date().getFullYear());
-  const [selectedClientId, setSelectedClientId] = useState<string>('all');
-  
+  const [selectedClientIds, setSelectedClientIds] = useState<string[]>(['all']);
+
   // Data States
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
@@ -63,31 +68,32 @@ const FinanceiroVisaoGeral = () => {
     if (selectedCompany) {
       fetchData();
     }
-  }, [selectedCompany, month, year]);
+  }, [selectedCompany, year]); // month and client filters apply over the yearly data in memory
 
   const fetchData = async () => {
     setLoading(true);
     try {
       if (!selectedCompany) return;
 
-      // Fetch Transactions for the selected month/year
-      const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
-      const endDate = new Date(year, month, 0).toISOString().split('T')[0]; // Last day of month
+      // Fetch Transactions for the selected YEAR
+      const startOfYear = `${year}-01-01`;
+      const endOfYear = `${year}-12-31`;
 
       const { data: transactionsData, error: transactionsError } = await supabase
         .from('transactions')
         .select('*')
         .eq('company_id', selectedCompany.id)
-        .gte('due_date', startDate)
-        .lte('due_date', endDate);
+        .gte('due_date', startOfYear)
+        .lte('due_date', endOfYear);
 
       if (transactionsError) throw transactionsError;
 
-      // Fetch Clients for MRR calculation
+      // Fetch Clients for MRR — active clients started before or during the year
       const { data: clientsData, error: clientsError } = await supabase
         .from('clients')
-        .select('id, name, status, mrr, due_day')
-        .eq('company_id', selectedCompany.id);
+        .select('id, name, status, mrr, due_day, start_date, end_date')
+        .eq('company_id', selectedCompany.id)
+        .lte('start_date', endOfYear);
 
       if (clientsError) throw clientsError;
 
@@ -100,114 +106,191 @@ const FinanceiroVisaoGeral = () => {
     }
   };
 
-  // Filter Data
+  // Filter Data for the entire year (Global filters)
   const filteredData = useMemo(() => {
-    const filteredTransactions = selectedClientId === 'all'
-      ? transactions
-      : transactions.filter(t => t.client_id === selectedClientId);
+    const isAllClients = selectedClientIds.includes('all') || selectedClientIds.length === 0;
 
-    const filteredClients = selectedClientId === 'all'
+    const filteredTransactions = isAllClients
+      ? transactions
+      : transactions.filter(t => t.client_id && selectedClientIds.includes(t.client_id));
+
+    const filteredClients = isAllClients
       ? clients
-      : clients.filter(c => c.id === selectedClientId);
+      : clients.filter(c => selectedClientIds.includes(c.id));
 
     return { filteredTransactions, filteredClients };
-  }, [selectedClientId, transactions, clients]);
+  }, [selectedClientIds, transactions, clients]);
 
   const { filteredTransactions, filteredClients } = filteredData;
 
-  // Logic Calculation
+  // KPIs Calculation for the *Selected Months*
   const stats = useMemo(() => {
-    // 1. Calculate MRR from active clients
-    // Logic: If a client has a manual transaction for this month, don't count MRR to avoid duplication
-    const clientTransactionIds = new Set(
-      filteredTransactions
-        .filter(t => t.client_id && t.type === 'income')
-        .map(t => t.client_id)
-    );
+    const isAllMonths = selectedMonths.includes('all' as any) || selectedMonths.length === 0;
+    const effectiveMonths = isAllMonths ? [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12] : selectedMonths;
 
-    const mrrTotal = filteredClients
-      .filter(c => c.status === 'active' && !clientTransactionIds.has(c.id))
-      .reduce((acc, c) => acc + (Number(c.mrr) || 0), 0);
+    let totalFaturamentoBruto = 0;
+    let totalExpenses = 0;
+    let totalOverdueAmount = 0;
+    let totalOverdueCount = 0;
+    let latestMrrTotal = 0;
 
-    // 2. Calculate Manual Income (Paid)
-    const manualIncome = filteredTransactions
-      .filter(t => t.type === 'income' && t.status === 'paid')
-      .reduce((acc, t) => acc + (Number(t.amount) || 0), 0);
-    
-    // 3. Calculate Expenses (All recorded expenses for the period)
-    const expenses = filteredTransactions
-      .filter(t => t.type === 'expense') // We might want to filter by 'paid' status for cash flow, or all for accrual
-      .reduce((acc, t) => acc + (Number(t.amount) || 0), 0);
+    effectiveMonths.forEach(m => {
+      const monthStartDate = `${year}-${String(m).padStart(2, '0')}-01`;
+      const monthEndDate = new Date(year, m, 0).toISOString().split('T')[0];
 
-    const faturamentoBruto = mrrTotal + manualIncome;
+      const currentMonthTransactions = filteredTransactions.filter(t => {
+        if (!t.due_date) return false;
+        const tMonth = parseInt(t.due_date.split('-')[1], 10);
+        const tYear = parseInt(t.due_date.split('-')[0], 10);
+        return tMonth === m && tYear === year;
+      });
+
+      const clientTransactionIds = new Set(
+        currentMonthTransactions
+          .filter(t => t.client_id && t.type === 'income')
+          .map(t => t.client_id)
+      );
+
+      const activeClientsThisMonth = filteredClients.filter(c => {
+        if (c.status !== 'active') return false;
+        if (!c.start_date) return false;
+        const startedBeforeEnd = c.start_date <= monthEndDate;
+        const endedAfterStart = !c.end_date || c.end_date === '' || c.end_date >= monthStartDate;
+        return startedBeforeEnd && endedAfterStart;
+      });
+
+      const mrrWithoutTransactions = activeClientsThisMonth
+        .filter(c => !clientTransactionIds.has(c.id))
+        .reduce((acc, c) => acc + (Number(c.mrr) || 0), 0);
+
+      const manualIncome = currentMonthTransactions
+        .filter(t => t.type === 'income')
+        .reduce((acc, t) => acc + (Number(t.amount) || 0), 0);
+
+      const expenses = currentMonthTransactions
+        .filter(t => t.type === 'expense')
+        .reduce((acc, t) => acc + (Number(t.amount) || 0), 0);
+
+      totalFaturamentoBruto += (mrrWithoutTransactions + manualIncome);
+      totalExpenses += expenses;
+
+      const monthOverdue = currentMonthTransactions.filter(t => t.status === 'overdue');
+      totalOverdueAmount += monthOverdue.reduce((acc, t) => acc + (Number(t.amount) || 0), 0);
+      totalOverdueCount += monthOverdue.length;
+
+      // Para o card de Receita MRR, usamos a média ou o valor do último mês selecionado? 
+      // Geralmente quer-se ver a "capacidade" atual. Vamos somar e tirar média no final ou usar o valor do mês corrente no loop.
+      latestMrrTotal += activeClientsThisMonth.reduce((acc, c) => acc + (Number(c.mrr) || 0), 0);
+    });
+
+    const faturamentoBruto = totalFaturamentoBruto;
+    const expenses = totalExpenses;
     const lucroLiquido = faturamentoBruto - expenses;
     const margem = faturamentoBruto > 0 ? (lucroLiquido / faturamentoBruto) * 100 : 0;
+    const mrrTotal = latestMrrTotal / effectiveMonths.length; // Média mensal do período
 
-    // 4. Overdue Payments
-    const overdueAmount = filteredTransactions
-      .filter(t => t.status === 'overdue')
-      .reduce((acc, t) => acc + (Number(t.amount) || 0), 0);
-    
-    const overdueCount = filteredTransactions.filter(t => t.status === 'overdue').length;
+    // Projection remains for the month AFTER the latest selected month
+    const latestMonth = Math.max(...effectiveMonths);
+    const nextMonthDate = new Date(year, latestMonth, 1);
+    const nextMonthStartDate = nextMonthDate.toISOString().split('T')[0];
+    const nextMonthEndDate = new Date(year, latestMonth + 1, 0).toISOString().split('T')[0];
 
-    // 5. Projeção Próximo Mês (Soma de todos os MRRs ativos sem descontar lançamentos)
     const projecaoProximoMes = filteredClients
-      .filter(c => c.status === 'active')
+      .filter(c => {
+        if (c.status !== 'active') return false;
+        if (!c.start_date) return false;
+        const startedBeforeEnd = c.start_date <= nextMonthEndDate;
+        const endedAfterStart = !c.end_date || c.end_date === '' || c.end_date >= nextMonthStartDate;
+        return startedBeforeEnd && endedAfterStart;
+      })
       .reduce((acc, c) => acc + (Number(c.mrr) || 0), 0);
 
-    return { 
-      mrrTotal, 
-      faturamentoBruto, 
-      expenses, 
-      lucroLiquido, 
-      margem,
-      overdueAmount,
-      overdueCount,
-      projecaoProximoMes
+    return {
+      mrrTotal, faturamentoBruto, expenses, lucroLiquido, margem, overdueAmount: totalOverdueAmount, overdueCount: totalOverdueCount, projecaoProximoMes
     };
-  }, [filteredTransactions, filteredClients]);
+  }, [filteredTransactions, filteredClients, selectedMonths, year]);
 
-  // Chart Data Preparation
+  // Chart Data Preparation (Year 12 Months Cash Flow)
   const cashFlowData = useMemo(() => {
-    // This is a placeholder for monthly comparison. 
-    // In a real scenario, we would need to fetch data for the whole year.
-    // For now, let's show the current month as a bar.
-    return [
-      { name: 'Jan', receita: 0, despesa: 0 },
-      { name: 'Fev', receita: 0, despesa: 0 },
-      { name: 'Mar', receita: 0, despesa: 0 },
-      { name: 'Abr', receita: 0, despesa: 0 },
-      { name: 'Mai', receita: 0, despesa: 0 },
-      { name: 'Jun', receita: 0, despesa: 0 },
-      { name: 'Jul', receita: 0, despesa: 0 },
-      { name: 'Ago', receita: 0, despesa: 0 },
-      { name: 'Set', receita: 0, despesa: 0 },
-      { name: 'Out', receita: 0, despesa: 0 },
-      { name: 'Nov', receita: 0, despesa: 0 },
-      { name: 'Dez', receita: 0, despesa: 0 },
-    ].map((item, index) => {
-      if (index + 1 === month) {
-        return { 
-          name: item.name, 
-          receita: stats.faturamentoBruto, 
-          despesa: stats.expenses 
-        };
+    const monthNames = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+    const isAllMonths = selectedMonths.includes('all' as any) || selectedMonths.length === 0;
+    const effectiveMonths = isAllMonths ? [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12] : selectedMonths;
+
+    return monthNames.map((name, i) => {
+      const loopMonth = i + 1;
+
+      // Zera o mês no gráfico se não for um dos meses selecionados no filtro
+      if (!effectiveMonths.includes(loopMonth)) {
+        return { name, receita: 0, despesa: 0 };
       }
-      return item;
+
+      const loopMonthEndDate = new Date(year, loopMonth, 0).toISOString().split('T')[0];
+
+      const loopMonthTransactions = filteredTransactions.filter(t => {
+        if (!t.due_date) return false;
+        const tMonth = parseInt(t.due_date.split('-')[1], 10);
+        const tYear = parseInt(t.due_date.split('-')[0], 10);
+        return tMonth === loopMonth && tYear === year;
+      });
+
+      const clientTransactionIds = new Set(
+        loopMonthTransactions
+          .filter(t => t.client_id && t.type === 'income')
+          .map(t => t.client_id)
+      );
+
+      // MRR active in loop month
+      const loopActiveClients = filteredClients.filter(c => {
+        if (c.status !== 'active') return false;
+        if (!c.start_date) return false;
+        const loopMonthStartDate = `${year}-${String(loopMonth).padStart(2, '0')}-01`;
+        const startedBeforeEnd = c.start_date <= loopMonthEndDate;
+        const endedAfterStart = !c.end_date || c.end_date === '' || c.end_date >= loopMonthStartDate;
+        return startedBeforeEnd && endedAfterStart;
+      });
+
+      const loopMrrWithoutTransactions = loopActiveClients
+        .filter(c => !clientTransactionIds.has(c.id))
+        .reduce((acc, c) => acc + (Number(c.mrr) || 0), 0);
+
+      const loopIncomeTransactions = loopMonthTransactions
+        .filter(t => t.type === 'income')
+        .reduce((acc, t) => acc + (Number(t.amount) || 0), 0);
+
+      const loopExpenses = loopMonthTransactions
+        .filter(t => t.type === 'expense')
+        .reduce((acc, t) => acc + (Number(t.amount) || 0), 0);
+
+      const loopFaturamentoTotal = loopMrrWithoutTransactions + loopIncomeTransactions;
+
+      return {
+        name,
+        receita: loopFaturamentoTotal,
+        despesa: loopExpenses
+      };
     });
-  }, [stats, month]);
+  }, [filteredTransactions, filteredClients, selectedMonths, year]);
 
   const categoryData = useMemo(() => {
     const categories: Record<string, number> = {};
-    
-    filteredTransactions
+    const isAllMonths = selectedMonths.includes('all' as any) || selectedMonths.length === 0;
+    const effectiveMonths = isAllMonths ? [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12] : selectedMonths;
+
+    const currentMonthTransactions = filteredTransactions.filter(t => {
+      if (!t.due_date) return false;
+      const tMonth = parseInt(t.due_date.split('-')[1], 10);
+      const tYear = parseInt(t.due_date.split('-')[0], 10);
+      return effectiveMonths.includes(tMonth) && tYear === year;
+    });
+
+    currentMonthTransactions
       .filter(t => t.type === 'expense')
       .forEach(t => {
         categories[t.category] = (categories[t.category] || 0) + Number(t.amount);
       });
 
     return Object.entries(categories).map(([name, value]) => ({ name, value }));
-  }, [filteredTransactions]);
+  }, [filteredTransactions, selectedMonths, year]);
 
   const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d'];
 
@@ -223,45 +306,37 @@ const FinanceiroVisaoGeral = () => {
           </h1>
           <p className="text-gray-400 mt-2">Acompanhe a saúde do seu caixa em tempo real.</p>
         </div>
-        
-        <div className="flex items-center space-x-4 bg-white/5 p-2 rounded-xl border border-white/10">
-          <Filter size={20} className="text-primary ml-2" />
-          <select 
-            value={selectedClientId} 
-            onChange={(e) => setSelectedClientId(e.target.value)}
-            className="bg-transparent text-white border-none focus:ring-0 cursor-pointer outline-none max-w-[150px] truncate"
-          >
-            <option value="all" className="bg-[#0a0a1a]">Todos os Clientes</option>
-            {clients.map(client => (
-              <option key={client.id} value={client.id} className="bg-[#0a0a1a]">
-                {client.name}
-              </option>
-            ))}
-          </select>
 
-          <div className="w-px h-6 bg-white/10 mx-2"></div>
-
-          <Calendar size={20} className="text-primary ml-2" />
-          <select 
-            value={month} 
-            onChange={(e) => setMonth(Number(e.target.value))}
-            className="bg-transparent text-white border-none focus:ring-0 cursor-pointer outline-none"
-          >
-            {Array.from({ length: 12 }, (_, i) => (
-              <option key={i + 1} value={i + 1} className="bg-[#0a0a1a]">
-                {new Intl.DateTimeFormat('pt-BR', { month: 'long' }).format(new Date(2000, i))}
-              </option>
-            ))}
-          </select>
-          <select 
-            value={year} 
-            onChange={(e) => setYear(Number(e.target.value))}
-            className="bg-transparent text-white border-none focus:ring-0 cursor-pointer outline-none"
-          >
-            {[2024, 2025, 2026].map(y => (
-              <option key={y} value={y} className="bg-[#0a0a1a]">{y}</option>
-            ))}
-          </select>
+        <div className="flex items-center gap-2 bg-white/5 p-2 rounded-xl border border-white/10 flex-wrap">
+          <Filter size={16} className="text-primary ml-1 flex-shrink-0" />
+          <Select
+            multiple
+            value={selectedClientIds}
+            onChange={(v) => setSelectedClientIds(v as string[])}
+            options={[
+              { value: 'all', label: 'Todos os Clientes' },
+              ...clients.map(c => ({ value: c.id, label: c.name }))
+            ]}
+          />
+          <div className="w-px h-5 bg-white/10 hidden sm:block" />
+          <Select
+            multiple
+            value={selectedMonths}
+            onChange={(v) => setSelectedMonths(v as number[])}
+            options={[
+              { value: 'all', label: 'Todos os Meses' },
+              ...Array.from({ length: 12 }, (_, i) => ({
+                value: i + 1,
+                label: new Intl.DateTimeFormat('pt-BR', { month: 'long' }).format(new Date(2000, i))
+              }))
+            ]}
+            icon={<Calendar size={14} />}
+          />
+          <Select
+            value={year}
+            onChange={(v) => setYear(Number(v))}
+            options={[2024, 2025, 2026].map(y => ({ value: y, label: String(y) }))}
+          />
         </div>
       </div>
 
@@ -286,47 +361,47 @@ const FinanceiroVisaoGeral = () => {
 
       {/* Cards de KPIs */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-6">
-        <KpiCard 
-          title="Faturamento Bruto" 
-          value={stats.faturamentoBruto} 
-          icon={<TrendingUp />} 
-          color="text-green-400" 
+        <KpiCard
+          title="Faturamento Bruto"
+          value={stats.faturamentoBruto}
+          icon={<TrendingUp />}
+          color="text-green-400"
           bg="bg-green-400/10"
         />
-        <KpiCard 
-          title="Receita MRR" 
-          value={stats.mrrTotal} 
-          icon={<DollarSign />} 
-          color="text-primary" 
+        <KpiCard
+          title="Receita MRR"
+          value={stats.mrrTotal}
+          icon={<DollarSign />}
+          color="text-primary"
           bg="bg-primary/10"
         />
-        <KpiCard 
-          title="Custos Fixos" 
-          value={stats.expenses} 
-          icon={<TrendingDown />} 
-          color="text-red-400" 
+        <KpiCard
+          title="Custos Fixos"
+          value={stats.expenses}
+          icon={<TrendingDown />}
+          color="text-red-400"
           bg="bg-red-400/10"
         />
-        <KpiCard 
-          title="Lucro Líquido" 
-          value={stats.lucroLiquido} 
-          icon={<ArrowUpRight />} 
-          color="text-emerald-400" 
+        <KpiCard
+          title="Lucro Líquido"
+          value={stats.lucroLiquido}
+          icon={<ArrowUpRight />}
+          color="text-emerald-400"
           bg="bg-emerald-400/10"
         />
-        <KpiCard 
-          title="Margem Real" 
-          value={`${stats.margem.toFixed(1)}%`} 
-          icon={<PieIcon />} 
-          color="text-purple-400" 
+        <KpiCard
+          title="Margem Real"
+          value={`${stats.margem.toFixed(1)}%`}
+          icon={<PieIcon />}
+          color="text-purple-400"
           bg="bg-purple-400/10"
           isCurrency={false}
         />
-        <KpiCard 
-          title="Projeção (Próx. Mês)" 
-          value={stats.projecaoProximoMes} 
-          icon={<Calendar />} 
-          color="text-blue-400" 
+        <KpiCard
+          title="Projeção (Próx. Mês)"
+          value={stats.projecaoProximoMes}
+          icon={<Calendar />}
+          color="text-blue-400"
           bg="bg-blue-400/10"
         />
       </div>
@@ -341,7 +416,7 @@ const FinanceiroVisaoGeral = () => {
                 <CartesianGrid strokeDasharray="3 3" stroke="#ffffff10" />
                 <XAxis dataKey="name" stroke="#9ca3af" />
                 <YAxis stroke="#9ca3af" />
-                <Tooltip 
+                <Tooltip
                   contentStyle={{ backgroundColor: '#1f2937', border: 'none', borderRadius: '8px', color: '#fff' }}
                   itemStyle={{ color: '#fff' }}
                 />
@@ -374,7 +449,7 @@ const FinanceiroVisaoGeral = () => {
                       <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                     ))}
                   </Pie>
-                  <Tooltip 
+                  <Tooltip
                     contentStyle={{ backgroundColor: '#1f2937', border: 'none', borderRadius: '8px', color: '#fff' }}
                   />
                 </PieChart>
@@ -387,11 +462,11 @@ const FinanceiroVisaoGeral = () => {
           )}
         </div>
       </div>
-      
+
       {/* Tabela Resumo (Opcional - Matriz Financeira) */}
       <div className="glass-card rounded-2xl border border-white/10 overflow-hidden">
         <div className="p-6 border-b border-white/10">
-            <h2 className="text-xl font-bold text-white">Últimas Transações</h2>
+          <h2 className="text-xl font-bold text-white">Últimas Transações</h2>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
@@ -409,8 +484,8 @@ const FinanceiroVisaoGeral = () => {
                 filteredTransactions.slice(0, 5).map((t) => (
                   <tr key={t.id} className="hover:bg-white/5 transition-colors">
                     <td className="px-6 py-4 font-medium text-white flex items-center gap-2">
-                        {t.type === 'income' ? <ArrowUpRight size={16} className="text-green-400" /> : <ArrowDownRight size={16} className="text-red-400" />}
-                        {t.description}
+                      {t.type === 'income' ? <ArrowUpRight size={16} className="text-green-400" /> : <ArrowDownRight size={16} className="text-red-400" />}
+                      {t.description}
                     </td>
                     <td className="px-6 py-4">{t.category}</td>
                     <td className="px-6 py-4">{new Date(t.due_date).toLocaleDateString('pt-BR')}</td>
@@ -418,11 +493,10 @@ const FinanceiroVisaoGeral = () => {
                       {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(t.amount)}
                     </td>
                     <td className="px-6 py-4">
-                      <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                        t.status === 'paid' ? 'bg-green-500/20 text-green-400' :
+                      <span className={`px-3 py-1 rounded-full text-xs font-medium ${t.status === 'paid' ? 'bg-green-500/20 text-green-400' :
                         t.status === 'overdue' ? 'bg-red-500/20 text-red-400' :
-                        'bg-yellow-500/20 text-yellow-400'
-                      }`}>
+                          'bg-yellow-500/20 text-yellow-400'
+                        }`}>
                         {t.status === 'paid' ? 'Pago' : t.status === 'overdue' ? 'Atrasado' : 'Pendente'}
                       </span>
                     </td>
@@ -459,7 +533,7 @@ const KpiCard = ({ title, value, icon, color, bg = 'bg-white/5', isCurrency = tr
     </div>
     <p className="text-gray-400 text-sm font-medium">{title}</p>
     <p className="text-2xl font-bold text-white mt-1">
-      {isCurrency && typeof value === 'number' 
+      {isCurrency && typeof value === 'number'
         ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value)
         : value}
     </p>

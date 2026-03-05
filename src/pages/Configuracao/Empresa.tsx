@@ -3,9 +3,11 @@ import { Save, Building2, Phone, Mail, FileText } from 'lucide-react';
 import { useCompany } from '../../context/CompanyContext';
 import { IMaskInput } from 'react-imask';
 import { supabase } from '../../lib/supabase';
+import { useUI } from '../../context/UIContext';
 
 const Empresa = () => {
   const { selectedCompany, updateCompany } = useCompany();
+  const { toast } = useUI();
   const [formData, setFormData] = useState({
     nome: '',
     cnpj: '',
@@ -33,7 +35,7 @@ const Empresa = () => {
         .from('organization_members')
         .select('*', { count: 'exact', head: true })
         .eq('company_id', selectedCompany.id);
-      
+
       if (error) {
         console.error('Error fetching members count (Supabase):', error);
       } else {
@@ -53,18 +55,18 @@ const Empresa = () => {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (selectedCompany) {
-        updateCompany(selectedCompany.id, {
-            name: formData.nome,
-            cnpj: formData.cnpj,
-            whatsapp: formData.whatsapp,
-            email: formData.email
-        });
-        alert('Dados da empresa atualizados com sucesso!');
+      updateCompany(selectedCompany.id, {
+        name: formData.nome,
+        cnpj: formData.cnpj,
+        whatsapp: formData.whatsapp,
+        email: formData.email
+      });
+      toast.success('Dados da empresa atualizados com sucesso!', 'Sucesso');
     }
   };
 
   if (!selectedCompany) {
-      return <div className="text-white">Nenhuma empresa selecionada.</div>
+    return <div className="text-white">Nenhuma empresa selecionada.</div>
   }
 
   return (
@@ -76,7 +78,7 @@ const Empresa = () => {
           </h1>
           <p className="text-gray-400 mt-2">Gerencie as informações principais da sua organização.</p>
         </div>
-        <button 
+        <button
           onClick={handleSubmit}
           className="flex items-center space-x-2 bg-primary hover:bg-secondary text-white px-6 py-3 rounded-lg shadow-lg shadow-primary/20 transition-all duration-300 transform hover:scale-105"
         >
@@ -87,14 +89,14 @@ const Empresa = () => {
 
       <div className="glass-card p-8 rounded-2xl border border-white/10 relative overflow-hidden">
         <div className="absolute top-0 right-0 w-64 h-64 bg-primary/10 rounded-full blur-3xl -z-10 transform translate-x-1/2 -translate-y-1/2"></div>
-        
+
         <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-8">
           <div className="space-y-6">
             <h2 className="text-xl font-semibold text-white flex items-center space-x-2 border-b border-white/10 pb-4">
               <Building2 className="text-primary" />
               <span>Dados Gerais</span>
             </h2>
-            
+
             <div className="space-y-4">
               <div className="group">
                 <label className="block text-sm font-medium text-gray-400 mb-1 group-focus-within:text-primary transition-colors">
@@ -182,17 +184,15 @@ const Empresa = () => {
           </div>
         </form>
       </div>
-      
+
       {/* Visual Stats or Info */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="glass-card p-6 rounded-xl border border-white/5 bg-gradient-to-br from-white/5 to-transparent">
           <div className="text-gray-400 text-sm mb-1">Status da Conta</div>
-          <div className={`text-2xl font-bold flex items-center ${
-            selectedCompany.status === 'active' ? 'text-green-400' : 'text-red-400'
-          }`}>
-            <span className={`w-2 h-2 rounded-full mr-2 ${
-              selectedCompany.status === 'active' ? 'bg-green-500 animate-pulse' : 'bg-red-500'
-            }`}></span>
+          <div className={`text-2xl font-bold flex items-center ${selectedCompany.status === 'active' ? 'text-green-400' : 'text-red-400'
+            }`}>
+            <span className={`w-2 h-2 rounded-full mr-2 ${selectedCompany.status === 'active' ? 'bg-green-500 animate-pulse' : 'bg-red-500'
+              }`}></span>
             {selectedCompany.status === 'active' ? 'Ativo' : 'Inativo'}
           </div>
         </div>
