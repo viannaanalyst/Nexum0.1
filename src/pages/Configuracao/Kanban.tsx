@@ -331,6 +331,99 @@ const TaskTemplateModal = ({ template, members, onSave, onClose }: {
     );
 };
 
+// ─── Client Selection Modal ───────────────────────────────────────────────────
+
+const ClientSelectionModal = ({ clients, onConfirm, onClose, applying }: {
+    clients: { id: string, name: string }[];
+    onConfirm: (selectedIds: string[]) => void;
+    onClose: () => void;
+    applying: boolean;
+}) => {
+    const [searchTerm, setSearchTerm] = useState('');
+    const [selectedIds, setSelectedIds] = useState<string[]>(clients.map(c => c.id));
+
+    const filteredClients = clients.filter(c =>
+        c.name.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+
+    const toggleClient = (id: string) => {
+        setSelectedIds(prev =>
+            prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+        );
+    };
+
+    const toggleAll = () => {
+        if (selectedIds.length === filteredClients.length) {
+            setSelectedIds([]);
+        } else {
+            setSelectedIds(filteredClients.map(c => c.id));
+        }
+    };
+
+    return (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-black/60 backdrop-blur-md" onClick={onClose} />
+            <div className="relative z-10 w-full max-w-md max-h-[80vh] flex flex-col rounded-[22px] border border-white/10 bg-[#0a0a1a]/90 backdrop-blur-xl shadow-2xl animate-in zoom-in-95 duration-200">
+                <div className="p-6 pb-4 border-b border-white/5 flex items-center justify-between">
+                    <div>
+                        <h2 className="text-lg font-bold text-white">Selecionar Clientes</h2>
+                        <p className="text-xs text-gray-500 mt-0.5">Escolha quais clientes receberão o template</p>
+                    </div>
+                    <button onClick={onClose} className="p-2 text-gray-500 hover:text-white hover:bg-white/5 rounded-xl transition-all">
+                        <X size={18} />
+                    </button>
+                </div>
+
+                <div className="p-4 border-b border-white/5">
+                    <input
+                        type="text"
+                        placeholder="Buscar cliente..."
+                        value={searchTerm}
+                        onChange={e => setSearchTerm(e.target.value)}
+                        className="w-full bg-white/[0.04] border border-white/10 rounded-xl px-4 py-2 text-white text-sm focus:outline-none focus:border-primary/40 transition-colors"
+                    />
+                </div>
+
+                <div className="overflow-y-auto p-4 space-y-2 flex-1 scrollbar-thin scrollbar-thumb-white/10">
+                    <button onClick={toggleAll} className="w-full flex items-center gap-3 px-3 py-2 rounded-xl border border-white/5 bg-white/5 text-left text-sm text-gray-300 hover:bg-white/10 transition-all">
+                        <div className={`w-5 h-5 rounded border flex items-center justify-center transition-all ${selectedIds.length === filteredClients.length ? 'bg-primary border-primary' : 'border-white/20'}`}>
+                            {selectedIds.length === filteredClients.length && <CheckCircle2 size={12} className="text-white" />}
+                        </div>
+                        {selectedIds.length === filteredClients.length ? 'Desmarcar Todos' : 'Selecionar Todos'}
+                    </button>
+
+                    {filteredClients.map(client => (
+                        <button key={client.id} onClick={() => toggleClient(client.id)}
+                            className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl border transition-all text-left ${selectedIds.includes(client.id) ? 'border-primary/40 bg-primary/10' : 'border-white/10 bg-white/[0.03] hover:border-white/20'}`}>
+                            <div className={`w-5 h-5 rounded border flex items-center justify-center transition-all ${selectedIds.includes(client.id) ? 'bg-primary border-primary' : 'border-white/20'}`}>
+                                {selectedIds.includes(client.id) && <CheckCircle2 size={12} className="text-white" />}
+                            </div>
+                            <span className={`text-sm ${selectedIds.includes(client.id) ? 'text-white' : 'text-gray-400'}`}>{client.name}</span>
+                        </button>
+                    ))}
+
+                    {filteredClients.length === 0 && (
+                        <p className="text-center text-gray-500 py-4 text-sm">Nenhum cliente encontrado.</p>
+                    )}
+                </div>
+
+                <div className="p-6 pt-4 border-t border-white/5 flex justify-end gap-3">
+                    <button onClick={onClose} className="px-5 py-2.5 text-sm text-gray-500 hover:text-white rounded-xl transition-all">
+                        Cancelar
+                    </button>
+                    <button
+                        onClick={() => onConfirm(selectedIds)}
+                        disabled={selectedIds.length === 0 || applying}
+                        className="flex items-center gap-2 px-6 py-2.5 bg-primary hover:bg-primary/80 text-white rounded-xl text-sm font-medium transition-all shadow-lg shadow-primary/20 disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                        {applying ? 'Aplicando...' : `Aplicar em ${selectedIds.length} Cliente(s)`}
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 // ─── Main Page ─────────────────────────────────────────────────────────────────
 
 const ConfiguracaoKanban = () => {
@@ -351,7 +444,8 @@ const ConfiguracaoKanban = () => {
     const [loadingCols, setLoadingCols] = useState(true);
     const [savingCols, setSavingCols] = useState(false);
     const [applying, setApplying] = useState(false);
-    const [clientCount, setClientCount] = useState(0);
+    const [clients, setClients] = useState<{ id: string, name: string }[]>([]);
+    const [isSelectionModalOpen, setIsSelectionModalOpen] = useState(false);
 
     // ── Tarefas state ──
     const [templates, setTemplates] = useState<TaskTemplate[]>([]);
@@ -367,7 +461,7 @@ const ConfiguracaoKanban = () => {
     useEffect(() => {
         if (selectedCompany) {
             loadColunas();
-            loadClientCount();
+            loadClients();
             loadTaskTemplates();
             loadMembers();
         }
@@ -382,7 +476,7 @@ const ConfiguracaoKanban = () => {
             const { data, error } = await supabase
                 .from('companies').select('kanban_columns').eq('id', selectedCompany.id).single();
             if (error) throw error;
-            if (data?.kanban_columns?.columns?.length > 0) setConfig(data.kanban_columns as KanbanConfig);
+            if (data?.kanban_columns) setConfig(data.kanban_columns as KanbanConfig);
         } catch {
             // Column may not exist yet — use defaults
         } finally {
@@ -390,12 +484,13 @@ const ConfiguracaoKanban = () => {
         }
     };
 
-    const loadClientCount = async () => {
+    const loadClients = async () => {
         if (!selectedCompany) return;
-        const { count } = await supabase.from('clients')
-            .select('*', { count: 'exact', head: true })
-            .eq('company_id', selectedCompany.id).eq('status', 'active');
-        setClientCount(count ?? 0);
+        const { data } = await supabase.from('clients')
+            .select('id, name')
+            .eq('company_id', selectedCompany.id).eq('status', 'active')
+            .order('name', { ascending: true });
+        setClients(data ?? []);
     };
 
     // ── Load Task Templates ───────────────────────────────────────────────────
@@ -466,27 +561,27 @@ const ConfiguracaoKanban = () => {
     };
 
     const handleApplyToAll = async () => {
+        if (!selectedCompany || clients.length === 0) return;
+        setIsSelectionModalOpen(true);
+    };
+
+    const handleConfirmBulkApply = async (selectedIds: string[]) => {
         if (!selectedCompany) return;
-        const ok = await confirm('Aplicar a Todos os Clientes',
-            `Esta ação sobrescreverá as colunas Kanban de ${clientCount} cliente(s) ativo(s). Deseja continuar?`,
-            { type: 'warning', confirmText: 'Aplicar a Todos' });
-        if (!ok) return;
         setApplying(true);
         try {
-            const { data: clients } = await supabase.from('clients').select('id')
-                .eq('company_id', selectedCompany.id).eq('status', 'active');
-            if (!clients?.length) { toast.info('Nenhum cliente ativo'); return; }
-            for (const client of clients) {
-                await supabase.from('kanban_columns').delete().eq('client_id', client.id).eq('is_default', true);
+            for (const clientId of selectedIds) {
+                await supabase.from('kanban_columns').delete().eq('client_id', clientId).eq('is_default', true);
                 await supabase.from('kanban_columns').insert(
                     config.columns.map(col => ({
-                        client_id: client.id, company_id: selectedCompany.id,
+                        client_id: clientId, company_id: selectedCompany.id,
                         column_id: col.id, title: col.title, color: col.color,
-                        order_index: col.position, is_default: true,
+                        position: col.position, is_done_column: col.is_done_column,
+                        is_default: true,
                     }))
                 );
             }
-            toast.success(`Template aplicado a ${clients.length} cliente(s)!`);
+            toast.success(`Template aplicado a ${selectedIds.length} cliente(s)!`);
+            setIsSelectionModalOpen(false);
         } catch { toast.error('Erro ao aplicar template'); }
         finally { setApplying(false); }
     };
@@ -639,9 +734,9 @@ const ConfiguracaoKanban = () => {
                             <button onClick={handleApplyToAll} disabled={applying || !config.columns.length}
                                 className="flex items-center gap-2 px-5 py-2.5 rounded-xl border border-white/10 bg-white/[0.03] hover:bg-white/[0.08] text-gray-300 hover:text-white transition-all text-sm disabled:opacity-40 disabled:cursor-not-allowed">
                                 {applying ? <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" /> : <Users size={16} />}
-                                {applying ? 'Aplicando...' : 'Aplicar a Todos os Clientes'}
-                                {clientCount > 0 && !applying && (
-                                    <span className="text-xs text-gray-500 bg-white/10 px-2 py-0.5 rounded-full">{clientCount}</span>
+                                {applying ? 'Aplicando...' : 'Aplicar para Clientes Específicos'}
+                                {clients.length > 0 && !applying && (
+                                    <span className="text-xs text-gray-500 bg-white/10 px-2 py-0.5 rounded-full">{clients.length}</span>
                                 )}
                             </button>
                             <p className="text-[10px] text-gray-600 ml-1">Sobrescreve as colunas padrão dos clientes existentes.</p>
@@ -720,6 +815,15 @@ const ConfiguracaoKanban = () => {
                     members={members}
                     onSave={handleSaveTemplate}
                     onClose={() => setModalTemplate(false)}
+                />
+            )}
+            {/* Selection Modal */}
+            {isSelectionModalOpen && (
+                <ClientSelectionModal
+                    clients={clients}
+                    applying={applying}
+                    onConfirm={handleConfirmBulkApply}
+                    onClose={() => setIsSelectionModalOpen(false)}
                 />
             )}
         </div>

@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  X, User, Mail, Shield, Lock, Save, Loader2, 
-  Bell, Settings, UserCircle, ChevronRight, 
-  Globe, Moon, Palette, LogOut, Eye, EyeOff 
+import {
+  X, User, Mail, Shield, Lock, Save, Loader2,
+  Bell, Settings, UserCircle, ChevronRight,
+  Globe, Moon, Palette, LogOut, Eye, EyeOff
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
@@ -21,7 +21,7 @@ const UserSettingsModal: React.FC<UserSettingsModalProps> = ({ isOpen, onClose, 
   const [name, setName] = useState(user?.name || '');
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
-  
+
   // Password change states
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -46,15 +46,18 @@ const UserSettingsModal: React.FC<UserSettingsModalProps> = ({ isOpen, onClose, 
     if (user) {
       setName(user.name);
     }
+  }, [user]);
+
+  useEffect(() => {
     if (isOpen) {
       setActiveTab(initialTab);
       setMessage(null);
-      
+
       // Load preferences from localStorage
       const savedNotifs = localStorage.getItem(`notifs_${user?.id}`);
       if (savedNotifs) setNotifications(JSON.parse(savedNotifs));
     }
-  }, [user, isOpen, initialTab]);
+  }, [isOpen, initialTab]);
 
   if (!isOpen) return null;
 
@@ -62,7 +65,7 @@ const UserSettingsModal: React.FC<UserSettingsModalProps> = ({ isOpen, onClose, 
     const newNotifs = { ...notifications, [id]: !notifications[id] };
     setNotifications(newNotifs);
     localStorage.setItem(`notifs_${user?.id}`, JSON.stringify(newNotifs));
-    
+
     // Show a quick message
     setMessage({ type: 'success', text: 'Preferência de notificação atualizada!' });
     setTimeout(() => setMessage(null), 3000);
@@ -134,6 +137,7 @@ const UserSettingsModal: React.FC<UserSettingsModalProps> = ({ isOpen, onClose, 
 
       await refreshUser();
       setMessage({ type: 'success', text: 'Perfil atualizado com sucesso!' });
+      setTimeout(() => setMessage(null), 3000);
     } catch (error: any) {
       setMessage({ type: 'error', text: error.message || 'Erro ao atualizar perfil' });
     } finally {
@@ -177,15 +181,15 @@ const UserSettingsModal: React.FC<UserSettingsModalProps> = ({ isOpen, onClose, 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
       {/* 1. Overlay Premium */}
-      <div 
+      <div
         className="absolute inset-0 bg-black/60 backdrop-blur-md z-0 animate-in fade-in duration-300"
         onClick={onClose}
       >
-         <div className="absolute inset-0 opacity-[0.03] bg-[url('https://grainy-gradients.vercel.app/noise.svg')]"></div>
+        <div className="absolute inset-0 opacity-[0.03] bg-[url('https://grainy-gradients.vercel.app/noise.svg')]"></div>
       </div>
 
-      <div className="relative z-10 w-full max-w-4xl h-[600px] flex rounded-[22px] overflow-hidden shadow-2xl animate-in zoom-in-95 duration-300 border border-white/10 bg-[#0a0a1a]/80 backdrop-blur-xl">
-        
+      <div className="relative z-10 w-full max-w-4xl h-[700px] flex rounded-[22px] overflow-hidden shadow-2xl animate-in zoom-in-95 duration-300 border border-white/10 bg-[#0a0a1a]/80 backdrop-blur-xl">
+
         {/* Glow Effects */}
         <div className="absolute inset-0 rounded-[22px] border border-white/5 pointer-events-none"></div>
         <div className="absolute top-[-50px] left-1/2 -translate-x-1/2 w-[60%] h-[100px] bg-primary/30 blur-[80px] pointer-events-none rounded-[100%]"></div>
@@ -203,11 +207,10 @@ const UserSettingsModal: React.FC<UserSettingsModalProps> = ({ isOpen, onClose, 
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id as UserSettingsTab)}
-                className={`w-full flex items-center space-x-3 p-3 rounded-xl transition-all duration-300 group border ${
-                  activeTab === tab.id 
-                    ? 'bg-primary/10 text-primary border-primary/30 shadow-[0_0_15px_-5px_rgba(99,102,241,0.3)]' 
-                    : 'border-transparent text-gray-400 hover:bg-white/5 hover:text-white hover:border-white/5'
-                }`}
+                className={`w-full flex items-center space-x-3 p-3 rounded-xl transition-all duration-300 group border ${activeTab === tab.id
+                  ? 'bg-primary/10 text-primary border-primary/30 shadow-[0_0_15px_-5px_rgba(99,102,241,0.3)]'
+                  : 'border-transparent text-gray-400 hover:bg-white/5 hover:text-white hover:border-white/5'
+                  }`}
               >
                 <div className={`${activeTab === tab.id ? 'text-primary' : 'text-gray-500 group-hover:text-gray-300'}`}>
                   {tab.icon}
@@ -221,7 +224,7 @@ const UserSettingsModal: React.FC<UserSettingsModalProps> = ({ isOpen, onClose, 
             ))}
           </nav>
 
-          <button 
+          <button
             onClick={logout}
             className="flex items-center space-x-3 p-3 rounded-xl text-red-400 hover:bg-red-500/10 transition-colors mt-auto border border-transparent hover:border-red-500/20"
           >
@@ -232,27 +235,19 @@ const UserSettingsModal: React.FC<UserSettingsModalProps> = ({ isOpen, onClose, 
 
         {/* Content Area */}
         <div className="flex-1 flex flex-col min-w-0 bg-transparent relative z-20">
-          {/* Header */}
-          <div className="flex items-center justify-between p-6 border-b border-white/5">
-            <div>
-              <h3 className="text-lg font-bold text-white/90">
-                {tabs.find(t => t.id === activeTab)?.label}
-              </h3>
-            </div>
-            <button 
-              onClick={onClose}
-              className="p-2 text-gray-500 hover:text-white transition-colors rounded-lg hover:bg-white/5"
-            >
-              <X size={20} />
-            </button>
-          </div>
+          {/* Close Button */}
+          <button
+            onClick={onClose}
+            className="absolute top-4 right-4 p-2 text-gray-500 hover:text-white transition-colors rounded-lg hover:bg-white/5 z-30"
+          >
+            <X size={20} />
+          </button>
 
           {/* Body */}
           <div className="flex-1 p-8 overflow-y-auto scrollbar-thin scrollbar-thumb-white/10 custom-scrollbar">
             {message && (
-              <div className={`mb-6 p-4 rounded-xl text-sm animate-in fade-in slide-in-from-top-2 border ${
-                message.type === 'success' ? 'bg-green-500/10 text-green-400 border-green-500/20' : 'bg-red-500/10 text-red-400 border-red-500/20'
-              }`}>
+              <div className={`mb-6 p-4 rounded-xl text-sm animate-in fade-in slide-in-from-top-2 border ${message.type === 'success' ? 'bg-green-500/10 text-green-400 border-green-500/20' : 'bg-red-500/10 text-red-400 border-red-500/20'
+                }`}>
                 {message.text}
               </div>
             )}
@@ -276,10 +271,10 @@ const UserSettingsModal: React.FC<UserSettingsModalProps> = ({ isOpen, onClose, 
                     </div>
                     <label className="absolute -bottom-2 -right-2 p-2 bg-[#1a1a2e] border border-white/10 rounded-xl text-gray-400 hover:text-white shadow-lg transition-all group-hover:scale-110 cursor-pointer hover:bg-primary hover:border-primary">
                       <Palette size={14} />
-                      <input 
-                        type="file" 
-                        className="hidden" 
-                        accept="image/*" 
+                      <input
+                        type="file"
+                        className="hidden"
+                        accept="image/*"
                         onChange={handleAvatarUpload}
                         disabled={uploading}
                       />
@@ -290,10 +285,10 @@ const UserSettingsModal: React.FC<UserSettingsModalProps> = ({ isOpen, onClose, 
                     <p className="text-xs text-gray-500 mb-3 font-light">Clique para alterar seu avatar personalizado</p>
                     <label className="text-xs font-bold text-primary hover:text-primary transition-colors cursor-pointer flex items-center gap-1">
                       {uploading ? 'ENVIANDO...' : 'ALTERAR IMAGEM'}
-                      <input 
-                        type="file" 
-                        className="hidden" 
-                        accept="image/*" 
+                      <input
+                        type="file"
+                        className="hidden"
+                        accept="image/*"
                         onChange={handleAvatarUpload}
                         disabled={uploading}
                       />

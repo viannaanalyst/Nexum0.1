@@ -25,10 +25,11 @@ import { useUI } from '../../context/UIContext';
 interface KanbanCardModalProps {
     cardId: string;
     columnId?: string; // If cardId is 'new', this is required
+    defaultClientId?: string; // Pre-fill client from board filter
     onClose: () => void;
 }
 
-const KanbanCardModal = ({ cardId, columnId, onClose }: KanbanCardModalProps) => {
+const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose }: KanbanCardModalProps) => {
     const { selectedCompany } = useCompany();
     const { toast, confirm } = useUI();
     const [activeTab, setActiveTab] = useState<'details' | 'checklist' | 'comments' | 'files' | 'tags'>('details');
@@ -111,6 +112,7 @@ const KanbanCardModal = ({ cardId, columnId, onClose }: KanbanCardModalProps) =>
             setLoading(false);
             setTitle('Nova tarefa');
             if (columnId) setCurrentColumnId(columnId);
+            if (defaultClientId) setClientId(defaultClientId);
         }
     }, [cardId, selectedCompany]);
 
@@ -461,6 +463,7 @@ const KanbanCardModal = ({ cardId, columnId, onClose }: KanbanCardModalProps) =>
 
             const { data, error } = await supabase.from('kanban_cards').insert({
                 company_id: selectedCompany.id,
+                client_id: clientId || null,
                 column_id: firstColId,
                 title: subtaskTitle,
                 parent_id: cardId,
@@ -506,6 +509,7 @@ const KanbanCardModal = ({ cardId, columnId, onClose }: KanbanCardModalProps) =>
 
             const { data: newCard, error: createError } = await supabase.from('kanban_cards').insert({
                 company_id: selectedCompany.id,
+                client_id: clientId || null,
                 column_id: firstColId,
                 title: description,
                 parent_id: cardId,
