@@ -112,60 +112,80 @@ const SuperAdminDashboard = () => {
 
       {/* Modal Nova Empresa */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-          <div className="glass-card w-full max-w-lg p-8 rounded-2xl border border-white/10 relative">
-            <h2 className="text-2xl font-bold text-white mb-6">Cadastrar Nova Empresa</h2>
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          {/* 1. Overlay Premium */}
+          <div 
+            className="absolute inset-0 bg-black/60 backdrop-blur-md z-0 animate-in fade-in duration-300"
+            onClick={() => setIsModalOpen(false)}
+          >
+             <div className="absolute inset-0 opacity-[0.03] bg-[url('https://grainy-gradients.vercel.app/noise.svg')]"></div>
+          </div>
+
+          {/* 2. Container Glass Premium */}
+          <div className="relative z-10 w-full max-w-lg rounded-[22px] overflow-hidden shadow-2xl animate-in zoom-in-95 duration-300 border border-white/10 bg-[#0a0a1a]/80 backdrop-blur-xl">
             
-            <form onSubmit={handleCreateCompany} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-400 mb-1">Nome da Empresa</label>
+            {/* Glow Effects */}
+            <div className="absolute inset-0 rounded-[22px] border border-white/5 pointer-events-none"></div>
+            <div className="absolute top-[-50px] left-1/2 -translate-x-1/2 w-[60%] h-[100px] bg-primary/30 blur-[80px] pointer-events-none rounded-[100%]"></div>
+            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-1/3 h-[1px] bg-gradient-to-r from-transparent via-primary/50 to-transparent"></div>
+
+            <div className="p-8 pb-4 relative z-20">
+              <h2 className="text-xl font-bold text-white/90 mb-1">Cadastrar Nova Empresa</h2>
+              <p className="text-xs text-gray-500 font-light">Adicione uma nova organização ao sistema.</p>
+            </div>
+            
+            <form onSubmit={handleCreateCompany} className="p-8 pt-2 space-y-5 relative z-20">
+              <div className="space-y-1.5">
+                <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wide ml-1">Nome da Empresa</label>
                 <input
                   type="text"
                   required
                   value={newCompany.name}
                   onChange={e => setNewCompany({...newCompany, name: e.target.value})}
-                  className="w-full bg-black/20 border border-white/10 rounded-lg p-3 text-white focus:outline-none focus:ring-2 focus:ring-primary"
+                  className="w-full bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.08] rounded-xl px-4 py-3 text-white/90 focus:bg-white/[0.08] focus:border-primary/30 focus:ring-0 outline-none transition-all duration-300 text-sm font-light placeholder-gray-600"
+                  placeholder="Nome da empresa"
                 />
               </div>
               
-              <div>
-                <label className="block text-sm font-medium text-gray-400 mb-1">CNPJ</label>
+              <div className="space-y-1.5">
+                <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wide ml-1">CNPJ</label>
                 <IMaskInput
                   mask="00.000.000/0000-00"
                   type="text"
                   required
                   value={newCompany.cnpj}
                   onAccept={(value: string) => setNewCompany({...newCompany, cnpj: value})}
-                  className="w-full bg-black/20 border border-white/10 rounded-lg p-3 text-white focus:outline-none focus:ring-2 focus:ring-primary"
+                  className="w-full bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.08] rounded-xl px-4 py-3 text-white/90 focus:bg-white/[0.08] focus:border-primary/30 focus:ring-0 outline-none transition-all duration-300 text-sm font-light placeholder-gray-600"
                   placeholder="00.000.000/0000-00"
                 />
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-400 mb-1">WhatsApp</label>
+              <div className="space-y-1.5">
+                <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wide ml-1">WhatsApp</label>
                 <IMaskInput
                     mask="(00) 00000-0000"
                     type="text"
                     value={newCompany.whatsapp}
                     onAccept={(value: string) => setNewCompany({...newCompany, whatsapp: value})}
-                    className="w-full bg-black/20 border border-white/10 rounded-lg p-3 text-white focus:outline-none focus:ring-2 focus:ring-primary"
+                    className="w-full bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.08] rounded-xl px-4 py-3 text-white/90 focus:bg-white/[0.08] focus:border-primary/30 focus:ring-0 outline-none transition-all duration-300 text-sm font-light placeholder-gray-600"
                     placeholder="(00) 00000-0000"
                 />
               </div>
 
-              <div className="flex space-x-4 mt-8 pt-4">
+              <div className="flex justify-end gap-3 pt-4 border-t border-white/5 mt-4">
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
-                  className="flex-1 py-3 bg-white/5 hover:bg-white/10 text-white rounded-lg transition-colors"
+                  className="px-5 py-2.5 text-sm text-gray-500 hover:text-white transition-colors hover:bg-white/5 rounded-xl font-light"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 py-3 bg-primary hover:bg-secondary text-white rounded-lg shadow-lg shadow-primary/20 transition-all"
+                  className="px-6 py-2.5 bg-white/[0.05] hover:bg-white/[0.1] text-white rounded-xl border border-white/5 hover:border-white/20 transition-all duration-300 font-medium text-sm flex items-center gap-2 group shadow-lg"
                 >
-                  Criar Empresa
+                  <span>Criar Empresa</span>
+                  <span className="text-primary group-hover:translate-x-1 transition-transform">→</span>
                 </button>
               </div>
             </form>

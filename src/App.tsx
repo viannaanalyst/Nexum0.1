@@ -112,7 +112,7 @@ function App() {
              <Route path="organizador" element={<Navigate to="/organizador/kanban" replace />} />
              <Route path="organizador/kanban" element={<OrganizadorKanban />} />
              <Route path="organizador/lista" element={<OrganizadorLista />} />
-             <Route path="organizador/atividades" element={<OrganizadorAtividades />} />
+             <Route path="organizador/historico" element={<OrganizadorAtividades />} />
              <Route path="organizador/cronograma" element={<OrganizadorCronograma />} />
              
              {/* Other Sidebar Routes */}

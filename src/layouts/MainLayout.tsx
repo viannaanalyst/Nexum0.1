@@ -211,7 +211,7 @@ const MainLayout = () => {
               <div className="ml-4 mt-2 space-y-1 border-l border-white/10 pl-2">
                 <SubNavItem to="/organizador/kanban" icon={<FolderKanban size={16} />} label="Kanban" />
                 <SubNavItem to="/organizador/lista" icon={<List size={16} />} label="Lista" />
-                <SubNavItem to="/organizador/atividades" icon={<CheckSquare size={16} />} label="Atividades" />
+                <SubNavItem to="/organizador/historico" icon={<CheckSquare size={16} />} label="Histórico" />
                 <SubNavItem to="/organizador/cronograma" icon={<Clock size={16} />} label="Cronograma" />
               </div>
             </div>

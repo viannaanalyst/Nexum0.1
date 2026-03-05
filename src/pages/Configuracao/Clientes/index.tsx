@@ -8,6 +8,7 @@ import { useCompany } from '../../../context/CompanyContext';
 import { useAuth } from '../../../context/AuthContext';
 import { supabase } from '../../../lib/supabase';
 import { IMaskInput } from 'react-imask';
+import { useUI } from '../../../context/UIContext';
 import './styles.css';
 
 // Types
@@ -53,6 +54,7 @@ interface Log {
 }
 
 const Clientes = () => {
+  const { toast, confirm } = useUI();
   const { selectedCompany } = useCompany();
   const { user } = useAuth();
   const [clients, setClients] = useState<Client[]>([]);
@@ -243,7 +245,7 @@ const Clientes = () => {
   const handleAddCredential = async () => {
     if (!editingId) return;
     if (!newCredential.service_name || !newCredential.login || !newCredential.password) {
-      alert('Preencha os campos obrigatórios da credencial.');
+      toast.warning('Atenção', 'Preencha os campos obrigatórios da credencial.');
       return;
     }
 
@@ -260,21 +262,23 @@ const Clientes = () => {
 
       setNewCredential({ service_name: '', login: '', password: '', notes: '' });
       fetchCredentials(editingId);
-      alert('Credencial adicionada com segurança!');
+      toast.success('Sucesso', 'Credencial adicionada com segurança!');
     } catch (error: any) {
       console.error('Error adding credential:', error);
-      alert('Erro ao adicionar credencial: ' + error.message);
+      toast.error('Erro', 'Erro ao adicionar credencial: ' + error.message);
     }
   };
 
   const handleDeleteCredential = async (id: string) => {
-    if (!confirm('Tem certeza que deseja remover esta credencial?')) return;
+    if (!await confirm('Remover Credencial', 'Tem certeza que deseja remover esta credencial?', { type: 'danger' })) return;
     try {
       const { error } = await supabase.rpc('delete_client_credential', { p_credential_id: id });
       if (error) throw error;
       setCredentials(prev => prev.filter(c => c.id !== id));
+      toast.success('Sucesso', 'Credencial removida!');
     } catch (error) {
       console.error('Error deleting credential:', error);
+      toast.error('Erro', 'Erro ao remover credencial.');
     }
   };
 
@@ -366,16 +370,16 @@ const Clientes = () => {
          // If creating new, set editing ID to allow adding credentials immediately
          if (!editingId) {
              setEditingId(clientId);
-             alert('Cliente criado! Agora você pode adicionar credenciais.');
+             toast.success('Sucesso', 'Cliente criado! Agora você pode adicionar credenciais.');
          } else {
-             alert('Cliente salvo com sucesso!');
+             toast.success('Sucesso', 'Cliente salvo com sucesso!');
              setIsModalOpen(false);
          }
       }
       fetchClients();
     } catch (error: any) {
       console.error('Error saving client:', error);
-      alert('Erro ao salvar cliente: ' + error.message);
+      toast.error('Erro', 'Erro ao salvar cliente: ' + error.message);
     } finally {
       setLoading(false);
     }
@@ -407,7 +411,7 @@ const Clientes = () => {
           className="flex items-center space-x-2 bg-primary hover:bg-secondary text-white px-6 py-3 rounded-lg shadow-lg shadow-primary/20 transition-all duration-300 transform hover:scale-105"
         >
           <Plus size={20} />
-          <span>Novo Cliente</span>
+          <span>Novo cliente</span>
         </button>
       </div>
 
@@ -460,20 +464,43 @@ const Clientes = () => {
 
       {/* Modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-          <div className="glass-card w-full max-w-5xl h-[90vh] flex flex-col rounded-2xl border border-white/10 overflow-hidden relative bg-[#0a0a1a]">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          {/* 1. Overlay Premium */}
+          <div 
+            className="absolute inset-0 bg-black/60 backdrop-blur-md z-0 animate-in fade-in duration-300"
+            onClick={() => setIsModalOpen(false)}
+          >
+             <div className="absolute inset-0 opacity-[0.03] bg-[url('https://grainy-gradients.vercel.app/noise.svg')]"></div>
+          </div>
+
+          {/* 2. Container Glass Premium */}
+          <div className="relative z-10 w-full max-w-5xl h-[85vh] flex flex-col rounded-[22px] overflow-hidden shadow-2xl animate-in zoom-in-95 duration-300 border border-white/10 bg-[#0a0a1a]/80 backdrop-blur-xl">
+            
+            {/* Glow Effects */}
+            <div className="absolute inset-0 rounded-[22px] border border-white/5 pointer-events-none"></div>
+            <div className="absolute top-[-50px] left-1/2 -translate-x-1/2 w-[60%] h-[100px] bg-primary/40 blur-[80px] pointer-events-none rounded-[100%]"></div>
+            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-1/3 h-[2px] bg-gradient-to-r from-transparent via-primary to-transparent shadow-[0_0_20px_2px_rgba(99,102,241,0.6)]"></div>
+
             {/* Modal Header */}
-            <div className="flex justify-between items-center p-6 border-b border-white/10">
-              <h2 className="text-2xl font-bold text-white">{editingId ? 'Editar Cliente' : 'Novo Cliente'}</h2>
-              <button onClick={() => setIsModalOpen(false)} className="text-gray-400 hover:text-white"><X size={24} /></button>
+            <div className="flex justify-between items-start p-8 pb-4 relative z-20">
+              <div>
+                <h2 className="text-xl font-medium text-white/90 relative z-10">{editingId ? 'Editar cliente' : 'Novo cliente'}</h2>
+                <p className="text-gray-400/80 text-xs mt-1 font-light">Gerencie as informações contratuais e estratégicas.</p>
+              </div>
+              <button 
+                onClick={() => setIsModalOpen(false)} 
+                className="p-1.5 text-gray-500 hover:text-white rounded-lg hover:bg-white/10 transition-colors z-20"
+              >
+                <X size={18} />
+              </button>
             </div>
 
             {/* Modal Body */}
-            <div className="flex flex-1 overflow-hidden">
+            <div className="flex flex-1 overflow-hidden relative z-10">
               {/* Sidebar Tabs */}
-              <div className="w-64 bg-black/20 border-r border-white/10 p-4 space-y-2 overflow-y-auto">
+              <div className="w-64 border-r border-white/5 p-4 space-y-1 overflow-y-auto bg-black/20">
                 {[
-                  { id: 'dados', icon: User, label: 'Dados' },
+                  { id: 'dados', icon: User, label: 'Dados Gerais' },
                   { id: 'financeiro', icon: DollarSign, label: 'Financeiro' },
                   { id: 'escopo', icon: Briefcase, label: 'Escopo' },
                   { id: 'equipe', icon: Users, label: 'Equipe' },
@@ -484,58 +511,87 @@ const Clientes = () => {
                     key={tab.id}
                     onClick={() => !tab.disabled && setActiveTab(tab.id)}
                     disabled={tab.disabled}
-                    className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-all text-sm font-medium ${
+                    className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl transition-all text-sm font-light ${
                       activeTab === tab.id 
-                        ? 'bg-primary/20 text-primary border border-primary/20' 
-                        : tab.disabled ? 'opacity-50 cursor-not-allowed text-gray-600' : 'text-gray-400 hover:bg-white/5 hover:text-white'
+                        ? 'bg-purple-500/10 text-purple-300 border border-purple-500/20' 
+                        : tab.disabled ? 'opacity-40 cursor-not-allowed text-gray-600' : 'text-gray-400 hover:bg-white/5 hover:text-gray-200'
                     }`}
                   >
-                    <tab.icon size={18} />
+                    <tab.icon size={16} className={activeTab === tab.id ? 'text-purple-400' : ''} />
                     <span>{tab.label}</span>
                   </button>
                 ))}
               </div>
 
               {/* Content Area */}
-              <div className="flex-1 p-8 overflow-y-auto bg-black/10">
+              <div className="flex-1 p-8 overflow-y-auto custom-scrollbar">
                 {/* 1. ABA DADOS */}
                 {activeTab === 'dados' && (
                   <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
-                    <div className="grid grid-cols-2 gap-6">
-                      <div className="col-span-2">
-                        <label className="label">Nome do Cliente *</label>
-                        <input type="text" className="input" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} placeholder="Nome da Empresa ou Pessoa" />
+                    <div className="grid grid-cols-2 gap-5">
+                      <div className="col-span-2 group">
+                        <label className="block text-xs font-medium text-gray-500 mb-1.5 uppercase tracking-wide ml-1">Nome do Cliente</label>
+                        <input 
+                            type="text" 
+                            className="w-full bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.08] rounded-xl px-4 py-3 text-white/90 placeholder-gray-600 focus:bg-white/[0.08] focus:border-purple-500/30 focus:ring-0 outline-none transition-all duration-300 text-sm font-light" 
+                            value={formData.name} 
+                            onChange={e => setFormData({...formData, name: e.target.value})} 
+                            placeholder="Nome da Empresa ou Pessoa" 
+                        />
                       </div>
-                      <div>
-                        <label className="label">Email</label>
-                        <input type="email" className="input" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} placeholder="contato@cliente.com" />
+                      <div className="group">
+                        <label className="block text-xs font-medium text-gray-500 mb-1.5 uppercase tracking-wide ml-1">Email</label>
+                        <input 
+                            type="email" 
+                            className="w-full bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.08] rounded-xl px-4 py-3 text-white/90 placeholder-gray-600 focus:bg-white/[0.08] focus:border-purple-500/30 focus:ring-0 outline-none transition-all duration-300 text-sm font-light" 
+                            value={formData.email} 
+                            onChange={e => setFormData({...formData, email: e.target.value})} 
+                            placeholder="contato@cliente.com" 
+                        />
                       </div>
-                      <div>
-                        <label className="label">Telefone / WhatsApp</label>
-                        <IMaskInput mask="(00) 00000-0000" className="input" value={formData.phone} onAccept={(val: string) => setFormData({...formData, phone: val})} placeholder="(00) 00000-0000" />
+                      <div className="group">
+                        <label className="block text-xs font-medium text-gray-500 mb-1.5 uppercase tracking-wide ml-1">Telefone</label>
+                        <IMaskInput 
+                            mask="(00) 00000-0000" 
+                            className="w-full bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.08] rounded-xl px-4 py-3 text-white/90 placeholder-gray-600 focus:bg-white/[0.08] focus:border-purple-500/30 focus:ring-0 outline-none transition-all duration-300 text-sm font-light" 
+                            value={formData.phone} 
+                            onAccept={(val: string) => setFormData({...formData, phone: val})} 
+                            placeholder="(00) 00000-0000" 
+                        />
                       </div>
-                      <div>
-                        <label className="label">Website</label>
-                        <input type="text" className="input" value={formData.website} onChange={e => setFormData({...formData, website: e.target.value})} placeholder="www.site.com" />
+                      <div className="group">
+                        <label className="block text-xs font-medium text-gray-500 mb-1.5 uppercase tracking-wide ml-1">Website</label>
+                        <input 
+                            type="text" 
+                            className="w-full bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.08] rounded-xl px-4 py-3 text-white/90 placeholder-gray-600 focus:bg-white/[0.08] focus:border-purple-500/30 focus:ring-0 outline-none transition-all duration-300 text-sm font-light" 
+                            value={formData.website} 
+                            onChange={e => setFormData({...formData, website: e.target.value})} 
+                            placeholder="www.site.com" 
+                        />
                       </div>
-                      <div>
-                        <label className="label">Instagram</label>
+                      <div className="group">
+                        <label className="block text-xs font-medium text-gray-500 mb-1.5 uppercase tracking-wide ml-1">Instagram</label>
                         <div className="relative">
-                          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                            <span className="text-white font-bold text-lg">@</span>
+                          <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                            <span className="text-gray-500 font-light">@</span>
                           </div>
                           <input 
                             type="text" 
-                            className="input !pl-8" 
+                            className="w-full bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.08] rounded-xl pl-8 pr-4 py-3 text-white/90 placeholder-gray-600 focus:bg-white/[0.08] focus:border-purple-500/30 focus:ring-0 outline-none transition-all duration-300 text-sm font-light" 
                             value={formData.instagram.replace('@', '')} 
                             onChange={e => setFormData({...formData, instagram: e.target.value.replace('@', '')})} 
                             placeholder="usuario" 
                           />
                         </div>
                       </div>
-                      <div className="col-span-2">
-                        <label className="label">Briefing / Observações</label>
-                        <textarea className="input h-32 resize-none" value={formData.briefing} onChange={e => setFormData({...formData, briefing: e.target.value})} placeholder="Histórico da empresa, contexto, etc." />
+                      <div className="col-span-2 group">
+                        <label className="block text-xs font-medium text-gray-500 mb-1.5 uppercase tracking-wide ml-1">Briefing</label>
+                        <textarea 
+                            className="w-full bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.08] rounded-xl px-4 py-3 text-white/90 placeholder-gray-600 focus:bg-white/[0.08] focus:border-purple-500/30 focus:ring-0 outline-none transition-all duration-300 text-sm font-light h-32 resize-none" 
+                            value={formData.briefing} 
+                            onChange={e => setFormData({...formData, briefing: e.target.value})} 
+                            placeholder="Histórico da empresa, contexto, etc." 
+                        />
                       </div>
                     </div>
                   </div>
@@ -545,58 +601,60 @@ const Clientes = () => {
                 {activeTab === 'financeiro' && (
                   <div className="space-y-8 animate-in fade-in slide-in-from-right-4 duration-300">
                     <div>
-                      <label className="label mb-4 block">Status do Cliente</label>
-                      <div className="flex space-x-4">
-                        {['active', 'paused', 'canceled'].map(status => (
-                          <button
-                            key={status}
-                            onClick={() => setFormData({...formData, status: status as any})}
-                            className={`flex-1 py-4 rounded-xl border-2 transition-all font-bold uppercase tracking-wider ${
-                              formData.status === status
-                                ? status === 'active' ? 'border-green-500 bg-green-500/10 text-green-400'
-                                : status === 'paused' ? 'border-yellow-500 bg-yellow-500/10 text-yellow-400'
-                                : 'border-red-500 bg-red-500/10 text-red-400'
-                                : 'border-white/10 bg-white/5 text-gray-500 hover:bg-white/10'
-                            }`}
-                          >
-                            {status === 'active' ? 'Ativo' : status === 'paused' ? 'Pausado' : 'Cancelado'}
-                          </button>
-                        ))}
+                      <label className="block text-xs font-medium text-gray-500 mb-1.5 uppercase tracking-wide ml-1">Status do Contrato</label>
+                      <div className="relative group">
+                        <select 
+                          value={formData.status}
+                          onChange={e => setFormData({...formData, status: e.target.value as any})}
+                          className="w-full bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.08] rounded-xl px-4 py-3 text-white/90 focus:bg-white/[0.08] focus:border-primary/30 focus:ring-0 outline-none appearance-none cursor-pointer transition-all duration-300 text-sm font-light"
+                        >
+                          <option value="active" className="bg-[#0a0a1a]">Ativo</option>
+                          <option value="paused" className="bg-[#0a0a1a]">Pausado</option>
+                          <option value="canceled" className="bg-[#0a0a1a]">Cancelado</option>
+                        </select>
                       </div>
                     </div>
 
                     <div className="grid grid-cols-2 gap-6">
-                      <div>
-                        <label className="label">MRR (Mensal)</label>
+                      <div className="group">
+                        <label className="block text-xs font-medium text-gray-500 mb-1.5 uppercase tracking-wide ml-1">Mensalidade (MRR)</label>
                         <div className="relative">
-                          <span className="absolute left-3 top-3 text-gray-400">R$</span>
+                          <span className="absolute left-4 top-3.5 text-gray-500 text-sm font-light">R$</span>
                           <input 
                             type="number" 
-                            className="input pl-10" 
+                            className="w-full bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.08] rounded-xl pl-10 pr-4 py-3 text-white/90 focus:bg-white/[0.08] focus:border-purple-500/30 focus:ring-0 outline-none transition-all duration-300 text-sm font-light" 
                             value={formData.mrr} 
                             onChange={e => setFormData({...formData, mrr: parseFloat(e.target.value)})} 
                           />
                         </div>
                       </div>
-                      <div>
-                        <label className="label">Dia de Vencimento</label>
-                        <select className="input appearance-none" value={formData.due_day} onChange={e => setFormData({...formData, due_day: parseInt(e.target.value)})}>
+                      <div className="group">
+                        <label className="block text-xs font-medium text-gray-500 mb-1.5 uppercase tracking-wide ml-1">Dia de Vencimento</label>
+                        <select 
+                            className="w-full bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.08] rounded-xl px-4 py-3 text-white/90 focus:bg-white/[0.08] focus:border-purple-500/30 focus:ring-0 outline-none transition-all duration-300 text-sm font-light appearance-none cursor-pointer" 
+                            value={formData.due_day} 
+                            onChange={e => setFormData({...formData, due_day: parseInt(e.target.value)})}
+                        >
                           {Array.from({length: 31}, (_, i) => i + 1).map(d => (
-                            <option key={d} value={d}>Dia {d}</option>
+                            <option key={d} value={d} className="bg-[#0a0a1a]">Dia {d}</option>
                           ))}
                         </select>
                       </div>
                     </div>
 
-                    <div className="flex items-center justify-between p-4 bg-white/5 rounded-xl border border-white/10">
-                      <div>
-                        <div className="text-white font-medium">Régua de Cobrança Automática</div>
-                        <div className="text-sm text-gray-500">Enviar lembretes de pagamento por email/whatsapp</div>
+                    <div className="flex items-center justify-between p-3 rounded-lg hover:bg-white/[0.02] transition-colors group cursor-pointer border border-transparent hover:border-white/5" onClick={() => setFormData({...formData, payment_reminder: !formData.payment_reminder})}>
+                      <div className="flex items-center gap-3">
+                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${formData.payment_reminder ? 'bg-primary/20 text-primary' : 'bg-white/5 text-gray-500'}`}>
+                          <DollarSign size={16} />
+                        </div>
+                        <div className="flex flex-col">
+                          <span className="text-sm font-medium text-gray-200">Lembrete Automático</span>
+                          <span className="text-[10px] text-gray-500">Enviar cobrança por email/whatsapp</span>
+                        </div>
                       </div>
-                      <label className="relative inline-flex items-center cursor-pointer">
-                        <input type="checkbox" checked={formData.payment_reminder} onChange={e => setFormData({...formData, payment_reminder: e.target.checked})} className="sr-only peer" />
-                        <div className="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
-                      </label>
+                      <div className={`w-4 h-4 rounded-full border flex items-center justify-center transition-all ${formData.payment_reminder ? 'border-primary bg-primary' : 'border-white/20 bg-transparent'}`}>
+                          {formData.payment_reminder && <div className="w-1.5 h-1.5 bg-white rounded-full"></div>}
+                      </div>
                     </div>
                   </div>
                 )}
@@ -605,41 +663,43 @@ const Clientes = () => {
                 {activeTab === 'escopo' && (
                   <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
                     <div>
-                      <label className="label">Serviços Contratados</label>
-                      <div className="flex gap-2 mb-2">
+                      <label className="block text-xs font-medium text-gray-500 mb-2 uppercase tracking-wide ml-1">Serviços Contratados</label>
+                      <div className="flex gap-2 mb-3">
                           <input 
                             type="text" 
-                            className="input text-sm py-2" 
-                            placeholder="Novo serviço..." 
+                            className="flex-1 bg-white/[0.03] border border-white/[0.08] rounded-xl px-4 py-2.5 text-white/90 placeholder-gray-600 focus:border-purple-500/30 outline-none text-sm font-light" 
+                            placeholder="Adicionar serviço personalizado..." 
                             value={newService} 
                             onChange={e => setNewService(e.target.value)}
                             onKeyDown={e => e.key === 'Enter' && handleAddCustomItem('service')}
                           />
-                          <button onClick={() => handleAddCustomItem('service')} className="bg-white/10 hover:bg-white/20 px-3 rounded-lg text-white">
+                          <button onClick={() => handleAddCustomItem('service')} className="bg-white/10 hover:bg-white/20 px-4 rounded-xl text-white transition-colors">
                             <Plus size={18} />
                           </button>
                       </div>
-                      <div className="grid grid-cols-2 gap-3 mt-2 max-h-48 overflow-y-auto pr-2">
+                      <div className="grid grid-cols-2 gap-3 max-h-60 overflow-y-auto pr-2 custom-scrollbar">
                         {allServices.map(service => (
                           <div 
                             key={service} 
                             onClick={() => toggleArrayItem('services', service)}
-                            className={`p-3 rounded-lg border cursor-pointer flex items-center justify-between transition-all ${
+                            className={`p-3 rounded-xl border cursor-pointer flex items-center justify-between transition-all group ${
                               formData.services?.includes(service) 
-                                ? 'bg-primary/20 border-primary text-white' 
-                                : 'bg-white/5 border-white/10 text-gray-400 hover:bg-white/10'
+                                ? 'bg-purple-500/10 border-purple-500/30' 
+                                : 'bg-white/[0.02] border-white/5 hover:bg-white/[0.05]'
                             }`}
                           >
-                            <span>{service}</span>
-                            {formData.services?.includes(service) && <CheckCircle size={16} className="text-primary" />}
+                            <span className={`text-sm font-light ${formData.services?.includes(service) ? 'text-purple-200' : 'text-gray-400 group-hover:text-gray-200'}`}>{service}</span>
+                            <div className={`w-5 h-5 rounded-full border flex items-center justify-center transition-all ${formData.services?.includes(service) ? 'border-purple-500 bg-purple-500' : 'border-white/10 bg-transparent'}`}>
+                                {formData.services?.includes(service) && <div className="w-2 h-2 bg-white rounded-full"></div>}
+                            </div>
                           </div>
                         ))}
                       </div>
                     </div>
                     <div>
-                      <label className="label">Escopo Detalhado</label>
+                      <label className="block text-xs font-medium text-gray-500 mb-1.5 uppercase tracking-wide ml-1">Escopo Detalhado</label>
                       <textarea 
-                        className="input h-64 resize-none font-mono text-sm leading-relaxed" 
+                        className="w-full bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.08] rounded-xl px-4 py-3 text-white/90 placeholder-gray-600 focus:bg-white/[0.08] focus:border-purple-500/30 focus:ring-0 outline-none transition-all duration-300 text-sm font-mono h-48 resize-none leading-relaxed" 
                         value={formData.scope_description} 
                         onChange={e => setFormData({...formData, scope_description: e.target.value})} 
                         placeholder="Descreva detalhadamente o que será entregue..."
@@ -651,30 +711,32 @@ const Clientes = () => {
                 {/* 4. ABA EQUIPE */}
                 {activeTab === 'equipe' && (
                   <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
-                    <label className="label">Membros Responsáveis</label>
+                    <label className="block text-xs font-medium text-gray-500 mb-2 uppercase tracking-wide ml-1">Responsáveis pelo Cliente</label>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       {companyMembers.map(member => (
                         <div 
                           key={member.id}
                           onClick={() => toggleArrayItem('team_members', member.id)}
-                          className={`flex items-center space-x-4 p-4 rounded-xl border cursor-pointer transition-all ${
+                          className={`flex items-center space-x-4 p-4 rounded-xl border cursor-pointer transition-all group ${
                             formData.team_members?.includes(member.id)
-                              ? 'bg-primary/10 border-primary shadow-lg shadow-primary/5'
-                              : 'bg-white/5 border-white/10 hover:bg-white/10'
+                              ? 'bg-purple-500/10 border-purple-500/30 shadow-[0_0_15px_-5px_rgba(168,85,247,0.15)]'
+                              : 'bg-white/[0.02] border-white/5 hover:bg-white/[0.05]'
                           }`}
                         >
-                          <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold ${
-                            formData.team_members?.includes(member.id) ? 'bg-primary text-white' : 'bg-gray-700 text-gray-400'
+                          <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold shadow-inner ${
+                            formData.team_members?.includes(member.id) ? 'bg-purple-600 text-white' : 'bg-white/5 text-gray-500'
                           }`}>
                             {member.name.charAt(0)}
                           </div>
                           <div className="flex-1">
-                            <div className={`font-medium ${formData.team_members?.includes(member.id) ? 'text-white' : 'text-gray-300'}`}>
+                            <div className={`font-medium text-sm ${formData.team_members?.includes(member.id) ? 'text-white' : 'text-gray-400 group-hover:text-gray-200'}`}>
                               {member.name}
                             </div>
-                            <div className="text-xs text-gray-500">Membro da Equipe</div>
+                            <div className="text-[10px] text-gray-600">Membro da Equipe</div>
                           </div>
-                          {formData.team_members?.includes(member.id) && <CheckCircle className="text-primary" />}
+                          <div className={`w-5 h-5 rounded-full border flex items-center justify-center transition-all ${formData.team_members?.includes(member.id) ? 'border-purple-500 bg-purple-500' : 'border-white/10 bg-transparent'}`}>
+                                {formData.team_members?.includes(member.id) && <div className="w-2 h-2 bg-white rounded-full"></div>}
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -685,29 +747,29 @@ const Clientes = () => {
                 {activeTab === 'estrategia' && (
                   <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
                      <div>
-                      <label className="label">Objetivos Principais</label>
-                      <div className="flex gap-2 mb-2">
+                      <label className="block text-xs font-medium text-gray-500 mb-2 uppercase tracking-wide ml-1">Objetivos Estratégicos</label>
+                      <div className="flex gap-2 mb-3">
                           <input 
                             type="text" 
-                            className="input text-sm py-2" 
+                            className="flex-1 bg-white/[0.03] border border-white/[0.08] rounded-xl px-4 py-2.5 text-white/90 placeholder-gray-600 focus:border-purple-500/30 outline-none text-sm font-light" 
                             placeholder="Novo objetivo..." 
                             value={newGoal} 
                             onChange={e => setNewGoal(e.target.value)}
                             onKeyDown={e => e.key === 'Enter' && handleAddCustomItem('goal')}
                           />
-                          <button onClick={() => handleAddCustomItem('goal')} className="bg-white/10 hover:bg-white/20 px-3 rounded-lg text-white">
+                          <button onClick={() => handleAddCustomItem('goal')} className="bg-white/10 hover:bg-white/20 px-4 rounded-xl text-white transition-colors">
                             <Plus size={18} />
                           </button>
                       </div>
-                      <div className="flex flex-wrap gap-2 mt-2">
+                      <div className="flex flex-wrap gap-2">
                         {allGoals.map(goal => (
                           <button
                             key={goal}
                             onClick={() => toggleArrayItem('strategic_goals', goal)}
-                            className={`px-4 py-2 rounded-full text-sm font-medium border transition-all ${
+                            className={`px-4 py-2 rounded-full text-xs font-medium border transition-all ${
                               formData.strategic_goals?.includes(goal)
-                                ? 'bg-accent/20 border-accent text-accent'
-                                : 'bg-white/5 border-white/10 text-gray-400 hover:bg-white/10'
+                                ? 'bg-purple-500/20 border-purple-500/40 text-purple-300'
+                                : 'bg-white/5 border-white/10 text-gray-500 hover:bg-white/10 hover:text-gray-300'
                             }`}
                           >
                             {goal}
@@ -716,42 +778,42 @@ const Clientes = () => {
                       </div>
                     </div>
 
-                    <div className="border-t border-white/10 pt-6">
+                    <div className="border-t border-white/5 pt-6">
                       <div className="flex justify-between items-center mb-4">
-                        <label className="label mb-0 flex items-center gap-2">
-                          <Lock size={14} className="text-primary" />
-                          Cofre de Senhas e Credenciais
+                        <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide flex items-center gap-2">
+                          <Lock size={12} className="text-purple-400" />
+                          Cofre de Credenciais
                         </label>
                       </div>
                       
                       {!editingId ? (
-                        <div className="bg-yellow-500/10 border border-yellow-500/20 p-4 rounded-lg text-yellow-200 text-sm">
-                          Salve o cliente primeiro para adicionar credenciais.
+                        <div className="bg-yellow-500/5 border border-yellow-500/10 p-4 rounded-xl text-yellow-500/60 text-xs font-light text-center">
+                          Salve o cliente primeiro para adicionar credenciais com segurança.
                         </div>
                       ) : (
                         <div className="space-y-4">
                           {/* New Credential Form */}
-                          <div className="bg-white/5 p-4 rounded-xl border border-white/10 space-y-3">
+                          <div className="bg-white/[0.02] p-4 rounded-xl border border-white/5 space-y-3">
                             <div className="grid grid-cols-2 gap-3">
-                              <input type="text" className="input text-sm" placeholder="Serviço (ex: Facebook Ads)" value={newCredential.service_name} onChange={e => setNewCredential({...newCredential, service_name: e.target.value})} />
-                              <input type="text" className="input text-sm" placeholder="Login / Email" value={newCredential.login} onChange={e => setNewCredential({...newCredential, login: e.target.value})} />
+                              <input type="text" className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-2 text-white/90 text-xs focus:border-purple-500/30 outline-none" placeholder="Serviço (ex: Facebook Ads)" value={newCredential.service_name} onChange={e => setNewCredential({...newCredential, service_name: e.target.value})} />
+                              <input type="text" className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-2 text-white/90 text-xs focus:border-purple-500/30 outline-none" placeholder="Login / Email" value={newCredential.login} onChange={e => setNewCredential({...newCredential, login: e.target.value})} />
                             </div>
                             <div className="grid grid-cols-2 gap-3">
-                              <input type="password" className="input text-sm" placeholder="Senha" value={newCredential.password} onChange={e => setNewCredential({...newCredential, password: e.target.value})} />
-                              <input type="text" className="input text-sm" placeholder="Obs (opcional)" value={newCredential.notes} onChange={e => setNewCredential({...newCredential, notes: e.target.value})} />
+                              <input type="password" className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-2 text-white/90 text-xs focus:border-purple-500/30 outline-none" placeholder="Senha" value={newCredential.password} onChange={e => setNewCredential({...newCredential, password: e.target.value})} />
+                              <input type="text" className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-2 text-white/90 text-xs focus:border-purple-500/30 outline-none" placeholder="Obs (opcional)" value={newCredential.notes} onChange={e => setNewCredential({...newCredential, notes: e.target.value})} />
                             </div>
-                            <button onClick={handleAddCredential} className="w-full bg-white/10 hover:bg-white/20 text-white text-sm font-medium py-2 rounded-lg transition-colors">
-                              + Adicionar Credencial Criptografada
+                            <button onClick={handleAddCredential} className="w-full bg-purple-500/10 hover:bg-purple-500/20 text-purple-300 text-xs font-medium py-2.5 rounded-lg transition-all border border-purple-500/10 hover:border-purple-500/30">
+                              + Adicionar Credencial
                             </button>
                           </div>
 
                           {/* Credentials List */}
                           <div className="space-y-2">
                             {credentials.map(cred => (
-                              <div key={cred.id} className="flex items-center justify-between p-3 bg-black/20 rounded-lg border border-white/5 group hover:border-white/10">
+                              <div key={cred.id} className="flex items-center justify-between p-3 bg-white/[0.02] rounded-xl border border-white/5 hover:bg-white/[0.04] transition-colors group">
                                 <div>
-                                  <div className="text-white font-medium text-sm">{cred.service_name}</div>
-                                  <div className="text-xs text-gray-500">{cred.login}</div>
+                                  <div className="text-gray-200 font-medium text-xs">{cred.service_name}</div>
+                                  <div className="text-[10px] text-gray-600">{cred.login}</div>
                                 </div>
                                 <div className="flex items-center gap-2">
                                   <div className="relative">
@@ -759,19 +821,19 @@ const Clientes = () => {
                                       type={showPassword[cred.id] ? "text" : "password"} 
                                       value={cred.password || '********'} 
                                       readOnly 
-                                      className="bg-transparent border-none text-right text-sm text-gray-400 w-32 focus:ring-0"
+                                      className="bg-transparent border-none text-right text-xs text-gray-500 w-24 focus:ring-0 cursor-default"
                                     />
                                   </div>
-                                  <button onClick={() => setShowPassword(prev => ({...prev, [cred.id]: !prev[cred.id]}))} className="p-1.5 hover:bg-white/10 rounded text-gray-400">
+                                  <button onClick={() => setShowPassword(prev => ({...prev, [cred.id]: !prev[cred.id]}))} className="p-1.5 hover:bg-white/10 rounded text-gray-500 hover:text-white transition-colors">
                                     {showPassword[cred.id] ? <EyeOff size={14} /> : <Eye size={14} />}
                                   </button>
                                   <button onClick={() => {
                                     navigator.clipboard.writeText(cred.password || '');
-                                    alert('Senha copiada!');
-                                  }} className="p-1.5 hover:bg-white/10 rounded text-gray-400">
+                                    toast.success('Copiado', 'Senha copiada para a área de transferência!');
+                                  }} className="p-1.5 hover:bg-white/10 rounded text-gray-500 hover:text-white transition-colors">
                                     <Copy size={14} />
                                   </button>
-                                  <button onClick={() => handleDeleteCredential(cred.id)} className="p-1.5 hover:bg-red-500/20 rounded text-red-400">
+                                  <button onClick={() => handleDeleteCredential(cred.id)} className="p-1.5 hover:bg-red-500/10 rounded text-gray-500 hover:text-red-400 transition-colors">
                                     <Trash2 size={14} />
                                   </button>
                                 </div>
@@ -789,7 +851,7 @@ const Clientes = () => {
                   <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
                     <div className="space-y-4">
                       {logs.length === 0 ? (
-                        <div className="text-center text-gray-500 py-4">Nenhum histórico registrado.</div>
+                        <div className="text-center text-gray-600 py-8 text-sm font-light">Nenhum histórico registrado.</div>
                       ) : (
                         logs.map(log => (
                           <div key={log.id} className="flex items-start space-x-4 pb-4 border-b border-white/5 last:border-0">
@@ -799,10 +861,10 @@ const Clientes = () => {
                                <X size={16} className="text-red-500" />}
                             </div>
                             <div>
-                              <div className="text-white text-sm">
-                                Status alterado de <span className="font-bold text-gray-400">{log.previous_status}</span> para <span className="font-bold text-white">{log.new_status}</span>
+                              <div className="text-gray-300 text-sm">
+                                Status alterado de <span className="font-bold text-gray-500">{log.previous_status}</span> para <span className="font-bold text-white">{log.new_status}</span>
                               </div>
-                              <div className="text-xs text-gray-500 mt-1">
+                              <div className="text-[10px] text-gray-600 mt-1">
                                 {new Date(log.changed_at).toLocaleString()} por {log.user_name}
                               </div>
                             </div>
@@ -816,14 +878,20 @@ const Clientes = () => {
             </div>
 
             {/* Modal Footer */}
-            <div className="p-6 border-t border-white/10 bg-black/40 flex justify-end space-x-4">
-              <button onClick={() => setIsModalOpen(false)} className="px-6 py-3 text-gray-400 hover:text-white transition-colors">Cancelar</button>
+            <div className="p-6 border-t border-white/5 bg-[#0a0a1a]/50 flex justify-end space-x-3 relative z-20">
+              <button 
+                onClick={() => setIsModalOpen(false)} 
+                className="px-6 py-3 text-sm text-gray-500 hover:text-white transition-colors hover:bg-white/5 rounded-xl font-light"
+              >
+                Cancelar
+              </button>
               <button 
                 onClick={handleSave} 
                 disabled={loading}
-                className="px-8 py-3 bg-primary hover:bg-secondary text-white rounded-lg shadow-lg shadow-primary/20 font-bold transition-all disabled:opacity-50"
+                className="px-8 py-3 bg-white/[0.05] hover:bg-white/[0.1] text-white rounded-xl border border-white/5 hover:border-white/20 transition-all duration-300 font-medium text-sm flex items-center gap-2 group disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {loading ? 'Salvando...' : 'Salvar Cliente'}
+                <span>{loading ? 'Salvando...' : 'Salvar Alterações'}</span>
+                <span className="text-primary group-hover:translate-x-1 transition-transform">→</span>
               </button>
             </div>
           </div>

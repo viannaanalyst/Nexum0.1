@@ -52,12 +52,38 @@ const Atividades = () => {
   // Modal State
   const [isNewTaskModalOpen, setIsNewTaskModalOpen] = useState(false);
   const [defaultColumnId, setDefaultColumnId] = useState<string>('');
+  const [teamMembers, setTeamMembers] = useState<any[]>([]);
 
   useEffect(() => {
     if (selectedCompany) {
       fetchDefaultColumn();
+      fetchTeamMembers();
     }
   }, [selectedCompany]);
+
+  const fetchTeamMembers = async () => {
+      if (!selectedCompany) return;
+      const { data } = await supabase
+        .from('organization_members')
+        .select('user_id, status')
+        .eq('company_id', selectedCompany.id)
+        .eq('status', 'active')
+        .limit(20);
+
+      if (data) {
+          const userIds = data.map(d => d.user_id);
+          const { data: profiles } = await supabase
+            .from('profiles')
+            .select('id, full_name, email, avatar_url')
+            .in('id', userIds);
+            
+          const merged = data.map(member => ({
+              ...member,
+              profile: profiles?.find(p => p.id === member.user_id)
+          }));
+          setTeamMembers(merged);
+      }
+  };
 
   const fetchDefaultColumn = async () => {
       if (!selectedCompany) return;
@@ -326,13 +352,36 @@ const Atividades = () => {
                       <div className="flex justify-between items-center mb-2">
                           <span className="text-xs font-bold text-gray-400 uppercase">Equipe</span>
                           <span className="flex items-center gap-1 text-[10px] text-emerald-400">
-                              <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></div> Online
+                              <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></div> {teamMembers.length > 0 ? `${teamMembers.length} Ativos` : 'Offline'}
                           </span>
                       </div>
                       <div className="flex -space-x-2">
-                          <div className="w-8 h-8 rounded-full bg-blue-500 border-2 border-[#0f0f1a] flex items-center justify-center text-xs font-bold text-white">A</div>
-                          <div className="w-8 h-8 rounded-full bg-purple-500 border-2 border-[#0f0f1a] flex items-center justify-center text-xs font-bold text-white">C</div>
-                          <div className="w-8 h-8 rounded-full bg-gray-700 border-2 border-[#0f0f1a] flex items-center justify-center text-xs text-gray-400">+</div>
+                          {teamMembers.length === 0 ? (
+                              <div className="text-xs text-gray-500 pl-1">...</div>
+                          ) : (
+                              teamMembers.slice(0, 5).map((member, i) => (
+                                  <div 
+                                    key={i} 
+                                    className="w-8 h-8 rounded-full bg-gradient-to-br from-primary to-purple-600 border-2 border-[#0f0f1a] flex items-center justify-center text-xs font-bold text-white cursor-help relative group overflow-hidden"
+                                    title={member.profile?.full_name || member.profile?.email}
+                                  >
+                                      {member.profile?.avatar_url ? (
+                                        <img 
+                                            src={member.profile.avatar_url} 
+                                            alt={member.profile.full_name} 
+                                            className="w-full h-full object-cover"
+                                        />
+                                      ) : (
+                                        member.profile?.full_name?.charAt(0).toUpperCase() || '?'
+                                      )}
+                                  </div>
+                              ))
+                          )}
+                          {teamMembers.length > 5 && (
+                              <div className="w-8 h-8 rounded-full bg-gray-700 border-2 border-[#0f0f1a] flex items-center justify-center text-xs text-gray-400">
+                                  +{teamMembers.length - 5}
+                              </div>
+                          )}
                       </div>
                   </div>
               </div>

@@ -414,53 +414,86 @@ const OrganizadorCronograma = () => {
 
         {/* Modal Novo Cronograma */}
         {isNewModalOpen && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-                <div className="glass-card w-full max-w-md p-6 rounded-2xl border border-white/10 relative bg-[#0a0a1a]">
-                    <h2 className="text-xl font-bold text-white mb-4">Novo Cronograma</h2>
-                    
-                    <div className="space-y-4">
-                        <div>
-                            <label className="block text-xs font-bold text-gray-400 uppercase mb-1">Cliente</label>
-                            <select 
-                                className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-white focus:border-primary focus:outline-none"
-                                value={newClientId}
-                                onChange={e => setNewClientId(e.target.value)}
-                            >
-                                <option value="" className="bg-[#0a0a1a]">Selecione...</option>
-                                {clients.map(client => (
-                                    <option key={client.id} value={client.id} className="bg-[#0a0a1a]">{client.name}</option>
-                                ))}
-                            </select>
-                        </div>
+            <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+                {/* 1. Overlay Premium */}
+                <div 
+                    className="absolute inset-0 bg-black/60 backdrop-blur-md z-0 animate-in fade-in duration-300"
+                    onClick={() => setIsNewModalOpen(false)}
+                >
+                    <div className="absolute inset-0 opacity-[0.03] bg-[url('https://grainy-gradients.vercel.app/noise.svg')]"></div>
+                </div>
 
-                        <div className="grid grid-cols-2 gap-4">
-                            <div>
-                                <label className="block text-xs font-bold text-gray-400 uppercase mb-1">Mês</label>
+                {/* 2. Container Glass Premium */}
+                <div className="relative z-10 w-full max-w-md rounded-[22px] overflow-hidden shadow-2xl animate-in zoom-in-95 duration-300 border border-white/10 bg-[#0a0a1a]/80 backdrop-blur-xl">
+                    
+                    {/* Glow Effects */}
+                    <div className="absolute inset-0 rounded-[22px] border border-white/5 pointer-events-none"></div>
+                    <div className="absolute top-[-50px] left-1/2 -translate-x-1/2 w-[60%] h-[100px] bg-primary/30 blur-[80px] pointer-events-none rounded-[100%]"></div>
+                    <div className="absolute top-0 left-1/2 -translate-x-1/2 w-1/3 h-[1px] bg-gradient-to-r from-transparent via-primary/50 to-transparent"></div>
+
+                    <div className="p-8 pb-4 relative z-20">
+                        <h2 className="text-xl font-bold text-white/90 mb-1">Novo cronograma</h2>
+                        <p className="text-xs text-gray-500 font-light">Crie um novo planejamento mensal de conteúdo.</p>
+                    </div>
+                    
+                    <div className="p-8 pt-2 space-y-5 relative z-20">
+                        <div className="space-y-1.5">
+                            <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wide ml-1">Cliente</label>
+                            <div className="relative group">
                                 <select 
-                                    className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-white focus:border-primary focus:outline-none"
-                                    value={newMonth}
-                                    onChange={e => setNewMonth(Number(e.target.value))}
+                                    className="w-full bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.08] rounded-xl px-4 py-3 text-white/90 focus:bg-white/[0.08] focus:border-primary/30 focus:ring-0 outline-none appearance-none cursor-pointer transition-all duration-300 text-sm font-light"
+                                    value={newClientId}
+                                    onChange={e => setNewClientId(e.target.value)}
                                 >
-                                    {MONTHS.map((m, i) => (
-                                        <option key={i} value={i + 1} className="bg-[#0a0a1a]">{m}</option>
+                                    <option value="" className="bg-[#0a0a1a]">Selecione...</option>
+                                    {clients.map(client => (
+                                        <option key={client.id} value={client.id} className="bg-[#0a0a1a]">{client.name}</option>
                                     ))}
                                 </select>
                             </div>
-                            <div>
-                                <label className="block text-xs font-bold text-gray-400 uppercase mb-1">Ano</label>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-1.5">
+                                <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wide ml-1">Mês</label>
+                                <div className="relative group">
+                                    <select 
+                                        className="w-full bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.08] rounded-xl px-4 py-3 text-white/90 focus:bg-white/[0.08] focus:border-primary/30 focus:ring-0 outline-none appearance-none cursor-pointer transition-all duration-300 text-sm font-light"
+                                        value={newMonth}
+                                        onChange={e => setNewMonth(Number(e.target.value))}
+                                    >
+                                        {MONTHS.map((m, i) => (
+                                            <option key={i} value={i + 1} className="bg-[#0a0a1a]">{m}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                            </div>
+                            <div className="space-y-1.5">
+                                <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wide ml-1">Ano</label>
                                 <input 
                                     type="number"
-                                    className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-white focus:border-primary focus:outline-none"
+                                    className="w-full bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.08] rounded-xl px-4 py-3 text-white/90 focus:bg-white/[0.08] focus:border-primary/30 focus:ring-0 outline-none transition-all duration-300 text-sm font-light placeholder-gray-600"
                                     value={newYear}
                                     onChange={e => setNewYear(Number(e.target.value))}
                                 />
                             </div>
                         </div>
-                    </div>
 
-                    <div className="flex justify-end gap-2 mt-6">
-                        <button onClick={() => setIsNewModalOpen(false)} className="px-4 py-2 text-gray-400 hover:text-white">Cancelar</button>
-                        <button onClick={handleCreateSchedule} className="bg-primary hover:bg-secondary text-white px-4 py-2 rounded-lg font-bold">Criar</button>
+                        <div className="flex justify-end gap-3 pt-4 border-t border-white/5 mt-4">
+                            <button 
+                                onClick={() => setIsNewModalOpen(false)} 
+                                className="px-5 py-2.5 text-sm text-gray-500 hover:text-white transition-colors hover:bg-white/5 rounded-xl font-light"
+                            >
+                                Cancelar
+                            </button>
+                            <button 
+                                onClick={handleCreateSchedule} 
+                                className="px-6 py-2.5 bg-white/[0.05] hover:bg-white/[0.1] text-white rounded-xl border border-white/5 hover:border-white/20 transition-all duration-300 font-medium text-sm flex items-center gap-2 group shadow-lg"
+                            >
+                                <span>Criar</span>
+                                <span className="text-primary group-hover:translate-x-1 transition-transform">→</span>
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>

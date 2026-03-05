@@ -1,10 +1,22 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  X, Calendar, Clock, User, Tag, Paperclip, 
+  X, Paperclip, 
   CheckSquare, MessageSquare, FileText, Plus,
   ChevronDown, Lock, Send, MoreVertical, Trash2,
-  File, FileCode, FileImage, Download
+  File, FileCode, FileImage, Download, GitBranch, Info,
+  // Mantendo ícones Lucide que ainda podem ser usados em outros lugares ou como fallback
+  Calendar as LucideCalendar, Clock as LucideClock, User as LucideUser, Tag as LucideTag, Share2
 } from 'lucide-react';
+import { 
+  IconCalendar, 
+  IconFlag, 
+  IconTag, 
+  IconClock, 
+  IconUser, 
+  IconBriefcase, 
+  IconPlayerPlay, 
+  IconCircleDotted 
+} from '@tabler/icons-react';
 import { useCompany } from '../../context/CompanyContext';
 import { supabase } from '../../lib/supabase';
 
@@ -35,8 +47,12 @@ const KanbanCardModal = ({ cardId, columnId, onClose }: KanbanCardModalProps) =>
   const [checklist, setChecklist] = useState<any[]>([]);
   const [comments, setComments] = useState<any[]>([]);
   const [files, setFiles] = useState<any[]>([]);
-  const [selectedTags, setSelectedTags] = useState<string[]>([]); // New: Selected tags
-  
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [subtasks, setSubtasks] = useState<any[]>([]); // New: Subtasks
+  const [columnsMap, setColumnsMap] = useState<Record<string, string>>({}); // Helper for subtask status
+  const [columns, setColumns] = useState<any[]>([]); // New: Columns list for dropdown
+  const [currentColumnId, setCurrentColumnId] = useState<string>(''); // For status badge
+
   // Auxiliary Data
   const [members, setMembers] = useState<any[]>([]);
   const [clients, setClients] = useState<any[]>([]);
@@ -47,15 +63,30 @@ const KanbanCardModal = ({ cardId, columnId, onClose }: KanbanCardModalProps) =>
   // New Tag Creation State
   const [newTagName, setNewTagName] = useState('');
   const [newTagColor, setNewTagColor] = useState('#3b82f6'); // Default blue
-
+  const [showMemberSelect, setShowMemberSelect] = useState(false);
+  const [showPrioritySelect, setShowPrioritySelect] = useState(false);
+  const [showStatusSelect, setShowStatusSelect] = useState(false); // New: Status
+  const [showClientSelect, setShowClientSelect] = useState(false); // New: Client
+  
+  const [showTagInput, setShowTagInput] = useState(false); // Toggle tag creation input
   const [approvers, setApprovers] = useState<any[]>([]);
   const [showApproverModal, setShowApproverModal] = useState<string | null>(null); // Stores the checklist item ID being configured
   const [currentUserId, setCurrentUserId] = useState<string>('');
   const [currentUserApprover, setCurrentUserApprover] = useState<boolean>(false);
+  const [userRole, setUserRole] = useState<string | null>(null);
   
   // Tracking original state for system logs
   const [originalAssignedTo, setOriginalAssignedTo] = useState<string>('');
   const [originalDueDate, setOriginalDueDate] = useState<string>('');
+  const [startDate, setStartDate] = useState(''); // New: Start Date
+  const [deliveryDate, setDeliveryDate] = useState(''); // New: Delivery Date
+  
+  // Subtask Interaction State
+  const [activeSubtaskId, setActiveSubtaskId] = useState<string | null>(null);
+  const [showSubtaskMemberSelect, setShowSubtaskMemberSelect] = useState<string | null>(null);
+  const [showSubtaskPrioritySelect, setShowSubtaskPrioritySelect] = useState<string | null>(null);
+  const [showSubtaskDateSelect, setShowSubtaskDateSelect] = useState<string | null>(null);
+  const [showSubtaskStatusSelect, setShowSubtaskStatusSelect] = useState<string | null>(null);
 
   // Mentions State
   const [mentionQuery, setMentionQuery] = useState<string | null>(null);
@@ -67,6 +98,7 @@ const KanbanCardModal = ({ cardId, columnId, onClose }: KanbanCardModalProps) =>
     fetchMembers();
     fetchClients(); 
     fetchTags();
+    fetchColumns(); // Fetch columns for subtasks status
     fetchApprovers(); // Fetch approvers list
     checkCurrentUserRole(); // Check role
 
@@ -74,9 +106,29 @@ const KanbanCardModal = ({ cardId, columnId, onClose }: KanbanCardModalProps) =>
       fetchCardData();
     } else {
       setLoading(false);
-      setTitle('Nova Tarefa');
+      setTitle('Nova tarefa');
+      if (columnId) setCurrentColumnId(columnId);
     }
   }, [cardId, selectedCompany]);
+
+  const fetchColumns = async () => {
+      if (!selectedCompany) return;
+      try {
+          const { data } = await supabase
+            .from('kanban_columns')
+            .select('id, title, color')
+            .eq('company_id', selectedCompany.id)
+            .order('position');
+            
+          if (data) {
+              const map = data.reduce((acc, col) => ({ ...acc, [col.id]: col.title }), {});
+              setColumnsMap(map);
+              setColumns(data);
+          }
+      } catch (error) {
+          console.error("Error fetching columns", error);
+      }
+  };
 
   const fetchApprovers = async () => {
     if (!selectedCompany) return;
@@ -120,7 +172,7 @@ const KanbanCardModal = ({ cardId, columnId, onClose }: KanbanCardModalProps) =>
         // Fix: Use data safely and check for errors explicitly
         const { data, error } = await supabase
           .from('organization_members')
-          .select('is_approver')
+          .select('is_approver, role')
           .eq('user_id', user.id)
           .eq('company_id', selectedCompany.id)
           .single();
@@ -131,6 +183,7 @@ const KanbanCardModal = ({ cardId, columnId, onClose }: KanbanCardModalProps) =>
             setCurrentUserApprover(false);
         } else if (data) {
             setCurrentUserApprover(data.is_approver || false);
+            setUserRole(data.role);
         }
       }
     } catch (error) {
@@ -218,10 +271,13 @@ const KanbanCardModal = ({ cardId, columnId, onClose }: KanbanCardModalProps) =>
         setOriginalAssignedTo(cardData.assigned_to || '');
         setDueDate(cardData.due_date ? cardData.due_date.split('T')[0] : '');
         setOriginalDueDate(cardData.due_date ? cardData.due_date.split('T')[0] : '');
+        setStartDate(cardData.start_date ? cardData.start_date.split('T')[0] : '');
+        setDeliveryDate(cardData.delivery_date ? cardData.delivery_date.split('T')[0] : '');
         setShowOnCalendar(cardData.show_on_calendar || false);
         setCategory(cardData.category || '');
         setSubcategory(cardData.subcategory || '');
         setClientId(cardData.client_id || ''); // New: Set Client ID
+        setCurrentColumnId(cardData.column_id || '');
       }
 
       // Fetch Checklist
@@ -284,6 +340,14 @@ const KanbanCardModal = ({ cardId, columnId, onClose }: KanbanCardModalProps) =>
       if (tagData) {
           setSelectedTags(tagData.map(t => t.tag_id));
       }
+
+      // Fetch Subtasks
+      const { data: subData } = await supabase
+        .from('kanban_cards')
+        .select('*')
+        .eq('parent_id', cardId)
+        .order('position');
+      setSubtasks(subData || []);
 
     } catch (error) {
       console.error('Error fetching card details:', error);
@@ -367,6 +431,114 @@ const KanbanCardModal = ({ cardId, columnId, onClose }: KanbanCardModalProps) =>
     }
   };
 
+  const handleCreateSubtask = async (subtaskTitle: string) => {
+    if (!subtaskTitle.trim() || !selectedCompany) return;
+    
+    if (cardId === 'new') {
+        alert('Por favor, salve a tarefa principal antes de criar subtarefas.');
+        return;
+    }
+
+    try {
+        // Find first column
+        const { data: cols } = await supabase
+            .from('kanban_columns')
+            .select('id')
+            .eq('company_id', selectedCompany.id)
+            .order('position')
+            .limit(1);
+        
+        const firstColId = cols?.[0]?.id;
+        if (!firstColId) {
+            alert('Nenhuma coluna encontrada para criar subtarefa.');
+            return;
+        }
+
+        const { data, error } = await supabase.from('kanban_cards').insert({
+            company_id: selectedCompany.id,
+            column_id: firstColId,
+            title: subtaskTitle,
+            parent_id: cardId,
+            position: 9999,
+            priority: 'medium'
+        }).select().single();
+
+        if (error) throw error;
+        setSubtasks([...subtasks, data]);
+    } catch (error) {
+        console.error('Error creating subtask:', error);
+        alert('Erro ao criar subtarefa.');
+    }
+  };
+
+  const handleUnlinkSubtask = async (subtaskId: string) => {
+      try {
+          const { error } = await supabase.from('kanban_cards').update({ parent_id: null }).eq('id', subtaskId);
+          if (error) throw error;
+          setSubtasks(subtasks.filter(t => t.id !== subtaskId));
+      } catch (error) {
+          console.error('Error unlinking subtask:', error);
+          alert('Erro ao desvincular subtarefa.');
+      }
+  };
+
+  const handleConvertChecklistToSubtask = async (itemId: string, description: string) => {
+      if (!selectedCompany) return;
+      if (cardId === 'new') {
+          alert('Salve a tarefa principal antes de converter itens em subtarefas.');
+          return;
+      }
+      
+      try {
+           // 1. Create subtask
+           const { data: cols } = await supabase.from('kanban_columns').select('id').eq('company_id', selectedCompany.id).order('position').limit(1);
+           const firstColId = cols?.[0]?.id;
+           
+           if (!firstColId) {
+               alert('Erro: Nenhuma coluna encontrada.');
+               return;
+           }
+
+           const { data: newCard, error: createError } = await supabase.from('kanban_cards').insert({
+               company_id: selectedCompany.id,
+               column_id: firstColId,
+               title: description,
+               parent_id: cardId,
+               position: 9999,
+               priority: 'medium'
+           }).select().single();
+
+           if (createError) throw createError;
+
+           // 2. Delete checklist item
+           await handleDeleteChecklist(itemId);
+
+           // 3. Update state
+           setSubtasks([...subtasks, newCard]);
+      } catch (error) {
+          console.error('Error converting checklist:', error);
+          alert('Erro ao converter item.');
+      }
+  };
+
+  const handleUpdateSubtask = async (subtaskId: string, updates: any) => {
+    try {
+        const { error } = await supabase
+            .from('kanban_cards')
+            .update(updates)
+            .eq('id', subtaskId);
+        
+        if (error) throw error;
+        
+        setSubtasks(subtasks.map(task => 
+            task.id === subtaskId ? { ...task, ...updates } : task
+        ));
+    } catch (error) {
+        console.error('Error updating subtask:', error);
+        alert('Erro ao atualizar subtarefa.');
+    }
+  };
+
   const handleSave = async () => {
     if (!selectedCompany) return;
     setSaving(true);
@@ -377,7 +549,9 @@ const KanbanCardModal = ({ cardId, columnId, onClose }: KanbanCardModalProps) =>
         priority,
         assigned_to: assignedTo || null,
         due_date: dueDate || null,
-        show_on_calendar: showOnCalendar,
+        start_date: startDate || null,
+        delivery_date: deliveryDate || null, // New: Save Delivery Date
+        show_on_calendar: dueDate ? true : false,
         category,
         subcategory,
         client_id: clientId || null, // New: Save Client ID
@@ -943,544 +1117,978 @@ const KanbanCardModal = ({ cardId, columnId, onClose }: KanbanCardModalProps) =>
 
   const isNew = cardId === 'new';
 
-  if (loading) return <div className="fixed inset-0 bg-black/80 flex items-center justify-center text-white">Carregando...</div>;
+  if (loading) return <div className="fixed inset-0 z-[100] bg-black/80 flex items-center justify-center text-white">Carregando...</div>;
 
   return (
     <>
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-      <div className="bg-[#0a0a1a] w-full max-w-4xl h-auto max-h-[85vh] rounded-2xl border border-white/10 flex shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200 relative">
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+      {/* 1. Overlay Premium */}
+      <div 
+        className="absolute inset-0 bg-black/60 backdrop-blur-md z-0 animate-in fade-in duration-300"
+        onClick={onClose}
+      >
+         <div className="absolute inset-0 opacity-[0.03] bg-[url('https://grainy-gradients.vercel.app/noise.svg')]"></div>
+      </div>
+
+      {/* 2. Container Glass Premium */}
+      <div className="relative z-10 w-full max-w-[1400px] h-[90vh] flex rounded-[22px] overflow-hidden shadow-2xl animate-in zoom-in-95 duration-300 border border-white/10 bg-[#0a0a1a]/95 backdrop-blur-xl">
         
-        {/* Coluna Principal (Conteúdo) */}
-        <div className="flex-1 flex flex-col border-r border-white/10">
-          {/* Header */}
-          <div className="p-4 border-b border-white/10 flex justify-between items-start">
-            <div className="flex-1 mr-4">
-              <div className="flex items-center gap-2 mb-1">
-                <span className="text-[10px] bg-white/10 text-gray-400 px-2 py-0.5 rounded font-mono">
-                  {isNew ? 'NOVA TAREFA' : `TASK-${cardId.slice(0, 6)}`}
-                </span>
-              </div>
-              <input 
-                className="text-2xl font-bold text-white bg-transparent border-none focus:outline-none w-full placeholder:text-gray-600"
-                value={title}
-                onChange={e => setTitle(e.target.value)}
-                placeholder="Título da Tarefa"
-              />
-            </div>
-            <div className="flex gap-2 items-start">
-              <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-lg text-gray-400 hover:text-white transition-colors">
-                <X size={20} />
-              </button>
-            </div>
-          </div>
-
-          {/* Tabs */}
-          <div className="px-4 border-b border-white/10 flex gap-4">
-            {['details', 'checklist', 'comments', 'files', 'tags'].map((tab: any) => (
-              <button
-                key={tab}
-                onClick={() => setActiveTab(tab)}
-                className={`py-3 text-sm font-medium border-b-2 transition-all flex items-center gap-2 ${
-                  activeTab === tab 
-                    ? 'border-primary text-primary' 
-                    : 'border-transparent text-gray-400 hover:text-white'
-                }`}
-              >
-                {tab === 'details' && <><FileText size={14} /> Detalhes</>}
-                {tab === 'checklist' && <><CheckSquare size={14} /> Checklist ({checklist.length})</>}
-                {tab === 'comments' && <><MessageSquare size={14} /> Comentários ({comments.length})</>}
-                {tab === 'files' && <><Paperclip size={14} /> Arquivos ({files.length})</>}
-                {tab === 'tags' && <><Tag size={14} /> Etiquetas ({selectedTags.length})</>}
-              </button>
-            ))}
-          </div>
-
-          {/* Content Area */}
-          <div className="flex-1 overflow-y-auto p-4 bg-[#0a0a1a]">
-            {isNew && activeTab !== 'details' && (
-              <div className="bg-blue-500/10 border border-blue-500/20 text-blue-200 p-3 rounded-lg mb-4 text-xs">
-                As alterações nestas abas serão salvas quando você clicar em "Salvar Tudo".
-              </div>
-            )}
-
-            {activeTab === 'details' && (
-              <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-3 bg-white/5 p-3 rounded-lg border border-white/5">
-                  <div>
-                    <label className="text-[10px] text-gray-500 uppercase font-bold">Data de Criação</label>
-                    <div className="flex items-center gap-2 text-white mt-1 text-sm">
-                      <Calendar size={14} className="text-gray-400" />
-                      {new Date().toLocaleDateString('pt-BR')}
-                    </div>
-                  </div>
-                  <div>
-                    <label className="text-[10px] text-gray-500 uppercase font-bold">Data de Entrega</label>
-                    <div className="flex items-center gap-2 text-white mt-1 text-sm">
-                      <Calendar size={14} className="text-gray-400" />
-                      {dueDate ? new Date(dueDate).toLocaleDateString('pt-BR') : 'Não definida'}
-                    </div>
-                  </div>
-                </div>
-
-                <div>
-                  <textarea
-                    className="w-full h-64 bg-transparent text-gray-300 resize-none focus:outline-none placeholder:text-gray-600 leading-relaxed text-sm"
-                    placeholder="Descreva a tarefa detalhadamente (Markdown suportado)..."
-                    value={description}
-                    onChange={(e) => setDescription(e.target.value)}
-                  />
-                </div>
-
-                {/* Definition of Done (Quick View) */}
-                <div className="mt-4 bg-[#0f0f1a] rounded-lg border border-white/10 p-3">
-                    <div className="flex justify-between items-center mb-2">
-                        <div className="flex items-center gap-2">
-                            <CheckSquare size={14} className="text-primary" />
-                            <span className="text-xs font-bold text-white uppercase">Definition of Done</span>
-                        </div>
-                        <span className="text-xs text-gray-500">
-                            {checklist.filter(i => i.is_completed).length}/{checklist.length}
+        {/* Glow Effects */}
+        <div className="absolute inset-0 rounded-[22px] border border-white/5 pointer-events-none"></div>
+        
+        {/* ================= ESQUERDA: CONTEÚDO PRINCIPAL (70%) ================= */}
+        <div className="flex-1 flex flex-col border-r border-white/5 overflow-hidden relative z-20 bg-[#0a0a1a]/50">
+            
+            {/* Header: Título e Status */}
+            <div className="p-6 border-b border-white/5 flex justify-between items-start shrink-0">
+                <div className="flex-1 mr-8">
+                    {/* Breadcrumbs / ID */}
+                    <div className="flex items-center gap-3 mb-3">
+                        <span className="text-[10px] bg-white/[0.05] border border-white/5 text-gray-400 px-2 py-0.5 rounded-full font-mono tracking-wider">
+                            {isNew ? 'NOVA TAREFA' : `TASK-${cardId.slice(0, 6)}`}
                         </span>
+                        {/* Status/Coluna Badge */}
+                        <div className="flex items-center gap-2">
+                             <div className={`w-2 h-2 rounded-full ${currentColumnId || columnId ? 'bg-blue-500' : 'bg-gray-500'}`} />
+                             <span className="text-xs text-gray-400 uppercase tracking-wide font-bold">
+                                {columnsMap[currentColumnId || columnId || ''] || 'Sem Status'}
+                             </span>
+                        </div>
                     </div>
-                    <button 
-                        onClick={() => setActiveTab('checklist')}
-                        className="text-xs text-primary hover:underline"
-                    >
-                        Ver todos os itens...
+
+                    {/* Título Grande */}
+                    <input 
+                        className="text-3xl font-semibold text-white/90 bg-transparent border-none focus:outline-none w-full placeholder:text-gray-600/50 leading-tight"
+                        value={title}
+                        onChange={e => setTitle(e.target.value)}
+                        placeholder="Título da Tarefa"
+                        disabled={userRole === 'visualizador'}
+                    />
+                </div>
+
+                {/* Ações de Topo */}
+                <div className="flex gap-2">
+                    {userRole !== 'visualizador' && (
+                        <button 
+                            onClick={handleSave}
+                            disabled={saving}
+                            className="bg-primary hover:bg-primary/80 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 shadow-lg shadow-primary/20"
+                        >
+                            {saving ? 'Salvando...' : 'Salvar Alterações'}
+                        </button>
+                    )}
+                    <button onClick={onClose} className="p-2 hover:bg-white/5 rounded-lg text-gray-500 hover:text-white transition-colors">
+                        <X size={20} />
                     </button>
                 </div>
-              </div>
-            )}
-            
-            {activeTab === 'checklist' && (
-               <div className="space-y-4">
-                 <div className="space-y-2">
-                   {checklist.map(item => (
-                     <div key={item.id} className={`flex items-start gap-3 p-3 bg-white/5 rounded-lg group border ${item.needs_approval ? 'border-yellow-500/30' : 'border-transparent'}`}>
-                       
-                       {/* Checkbox / Approval Action */}
-                       <button 
-                         onClick={() => handleToggleChecklist(item.id, item.is_completed, item.needs_approval, item.approver_id)}
-                         disabled={
-                             item.needs_approval && !item.is_completed && (
-                                 item.approver_id 
-                                     ? item.approver_id !== currentUserId 
-                                     : !currentUserApprover
-                             )
-                         }
-                         className={`mt-0.5 w-5 h-5 rounded border flex items-center justify-center transition-colors 
-                            ${item.is_completed 
-                                ? 'bg-emerald-500 border-emerald-500 text-white' 
-                                : item.needs_approval && (item.approver_id ? item.approver_id !== currentUserId : !currentUserApprover)
-                                    ? 'border-yellow-500/50 bg-yellow-500/10 cursor-not-allowed opacity-50'
-                                    : 'border-gray-500 hover:border-gray-300'
-                            }`}
-                         title={
-                             item.needs_approval 
-                                ? (item.approver_id 
-                                    ? `Aprovação necessária de: ${members.find(m => m.id === item.approver_id)?.name || 'Responsável'}`
-                                    : "Requer aprovação de um gestor")
-                                : "Concluir item"
-                         }
-                       >
-                         {item.is_completed && <CheckSquare size={12} />}
-                         {!item.is_completed && item.needs_approval && (item.approver_id ? item.approver_id !== currentUserId : !currentUserApprover) && <Lock size={10} className="text-yellow-500" />}
-                       </button>
+            </div>
 
-                       <div className="flex-1 flex flex-col min-w-0">
-                           <span className={`text-sm ${item.is_completed ? 'text-gray-500 line-through' : 'text-gray-200'}`}>
-                             {item.description}
-                           </span>
-                           {item.needs_approval && item.approver_id && (
-                               <span className="text-[10px] text-yellow-500 flex items-center gap-1 mt-1 font-medium bg-yellow-500/10 px-1.5 py-0.5 rounded w-fit border border-yellow-500/20">
-                                   <User size={10} />
-                                   Aprovador: {members.find(m => m.id === item.approver_id)?.name || 'Usuário não encontrado'}
-                               </span>
-                           )}
-                       </div>
-
-                       {/* Lock Toggle (Request Approval) */}
-                       <button
-                         onClick={() => handleToggleApprovalReq(item.id, item.needs_approval)}
-                         className={`p-1 rounded transition-colors ${
-                             item.needs_approval 
-                                ? 'text-yellow-500 bg-yellow-500/10' 
-                                : 'text-gray-600 hover:text-gray-400'
-                         }`}
-                         title={item.needs_approval ? "Aprovação solicitada" : "Solicitar aprovação"}
-                       >
-                           <Lock size={14} />
-                       </button>
-
-                       <button 
-                         onClick={() => handleDeleteChecklist(item.id)}
-                         className="text-gray-500 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
-                       >
-                         <Trash2 size={14} />
-                       </button>
-                     </div>
-                   ))}
-                 </div>
-                 
-                 <div className="flex gap-2">
-                   <input 
-                     value={newChecklistItem}
-                     onChange={(e) => setNewChecklistItem(e.target.value)}
-                     onKeyDown={(e) => e.key === 'Enter' && handleAddChecklistItem()}
-                     className="flex-1 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:border-primary focus:outline-none"
-                     placeholder="Novo item do checklist..."
-                   />
-                   <button 
-                     onClick={handleAddChecklistItem}
-                     className="bg-primary hover:bg-secondary text-white px-3 py-2 rounded-lg"
-                   >
-                     <Plus size={18} />
-                   </button>
-                 </div>
-               </div>
-            )}
-
-            {activeTab === 'comments' && (
-              <div className="flex flex-col h-full">
-                <div className="flex-1 overflow-y-auto space-y-4 mb-4 custom-scrollbar">
-                  {comments.length === 0 ? (
-                    <div className="text-center text-gray-500 py-8 text-sm">Nenhum comentário ainda.</div>
-                  ) : (
-                    comments.map(comment => (
-                      <div key={comment.id} className={`flex gap-3 ${comment.is_system_log ? 'opacity-75' : ''}`}>
-                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-xs shrink-0 ${comment.is_system_log ? 'bg-gray-600' : 'bg-indigo-500'}`}>
-                          {comment.is_system_log ? <Clock size={14} /> : (comment.user?.email?.[0]?.toUpperCase() || 'U')}
-                        </div>
-                        <div className={`rounded-lg p-3 flex-1 ${comment.is_system_log ? 'bg-white/5 border border-white/5 italic' : 'bg-white/5'}`}>
-                          <div className="flex justify-between items-baseline mb-1">
-                            <span className={`text-xs font-bold ${comment.is_system_log ? 'text-gray-400' : 'text-gray-300'}`}>
-                                {comment.user_id ? (comment.user?.email || 'Usuário') : 'Sistema'}
-                            </span>
-                            <span className="text-[10px] text-gray-500">{new Date(comment.created_at).toLocaleString('pt-BR')}</span>
-                          </div>
-                          <p className={`text-sm ${comment.is_system_log ? 'text-gray-400' : 'text-gray-300'} whitespace-pre-wrap`}>
-                              {comment.content}
-                          </p>
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </div>
-                <div className="flex gap-2 mt-auto pt-2 border-t border-white/10 relative">
-                  {mentionQuery !== null && filteredMembers.length > 0 && (
-                      <div className="absolute bottom-full left-0 mb-2 w-64 bg-[#1a1a2e] border border-white/10 rounded-lg shadow-xl overflow-hidden z-50 max-h-48 overflow-y-auto">
-                          {filteredMembers.map(member => (
-                              <button
-                                  key={member.id}
-                                  onClick={() => selectMention(member)}
-                                  className="w-full text-left px-3 py-2 hover:bg-white/10 text-sm text-gray-300 flex items-center gap-2"
-                              >
-                                  <div className="w-6 h-6 rounded-full bg-indigo-500 flex items-center justify-center text-white text-[10px] font-bold">
-                                      {member.name.charAt(0)}
-                                  </div>
-                                  {member.name}
-                              </button>
-                          ))}
-                      </div>
-                  )}
-                  <input 
-                    value={newComment}
-                    onChange={handleCommentChange}
-                    onKeyDown={(e) => e.key === 'Enter' && handleAddComment()}
-                    className="flex-1 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:border-primary focus:outline-none"
-                    placeholder="Escreva um comentário... (@ para mencionar)"
-                  />
-                  <button 
-                    onClick={handleAddComment}
-                    className="bg-primary hover:bg-secondary text-white p-2 rounded-lg"
-                  >
-                    <Send size={18} />
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {activeTab === 'files' && (
-              <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-3">
-                  {files.map(file => (
-                    <div key={file.id} className="bg-white/5 border border-white/10 rounded-lg p-3 flex items-start gap-3 hover:bg-white/10 transition-colors group relative overflow-hidden">
-                      <div className="w-10 h-10 rounded bg-white/5 flex items-center justify-center shrink-0">
-                        {getFileIcon(file.file_name)}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <h4 className="text-sm font-medium text-white truncate" title={file.file_name}>{file.file_name}</h4>
-                        <div className="flex items-center gap-2 mt-1">
-                            <span className="text-[10px] text-gray-500 uppercase font-bold bg-white/10 px-1.5 py-0.5 rounded">
-                                {file.file_name.split('.').pop()?.toUpperCase() || 'FILE'}
-                            </span>
-                            <span className="text-[10px] text-gray-500">
-                                {new Date(file.created_at).toLocaleDateString()}
-                            </span>
-                        </div>
-                      </div>
-                      
-                      {/* Hover Actions */}
-                      <div className="absolute right-2 top-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
-                          <a 
-                            href={file.file_url} 
-                            target="_blank" 
-                            rel="noreferrer" 
-                            className="p-1.5 rounded bg-blue-500 text-white hover:bg-blue-600 transition-colors shadow-lg"
-                            title="Baixar"
-                          >
-                              <Download size={14} />
-                          </a>
-                          <button 
-                            className="p-1.5 rounded bg-red-500 text-white hover:bg-red-600 transition-colors shadow-lg"
-                            title="Excluir"
-                            onClick={() => handleDeleteFile(file.id, file.file_url, file.file_name)}
-                          >
-                              <Trash2 size={14} />
-                          </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+            {/* Corpo Scrollável */}
+            <div className="flex-1 overflow-y-auto p-8 custom-scrollbar space-y-8">
                 
-                <input 
-                    type="file" 
-                    ref={fileInputRef} 
-                    className="hidden" 
-                    onChange={handleFileUpload}
-                />
-                <button 
-                  onClick={handleAddFile}
-                  className="w-full border border-dashed border-white/20 rounded-lg p-8 text-gray-400 hover:text-white hover:border-white/40 hover:bg-white/5 transition-all flex flex-col items-center gap-3 group"
-                >
-                  <div className="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center group-hover:scale-110 transition-transform">
-                      <Paperclip size={24} />
-                  </div>
-                  <div className="text-center">
-                      <span className="text-sm font-medium block">Clique para fazer upload</span>
-                      <span className="text-xs text-gray-500">ou arraste e solte seus arquivos aqui</span>
-                  </div>
-                </button>
-              </div>
-            )}
+                {/* 1. Propriedades (Lista Estilo ClickUp) */}
+                <div className="grid grid-cols-2 gap-x-12 gap-y-1">
+                    
+                    {/* === COLUNA ESQUERDA === */}
+                    <div className="space-y-4">
+                        
+                        {/* 1. Status */}
+                        <div className="flex items-center justify-between group h-8">
+                            <div className="flex items-center gap-2 text-gray-400 min-w-[140px]">
+                                <div className="p-1 rounded hover:bg-white/5 transition-colors">
+                                    <IconFlag size={16} stroke={1.5} style={{ color: columns.find(c => c.id === currentColumnId)?.color || '#3b82f6' }} fill="currentColor" />
+                                </div>
+                                <span className="text-sm font-medium text-gray-400 group-hover:text-gray-300 transition-colors">Status</span>
+                            </div>
+                            
+                            <div className="relative flex-1 flex justify-start">
+                                <button 
+                                    onClick={() => userRole !== 'visualizador' && setShowStatusSelect(!showStatusSelect)}
+                                    className="flex items-center"
+                                >
+                                    <div 
+                                        className="flex items-center gap-2 px-2 py-1 rounded text-xs font-bold uppercase tracking-wide text-white transition-all hover:opacity-90"
+                                        style={{ backgroundColor: columns.find(c => c.id === currentColumnId)?.color || '#3b82f6' }}
+                                    >
+                                        <span className="truncate max-w-[100px]">{columnsMap[currentColumnId] || 'PENDENTE'}</span>
+                                        <ChevronDown size={10} strokeWidth={3} />
+                                    </div>
+                                    <div className="w-6 h-6 flex items-center justify-center ml-1 rounded hover:bg-white/10 text-gray-500 hover:text-green-500 transition-colors cursor-pointer">
+                                        <CheckSquare size={14} />
+                                    </div>
+                                </button>
 
-            {activeTab === 'tags' && (
-              <div className="space-y-6">
-                {/* Create Tag */}
-                <div className="bg-white/5 p-4 rounded-lg border border-white/10">
-                    <h4 className="text-xs font-bold text-gray-400 uppercase mb-3">Criar Nova Etiqueta</h4>
-                    <div className="flex gap-3">
-                        <input 
-                            value={newTagName}
-                            onChange={e => setNewTagName(e.target.value)}
-                            placeholder="Nome da etiqueta"
-                            className="flex-1 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:border-primary focus:outline-none"
-                            onKeyDown={e => e.key === 'Enter' && handleCreateTag()}
-                        />
-                        <div className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-lg px-2">
-                            <input 
-                                type="color"
-                                value={newTagColor}
-                                onChange={e => setNewTagColor(e.target.value)}
-                                className="w-8 h-8 rounded cursor-pointer bg-transparent border-none p-0"
-                            />
+                                {/* Popover Status */}
+                                {showStatusSelect && (
+                                    <div className="absolute top-full left-0 mt-1 w-48 bg-[#1a1a2e] border border-white/10 rounded-lg shadow-xl z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-200 py-1">
+                                        {columns.map(col => (
+                                            <button
+                                                key={col.id}
+                                                onClick={() => {
+                                                    setCurrentColumnId(col.id);
+                                                    setShowStatusSelect(false);
+                                                }}
+                                                className="w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-white/5 transition-colors text-left"
+                                            >
+                                                <div className={`w-2 h-2 rounded-full ${col.color || 'bg-gray-500'}`} />
+                                                <span className="text-gray-300">{col.title}</span>
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
                         </div>
-                        <button 
-                            onClick={handleCreateTag}
-                            className="bg-primary hover:bg-secondary text-white px-4 py-2 rounded-lg transition-colors"
-                        >
-                            <Plus size={20} />
+
+                        {/* 2. Datas */}
+                        <div className="flex items-center justify-between group h-8">
+                            <div className="flex items-center gap-2 text-gray-400 min-w-[140px]">
+                                <div className="p-1 rounded hover:bg-white/5 transition-colors">
+                                    <IconCalendar size={16} stroke={1.5} />
+                                </div>
+                                <span className="text-sm font-medium text-gray-400 group-hover:text-gray-300 transition-colors">Datas</span>
+                            </div>
+                            
+                            <div className="relative flex-1 flex items-center gap-2 justify-start">
+                                {/* Data Início */}
+                                <div className="relative flex items-center gap-1 hover:bg-white/5 px-1.5 py-1 rounded cursor-pointer transition-colors group/start">
+                                     <span className={`text-sm ${startDate ? 'text-gray-300' : 'text-gray-500'}`}>
+                                        {startDate ? new Date(startDate + 'T12:00:00').toLocaleDateString('pt-BR').slice(0,5) : 'Início'}
+                                     </span>
+                                     <input 
+                                        type="date" 
+                                        className="absolute inset-0 opacity-0 cursor-pointer w-full h-full z-10"
+                                        value={startDate}
+                                        onChange={(e) => setStartDate(e.target.value)}
+                                        disabled={userRole === 'visualizador'}
+                                        onClick={(e) => (e.target as HTMLInputElement).showPicker && (e.target as HTMLInputElement).showPicker()}
+                                    />
+                                </div>
+
+                                <span className="text-gray-700">→</span>
+
+                                {/* Data Prevista */}
+                                <div className="relative flex items-center gap-1 hover:bg-white/5 px-1.5 py-1 rounded cursor-pointer transition-colors group/due">
+                                     <span className={`text-sm ${dueDate ? 'text-gray-300' : 'text-gray-500'}`}>
+                                        {dueDate ? new Date(dueDate + 'T12:00:00').toLocaleDateString('pt-BR').slice(0,5) : 'Prevista'}
+                                     </span>
+                                     <input 
+                                        type="date" 
+                                        className="absolute inset-0 opacity-0 cursor-pointer w-full h-full z-10"
+                                        value={dueDate}
+                                        onChange={(e) => {
+                                            setDueDate(e.target.value);
+                                            if (e.target.value) setShowOnCalendar(true);
+                                        }}
+                                        disabled={userRole === 'visualizador'}
+                                        onClick={(e) => (e.target as HTMLInputElement).showPicker && (e.target as HTMLInputElement).showPicker()}
+                                    />
+                                </div>
+                                
+                                {/* Botão limpar (só aparece se tiver datas) */}
+                                {(startDate || dueDate) && (
+                                    <button 
+                                        className="ml-1 text-gray-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setDueDate('');
+                                            setStartDate('');
+                                            setShowOnCalendar(false);
+                                        }}
+                                    >
+                                        <X size={12} />
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* 3. Data da entrega */}
+                        <div className="flex items-center justify-between group h-8">
+                            <div className="flex items-center gap-2 text-gray-400 min-w-[140px]">
+                                <div className="p-1 rounded hover:bg-white/5 transition-colors">
+                                    <IconCalendar size={16} stroke={1.5} />
+                                </div>
+                                <span className="text-sm font-medium text-gray-400 group-hover:text-gray-300 transition-colors">Data da entrega</span>
+                            </div>
+                            
+                            <div className="relative flex-1 flex justify-start">
+                                <div className="relative flex items-center gap-1 hover:bg-white/5 px-1.5 py-1 rounded cursor-pointer transition-colors group/delivery">
+                                     <span className={`text-sm ${deliveryDate ? 'text-gray-300' : 'text-gray-600'}`}>
+                                        {deliveryDate ? new Date(deliveryDate + 'T12:00:00').toLocaleDateString('pt-BR').slice(0,5) : 'Vazio'}
+                                     </span>
+                                     <input 
+                                        type="date" 
+                                        className="absolute inset-0 opacity-0 cursor-pointer w-full h-full z-10"
+                                        value={deliveryDate}
+                                        onChange={(e) => setDeliveryDate(e.target.value)}
+                                        disabled={userRole === 'visualizador'}
+                                        onClick={(e) => (e.target as HTMLInputElement).showPicker && (e.target as HTMLInputElement).showPicker()}
+                                    />
+                                    {deliveryDate && (
+                                        <button 
+                                            className="ml-1 text-gray-600 hover:text-red-400 opacity-0 group-hover/delivery:opacity-100 transition-opacity z-20"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                setDeliveryDate('');
+                                            }}
+                                        >
+                                            <X size={12} />
+                                        </button>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* 4. Etiquetas */}
+                        <div className="flex items-center justify-between group h-8">
+                            <div className="flex items-center gap-2 text-gray-400 min-w-[140px]">
+                                <div className="p-1 rounded hover:bg-white/5 transition-colors">
+                                    <IconTag size={16} stroke={1.5} />
+                                </div>
+                                <span className="text-sm font-medium text-gray-400 group-hover:text-gray-300 transition-colors">Etiquetas</span>
+                            </div>
+                            
+                            <div className="relative flex-1 flex justify-start">
+                                {tags.length > 0 && selectedTags.length > 0 ? (
+                                    <div className="flex flex-wrap gap-1 items-center">
+                                        {tags.filter(t => selectedTags.includes(t.id)).map(tag => (
+                                            <button
+                                                key={tag.id}
+                                                onClick={() => toggleTag(tag.id)}
+                                                className="px-2 py-0.5 rounded text-[10px] font-bold text-white hover:opacity-80 transition-opacity"
+                                                style={{ backgroundColor: tag.color }}
+                                            >
+                                                {tag.name}
+                                            </button>
+                                        ))}
+                                        <button 
+                                            onClick={() => setShowTagInput(!showTagInput)}
+                                            className="w-5 h-5 flex items-center justify-center rounded-full bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white transition-colors ml-1"
+                                        >
+                                            <Plus size={10} />
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <button 
+                                        onClick={() => setShowTagInput(!showTagInput)}
+                                        className="text-sm text-gray-600 hover:text-gray-400 cursor-pointer transition-colors"
+                                    >
+                                        Vazio
+                                    </button>
+                                )}
+
+                                {/* Popover Tags */}
+                                {showTagInput && (
+                                    <div className="absolute top-full left-0 mt-2 bg-[#1a1a2e] border border-white/10 rounded-xl p-3 shadow-xl z-50 w-64 animate-in fade-in zoom-in-95 duration-200">
+                                        <div className="flex flex-col gap-3">
+                                            <div className="space-y-1 max-h-40 overflow-y-auto custom-scrollbar pr-1">
+                                                {tags.map(tag => (
+                                                    <button
+                                                        key={tag.id}
+                                                        onClick={() => toggleTag(tag.id)}
+                                                        className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs transition-colors group ${selectedTags.includes(tag.id) ? 'bg-white/10' : 'hover:bg-white/5'}`}
+                                                    >
+                                                        <div className="w-3 h-3 rounded-full border border-white/20" style={{ backgroundColor: tag.color }} />
+                                                        <span className={`flex-1 text-left truncate ${selectedTags.includes(tag.id) ? 'text-white' : 'text-gray-400'}`}>{tag.name}</span>
+                                                        {selectedTags.includes(tag.id) && <CheckSquare size={12} className="text-primary shrink-0" />}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                            <div className="h-px bg-white/10 w-full" />
+                                            <div className="flex items-center gap-2">
+                                                <input 
+                                                    value={newTagName}
+                                                    onChange={e => setNewTagName(e.target.value)}
+                                                    placeholder="Nova etiqueta..."
+                                                    className="bg-white/5 border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white focus:border-primary/50 outline-none w-full"
+                                                    onKeyDown={e => e.key === 'Enter' && handleCreateTag()}
+                                                />
+                                                <div className="relative w-6 h-6 rounded overflow-hidden border border-white/10 shrink-0">
+                                                    <input type="color" value={newTagColor} onChange={e => setNewTagColor(e.target.value)} className="absolute -top-2 -left-2 w-[150%] h-[150%] p-0 cursor-pointer border-none" />
+                                                </div>
+                                                <button onClick={handleCreateTag} className="bg-primary text-white p-1.5 rounded-lg"><Plus size={12}/></button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                    </div>
+
+                    {/* === COLUNA DIREITA === */}
+                    <div className="space-y-4">
+                        
+                        {/* 1. Responsáveis */}
+                        <div className="flex items-center justify-between group h-8">
+                            <div className="flex items-center gap-2 text-gray-400 min-w-[140px]">
+                                <div className="p-1 rounded hover:bg-white/5 transition-colors">
+                                    <IconUser size={16} stroke={1.5} />
+                                </div>
+                                <span className="text-sm font-medium text-gray-400 group-hover:text-gray-300 transition-colors">Responsáveis</span>
+                            </div>
+                            
+                            <div className="relative flex-1 flex justify-start">
+                                <button 
+                                    onClick={() => userRole !== 'visualizador' && setShowMemberSelect(!showMemberSelect)}
+                                    className="flex items-center"
+                                >
+                                    {assignedTo ? (
+                                        <div className="flex items-center gap-2 group/assigned">
+                                            <div className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center text-[10px] font-bold text-primary shrink-0 border border-primary/30">
+                                                {members.find(m => m.id === assignedTo)?.name.charAt(0) || 'U'}
+                                            </div>
+                                            <span className="text-sm text-gray-300 group-hover/assigned:text-white transition-colors truncate max-w-[120px]">
+                                                {members.find(m => m.id === assignedTo)?.name}
+                                            </span>
+                                            <X 
+                                                size={12} 
+                                                className="text-gray-500 hover:text-red-400 opacity-0 group-hover/assigned:opacity-100 transition-opacity ml-1"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setAssignedTo('');
+                                                }}
+                                            />
+                                        </div>
+                                    ) : (
+                                        <span className="text-sm text-gray-600 hover:text-gray-400 transition-colors">Vazio</span>
+                                    )}
+                                </button>
+
+                                {/* Popover Membros */}
+                                {showMemberSelect && (
+                                    <div className="absolute top-full left-0 mt-2 w-64 bg-[#1a1a2e] border border-white/10 rounded-xl shadow-xl z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+                                        <div className="p-2 border-b border-white/5">
+                                            <input 
+                                                autoFocus
+                                                placeholder="Buscar membro..."
+                                                className="w-full bg-white/5 border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white focus:border-primary/50 outline-none"
+                                                onClick={(e) => e.stopPropagation()}
+                                            />
+                                        </div>
+                                        <div className="max-h-48 overflow-y-auto custom-scrollbar p-1">
+                                            {members.map(m => (
+                                                <button
+                                                    key={m.id}
+                                                    onClick={() => {
+                                                        setAssignedTo(m.id);
+                                                        setShowMemberSelect(false);
+                                                    }}
+                                                    className={`w-full flex items-center gap-2 px-2 py-2 rounded-lg text-sm text-gray-300 hover:bg-white/5 hover:text-white transition-colors text-left ${assignedTo === m.id ? 'bg-primary/10 text-primary' : ''}`}
+                                                >
+                                                    <div className="w-6 h-6 rounded-full bg-white/10 flex items-center justify-center text-[10px] font-bold">
+                                                        {m.name.charAt(0)}
+                                                    </div>
+                                                    <span className="truncate">{m.name}</span>
+                                                    {assignedTo === m.id && <CheckSquare size={12} className="ml-auto text-primary" />}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* 2. Prioridade */}
+                        <div className="flex items-center justify-between group h-8">
+                            <div className="flex items-center gap-2 text-gray-400 min-w-[140px]">
+                                <div className="p-1 rounded hover:bg-white/5 transition-colors">
+                                    <IconFlag size={16} stroke={1.5} /> 
+                                </div>
+                                <span className="text-sm font-medium text-gray-400 group-hover:text-gray-300 transition-colors">Prioridade</span>
+                            </div>
+                            
+                            <div className="relative flex-1 flex justify-start">
+                                <button 
+                                    onClick={() => userRole !== 'visualizador' && setShowPrioritySelect(!showPrioritySelect)}
+                                    className="flex items-center"
+                                >
+                                    {priority ? (
+                                        <div className="flex items-center gap-2">
+                                            <IconFlag 
+                                                size={14} 
+                                                fill="currentColor"
+                                                className={`${priority === 'urgent' ? 'text-red-500' : priority === 'high' ? 'text-orange-500' : priority === 'medium' ? 'text-blue-500' : 'text-gray-500'}`} 
+                                            />
+                                            <span className="text-sm text-gray-300 capitalize">
+                                                {priority === 'urgent' ? 'Urgente' : priority === 'high' ? 'Alta' : priority === 'medium' ? 'Média' : 'Baixa'}
+                                            </span>
+                                        </div>
+                                    ) : (
+                                        <span className="text-sm text-gray-600 hover:text-gray-400 transition-colors">Vazio</span>
+                                    )}
+                                </button>
+
+                                {/* Popover Prioridade */}
+                                {showPrioritySelect && (
+                                    <div className="absolute top-full left-0 mt-2 w-40 bg-[#1a1a2e] border border-white/10 rounded-xl shadow-xl z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-200 p-1">
+                                        {[
+                                            { value: 'urgent', label: 'Urgente', text: 'text-red-500' },
+                                            { value: 'high', label: 'Alta', text: 'text-orange-500' },
+                                            { value: 'medium', label: 'Média', text: 'text-blue-500' },
+                                            { value: 'low', label: 'Baixa', text: 'text-gray-500' }
+                                        ].map(p => (
+                                            <button
+                                                key={p.value}
+                                                onClick={() => {
+                                                    setPriority(p.value as any);
+                                                    setShowPrioritySelect(false);
+                                                }}
+                                                className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm hover:bg-white/5 transition-colors text-left ${priority === p.value ? 'bg-white/5' : ''}`}
+                                            >
+                                                <IconFlag size={14} className={p.text} fill="currentColor" />
+                                                <span className="text-gray-300">{p.label}</span>
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* 3. Tempo Rastreado (Visual) */}
+                        <div className="flex items-center justify-between group h-8">
+                            <div className="flex items-center gap-2 text-gray-400 min-w-[140px]">
+                                <div className="p-1 rounded hover:bg-white/5 transition-colors">
+                                    <IconPlayerPlay size={16} stroke={1.5} />
+                                </div>
+                                <span className="text-sm font-medium text-gray-400 group-hover:text-gray-300 transition-colors">Tempo rastreado</span>
+                            </div>
+                            <div className="flex-1 flex justify-start">
+                                <button className="flex items-center gap-2 text-gray-500 hover:text-white transition-colors bg-white/5 hover:bg-white/10 px-2 py-0.5 rounded-full">
+                                    <div className="w-4 h-4 rounded-full bg-white/10 flex items-center justify-center">
+                                        <div className="w-0 h-0 border-t-[3px] border-t-transparent border-l-[5px] border-l-white border-b-[3px] border-b-transparent ml-0.5"></div>
+                                    </div>
+                                    <span className="text-xs">Adicionar hora</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* 4. Cliente (Relacionamentos) */}
+                        <div className="flex items-center justify-between group h-8">
+                            <div className="flex items-center gap-2 text-gray-400 min-w-[140px]">
+                                <div className="p-1 rounded hover:bg-white/5 transition-colors">
+                                    <IconBriefcase size={16} stroke={1.5} />
+                                </div>
+                                <span className="text-sm font-medium text-gray-400 group-hover:text-gray-300 transition-colors">Cliente</span>
+                            </div>
+                            
+                            <div className="relative flex-1 flex justify-start">
+                                <button 
+                                    onClick={() => userRole !== 'visualizador' && setShowClientSelect(!showClientSelect)}
+                                    className="flex items-center"
+                                >
+                                    {clientId ? (
+                                        <div className="flex items-center gap-2 group/client">
+                                            <div className="w-5 h-5 rounded-full bg-indigo-500/20 flex items-center justify-center text-[10px] font-bold text-indigo-400 shrink-0">
+                                                {clients.find(c => c.id === clientId)?.name.charAt(0) || 'C'}
+                                            </div>
+                                            <span className="text-sm text-gray-300 group-hover/client:text-white transition-colors truncate max-w-[120px]">
+                                                {clients.find(c => c.id === clientId)?.name}
+                                            </span>
+                                            <X 
+                                                size={12} 
+                                                className="text-gray-500 hover:text-red-400 opacity-0 group-hover/client:opacity-100 transition-opacity ml-1"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setClientId('');
+                                                }}
+                                            />
+                                        </div>
+                                    ) : (
+                                        <span className="text-sm text-gray-600 hover:text-gray-400 transition-colors">Vazio</span>
+                                    )}
+                                </button>
+
+                                {/* Popover Clientes */}
+                                {showClientSelect && (
+                                    <div className="absolute top-full left-0 mt-2 w-64 bg-[#1a1a2e] border border-white/10 rounded-xl shadow-xl z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+                                        <div className="p-2 border-b border-white/5">
+                                            <input 
+                                                autoFocus
+                                                placeholder="Buscar cliente..."
+                                                className="w-full bg-white/5 border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white focus:border-primary/50 outline-none"
+                                                onClick={(e) => e.stopPropagation()}
+                                            />
+                                        </div>
+                                        <div className="max-h-48 overflow-y-auto custom-scrollbar p-1">
+                                            {clients.map(c => (
+                                                <button
+                                                    key={c.id}
+                                                    onClick={() => {
+                                                        setClientId(c.id);
+                                                        setShowClientSelect(false);
+                                                    }}
+                                                    className={`w-full flex items-center gap-2 px-2 py-2 rounded-lg text-sm text-gray-300 hover:bg-white/5 hover:text-white transition-colors text-left ${clientId === c.id ? 'bg-primary/10 text-primary' : ''}`}
+                                                >
+                                                    <div className="w-6 h-6 rounded-full bg-white/10 flex items-center justify-center text-[10px] font-bold">
+                                                        {c.name.charAt(0)}
+                                                    </div>
+                                                    <span className="truncate">{c.name}</span>
+                                                    {clientId === c.id && <CheckSquare size={12} className="ml-auto text-primary" />}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                    </div>
+
+                </div>
+
+                    <div className="h-px bg-white/5 w-full" />
+
+                    {/* 2. Descrição */}
+                    <div className="space-y-3 group">
+                        <div className="flex items-center gap-2 text-gray-400">
+                            <FileText size={16} />
+                            <h3 className="text-sm font-bold uppercase tracking-wide">Descrição</h3>
+                        </div>
+                        <textarea
+                            className="w-full min-h-[60px] bg-transparent text-gray-300 resize-y focus:outline-none placeholder:text-gray-700 leading-relaxed text-sm font-light border border-transparent focus:border-white/10 rounded-xl p-3 transition-all hover:bg-white/[0.01]"
+                            placeholder="Clique para adicionar uma descrição detalhada..."
+                            value={description}
+                            onChange={(e) => setDescription(e.target.value)}
+                            disabled={userRole === 'visualizador'}
+                        />
+                    </div>
+
+                {/* 3. Subtarefas (Estilo ClickUp) */}
+                <div className="space-y-2">
+                    {/* Cabeçalho e Filtros */}
+                    <div className="flex items-center justify-between pb-2 mb-2">
+                         <div className="flex items-center gap-2 text-gray-400">
+                            <GitBranch size={16} />
+                            <h3 className="text-sm font-bold uppercase tracking-wide">Subtarefas</h3>
+                            <span className="text-xs text-gray-600 bg-white/5 px-2 py-0.5 rounded-full">{subtasks.length}</span>
+                        </div>
+                        <div className="flex gap-4">
+                             <button className="text-xs font-medium text-gray-500 hover:text-white transition-colors flex items-center gap-1">
+                                Classificar <ChevronDown size={10} />
+                             </button>
+                             <button className="text-xs font-medium text-gray-500 hover:text-white transition-colors flex items-center gap-1">
+                                Expandir tudo <IconPlayerPlay size={10} className="rotate-90" />
+                             </button>
+                        </div>
+                    </div>
+
+                    <div className="bg-[#0f0f1a]/50 rounded-xl border border-white/5 overflow-hidden">
+                        {/* Tabela Header */}
+                        <div className="grid grid-cols-[1fr_80px_80px_100px_40px] gap-2 px-4 py-3 border-b border-white/5 text-[10px] font-bold text-gray-500 uppercase tracking-wider bg-white/[0.02]">
+                            <div>Nome</div>
+                            <div className="text-center">Responsável</div>
+                            <div className="text-center">Prioridade</div>
+                             <div className="text-right">Data entrega</div>
+                             <div></div>
+                         </div>
+
+                        {/* Lista */}
+                        <div className="divide-y divide-white/5">
+                            {subtasks.map(task => (
+                                <div key={task.id} className="group grid grid-cols-[1fr_80px_80px_100px_40px] gap-2 items-center px-4 py-3 hover:bg-[#151525] transition-all relative">
+                                    {/* Nome */}
+                                    <div className="flex items-center gap-3 min-w-0">
+                                        <div className="relative">
+                                            <button 
+                                                onClick={() => {
+                                                    if (userRole === 'visualizador') return;
+                                                    setActiveSubtaskId(task.id);
+                                                    setShowSubtaskStatusSelect(showSubtaskStatusSelect === task.id ? null : task.id);
+                                                    setShowSubtaskMemberSelect(null);
+                                                    setShowSubtaskPrioritySelect(null);
+                                                    setShowSubtaskDateSelect(null);
+                                                }}
+                                                className="shrink-0 hover:opacity-80 transition-opacity"
+                                            >
+                                                 {/* Status Icon */}
+                                                 <div className="p-0.5 rounded-full border border-gray-600/50 hover:border-gray-400 transition-colors">
+                                                     <div 
+                                                        className="w-2 h-2 rounded-full"
+                                                        style={{ backgroundColor: task.column_id ? (columns.find(c => c.id === task.column_id)?.color) : 'transparent' }}
+                                                     />
+                                                 </div>
+                                            </button>
+
+                                            {/* Popover Status Subtarefa */}
+                                            {showSubtaskStatusSelect === task.id && (
+                                                <div className="absolute top-full left-0 mt-2 w-48 bg-[#1a1a2e] border border-white/10 rounded-lg shadow-xl z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-200 py-1">
+                                                    {columns.map(col => (
+                                                        <button
+                                                            key={col.id}
+                                                            onClick={() => {
+                                                                handleUpdateSubtask(task.id, { column_id: col.id });
+                                                                setShowSubtaskStatusSelect(null);
+                                                            }}
+                                                            className="w-full text-left px-3 py-2 text-xs hover:bg-white/5 flex items-center gap-2 group/item"
+                                                        >
+                                                            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: col.color }} />
+                                                            <span className="text-gray-300 group-hover/item:text-white transition-colors">{col.title}</span>
+                                                            {task.column_id === col.id && <CheckSquare size={10} className="ml-auto text-primary" />}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        <span className="text-sm text-gray-300 group-hover:text-white truncate transition-colors cursor-pointer font-medium">
+                                            {task.title}
+                                        </span>
+                                    </div>
+
+                                    {/* Responsável */}
+                                    <div className="flex justify-center relative">
+                                        <button 
+                                            onClick={() => {
+                                                if (userRole === 'visualizador') return;
+                                                setActiveSubtaskId(task.id);
+                                                setShowSubtaskMemberSelect(showSubtaskMemberSelect === task.id ? null : task.id);
+                                                setShowSubtaskPrioritySelect(null);
+                                                setShowSubtaskDateSelect(null);
+                                            }}
+                                            className={`w-6 h-6 rounded-full flex items-center justify-center transition-all ${task.assigned_to ? 'bg-primary/20 text-primary border border-primary/30 ring-2 ring-[#0a0a1a]' : 'border border-dashed border-gray-600 text-gray-600 hover:border-gray-400 hover:text-gray-400 opacity-0 group-hover:opacity-100'}`}
+                                            title={task.assigned_to ? members.find(m => m.id === task.assigned_to)?.name : 'Atribuir responsável'}
+                                        >
+                                            {task.assigned_to ? (
+                                                <span className="text-[10px] font-bold">{members.find(m => m.id === task.assigned_to)?.name?.charAt(0) || 'U'}</span>
+                                            ) : (
+                                                <IconUser size={12} />
+                                            )}
+                                        </button>
+
+                                        {/* Popover Responsável Subtarefa */}
+                                        {showSubtaskMemberSelect === task.id && (
+                                            <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-48 bg-[#1a1a2e] border border-white/10 rounded-xl shadow-xl z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+                                                <div className="max-h-40 overflow-y-auto custom-scrollbar p-1">
+                                                    {members.map(m => (
+                                                        <button
+                                                            key={m.id}
+                                                            onClick={() => {
+                                                                handleUpdateSubtask(task.id, { assigned_to: m.id });
+                                                                setShowSubtaskMemberSelect(null);
+                                                            }}
+                                                            className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs text-gray-300 hover:bg-white/5 hover:text-white transition-colors text-left ${task.assigned_to === m.id ? 'bg-primary/10 text-primary' : ''}`}
+                                                        >
+                                                            <div className="w-5 h-5 rounded-full bg-white/10 flex items-center justify-center text-[9px] font-bold">
+                                                                {m.name.charAt(0)}
+                                                            </div>
+                                                            <span className="truncate">{m.name}</span>
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Prioridade */}
+                                    <div className="flex justify-center relative">
+                                         <button
+                                            onClick={() => {
+                                                if (userRole === 'visualizador') return;
+                                                setActiveSubtaskId(task.id);
+                                                setShowSubtaskPrioritySelect(showSubtaskPrioritySelect === task.id ? null : task.id);
+                                                setShowSubtaskMemberSelect(null);
+                                                setShowSubtaskDateSelect(null);
+                                            }}
+                                            className="hover:bg-white/5 p-1 rounded transition-colors"
+                                         >
+                                            <IconFlag 
+                                                size={14} 
+                                                className={`${task.priority === 'urgent' ? 'text-red-500' : task.priority === 'high' ? 'text-orange-500' : task.priority === 'medium' ? 'text-blue-500' : 'text-gray-600'} ${!task.priority || task.priority === 'low' ? 'opacity-50 group-hover:opacity-100' : ''} transition-opacity`}
+                                                fill={task.priority && task.priority !== 'low' ? "currentColor" : "none"}
+                                            />
+                                         </button>
+
+                                         {/* Popover Prioridade Subtarefa */}
+                                         {showSubtaskPrioritySelect === task.id && (
+                                            <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-32 bg-[#1a1a2e] border border-white/10 rounded-xl shadow-xl z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-200 p-1">
+                                                {[
+                                                    { value: 'urgent', label: 'Urgente', text: 'text-red-500' },
+                                                    { value: 'high', label: 'Alta', text: 'text-orange-500' },
+                                                    { value: 'medium', label: 'Média', text: 'text-blue-500' },
+                                                    { value: 'low', label: 'Baixa', text: 'text-gray-500' }
+                                                ].map(p => (
+                                                    <button
+                                                        key={p.value}
+                                                        onClick={() => {
+                                                            handleUpdateSubtask(task.id, { priority: p.value });
+                                                            setShowSubtaskPrioritySelect(null);
+                                                        }}
+                                                        className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs hover:bg-white/5 transition-colors text-left ${task.priority === p.value ? 'bg-white/5' : ''}`}
+                                                    >
+                                                        <IconFlag size={12} className={p.text} fill="currentColor" />
+                                                        <span className="text-gray-300">{p.label}</span>
+                                                    </button>
+                                                ))}
+                                            </div>
+                                         )}
+                                    </div>
+
+                                    {/* Data */}
+                                    <div className="text-right text-xs text-gray-500 group-hover:text-gray-400 transition-colors relative flex justify-end">
+                                        <div className="relative min-w-[60px] h-6 flex items-center justify-end">
+                                            <span 
+                                                className={`cursor-pointer hover:text-white transition-colors ${!task.due_date ? 'opacity-0 group-hover:opacity-50' : ''}`}
+                                            >
+                                                {task.due_date ? new Date(task.due_date + 'T12:00:00').toLocaleDateString('pt-BR').slice(0,5) : '-'}
+                                            </span>
+                                            <input 
+                                                type="date" 
+                                                className="absolute inset-0 opacity-0 cursor-pointer w-full h-full z-10"
+                                                value={task.due_date || ''}
+                                                onChange={(e) => handleUpdateSubtask(task.id, { due_date: e.target.value })}
+                                                disabled={userRole === 'visualizador'}
+                                                onClick={(e) => (e.target as HTMLInputElement).showPicker && (e.target as HTMLInputElement).showPicker()}
+                                            />
+                                        </div>
+                                    </div>
+
+                                    {/* Ações */}
+                                    <div className="flex justify-end opacity-0 group-hover:opacity-100 transition-opacity">
+                                         <button onClick={() => handleUnlinkSubtask(task.id)} className="text-gray-600 hover:text-red-400 transition-colors p-1 hover:bg-white/5 rounded">
+                                            <Trash2 size={14} />
+                                         </button>
+                                    </div>
+                                </div>
+                            ))}
+
+                            {/* New Task Input Inline */}
+                            {userRole !== 'visualizador' && (
+                                <div className="flex items-center gap-3 px-4 py-3 text-gray-500 hover:text-gray-300 transition-colors cursor-text group bg-white/[0.01] hover:bg-white/[0.03]" onClick={() => document.getElementById('new-subtask-input')?.focus()}>
+                                    <Plus size={16} className="text-gray-600 group-hover:text-primary transition-colors" />
+                                    <input 
+                                        id="new-subtask-input"
+                                        className="bg-transparent text-sm focus:outline-none w-full placeholder:text-gray-600 text-gray-300"
+                                        placeholder="Adicionar nova subtarefa..."
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter') {
+                                                handleCreateSubtask(e.currentTarget.value);
+                                                e.currentTarget.value = '';
+                                            }
+                                        }}
+                                    />
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+
+                {/* 4. Checklist */}
+                <div className="space-y-4">
+                     <div className="flex items-center justify-between">
+                         <div className="flex items-center gap-2 text-gray-400">
+                            <CheckSquare size={16} />
+                            <h3 className="text-sm font-bold uppercase tracking-wide">Checklist ({checklist.filter(i => i.is_completed).length}/{checklist.length})</h3>
+                        </div>
+                    </div>
+
+                    <div className="space-y-2">
+                        {/* Progress Bar */}
+                        {checklist.length > 0 && (
+                            <div className="w-full bg-white/5 rounded-full h-1 overflow-hidden mb-4">
+                                <div 
+                                    className="bg-emerald-500 h-1 rounded-full transition-all duration-500"
+                                    style={{ width: `${(checklist.filter(i => i.is_completed).length / checklist.length) * 100}%` }}
+                                ></div>
+                            </div>
+                        )}
+
+                        {checklist.map(item => (
+                             <div key={item.id} className="flex items-start gap-3 p-2 hover:bg-white/5 rounded-lg group transition-colors">
+                                <button 
+                                     onClick={() => handleToggleChecklist(item.id, item.is_completed, item.needs_approval, item.approver_id)}
+                                     disabled={item.needs_approval && !item.is_completed && (item.approver_id ? item.approver_id !== currentUserId : !currentUserApprover)}
+                                     className={`mt-0.5 w-4 h-4 rounded border flex items-center justify-center transition-all 
+                                        ${item.is_completed 
+                                            ? 'bg-emerald-500 border-emerald-500 text-white' 
+                                            : 'border-white/20 hover:border-emerald-500'
+                                        }`}
+                                >
+                                    {item.is_completed && <CheckSquare size={10} />}
+                                </button>
+                                <span className={`text-sm flex-1 ${item.is_completed ? 'text-gray-500 line-through' : 'text-gray-300'}`}>
+                                    {item.description}
+                                </span>
+                                
+                                {/* Ações do Item */}
+                                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <button onClick={() => handleToggleApprovalReq(item.id, item.needs_approval)} className={`p-1 rounded hover:bg-white/10 ${item.needs_approval ? 'text-yellow-500' : 'text-gray-500'}`} title="Aprovação">
+                                        <Lock size={12} />
+                                    </button>
+                                    <button onClick={() => handleDeleteChecklist(item.id)} className="p-1 rounded hover:bg-white/10 text-gray-500 hover:text-red-400" title="Excluir">
+                                        <Trash2 size={12} />
+                                    </button>
+                                </div>
+                             </div>
+                        ))}
+
+                        {userRole !== 'visualizador' && (
+                            <div className="flex items-center gap-2 p-2 opacity-60 hover:opacity-100 transition-opacity">
+                                <Plus size={16} className="text-gray-500" />
+                                <input 
+                                    value={newChecklistItem}
+                                    onChange={(e) => setNewChecklistItem(e.target.value)}
+                                    onKeyDown={(e) => e.key === 'Enter' && handleAddChecklistItem()}
+                                    className="bg-transparent text-sm text-white focus:outline-none w-full placeholder:text-gray-600"
+                                    placeholder="Adicionar item ao checklist..."
+                                />
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                {/* 5. Anexos */}
+                <div className="space-y-4">
+                     <div className="flex items-center justify-between">
+                         <div className="flex items-center gap-2 text-gray-400">
+                            <Paperclip size={16} />
+                            <h3 className="text-sm font-bold uppercase tracking-wide">Anexos ({files.length})</h3>
+                        </div>
+                        <button onClick={handleAddFile} className="text-xs text-primary hover:text-white transition-colors">
+                            + Adicionar
                         </button>
                     </div>
-                </div>
 
-                {/* List Tags */}
-                <div className="space-y-3">
-                    <h4 className="text-xs font-bold text-gray-400 uppercase">Etiquetas Disponíveis</h4>
-                    {tags.length === 0 ? (
-                        <p className="text-sm text-gray-500 italic">Nenhuma etiqueta criada ainda.</p>
-                    ) : (
-                        <div className="flex flex-wrap gap-2">
-                            {tags.map(tag => (
-                                <button
-                                    key={tag.id}
-                                    onClick={() => toggleTag(tag.id)}
-                                    className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-all flex items-center gap-2 ${
-                                        selectedTags.includes(tag.id)
-                                            ? 'border-transparent text-white ring-2 ring-white/20'
-                                            : 'border-white/10 text-gray-400 hover:border-white/30 hover:text-white'
-                                    }`}
-                                    style={{
-                                        backgroundColor: tag.color
-                                    }}
-                                >
-                                    <Tag size={12} />
-                                    {tag.name}
-                                    {selectedTags.includes(tag.id) && <div className="bg-white/20 rounded-full p-0.5"><CheckSquare size={10} /></div>}
+                    <div className="grid grid-cols-3 gap-3">
+                        {files.map(file => (
+                            <div key={file.id} className="bg-white/[0.02] border border-white/5 rounded-lg p-3 flex items-center gap-3 hover:bg-white/[0.05] transition-colors group relative">
+                                <div className="w-8 h-8 rounded bg-white/5 flex items-center justify-center text-gray-400">
+                                    {getFileIcon(file.file_name)}
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                    <p className="text-xs text-gray-300 truncate" title={file.file_name}>{file.file_name}</p>
+                                    <p className="text-[10px] text-gray-600">{new Date(file.created_at).toLocaleDateString()}</p>
+                                </div>
+                                <button onClick={() => handleDeleteFile(file.id, file.file_url, file.file_name)} className="absolute top-1 right-1 p-1 text-gray-500 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <X size={12} />
                                 </button>
-                            ))}
-                        </div>
-                    )}
+                            </div>
+                        ))}
+                    </div>
+                    <input type="file" ref={fileInputRef} className="hidden" onChange={handleFileUpload} />
                 </div>
-              </div>
-            )}
-          </div>
+
+            </div>
         </div>
 
-        {/* Sidebar (Metadados) */}
-        <div className="w-72 bg-[#0f0f1a] p-4 flex flex-col gap-4 border-l border-white/10 overflow-y-auto">
-          
-          {/* Cliente */}
-          <div className="space-y-1">
-            <label className="text-[10px] text-gray-500 font-bold uppercase">Cliente</label>
-            <div className="relative">
-              <select 
-                value={clientId}
-                onChange={(e) => setClientId(e.target.value)}
-                className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white appearance-none focus:border-primary focus:outline-none cursor-pointer"
-              >
-                <option value="" className="bg-[#0a0a1a]">Selecione um cliente</option>
-                {clients.map(c => (
-                  <option key={c.id} value={c.id} className="bg-[#0a0a1a]">{c.name}</option>
-                ))}
-              </select>
-              <ChevronDown size={14} className="text-gray-500 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+        {/* ================= DIREITA: ATIVIDADE E CHAT (30%) ================= */}
+        <div className="w-[400px] flex flex-col bg-[#050510]/80 backdrop-blur-xl border-l border-white/5 z-20">
+            {/* Header Lateral */}
+            <div className="p-4 border-b border-white/5 flex items-center gap-2">
+                <MessageSquare size={16} className="text-primary" />
+                <h3 className="text-sm font-bold text-white uppercase tracking-wide">Atividade</h3>
             </div>
-          </div>
 
-          {/* Prioridade */}
-          <div className="space-y-1">
-            <label className="text-[10px] text-gray-500 font-bold uppercase">Prioridade</label>
-            <div className="relative">
-              <select 
-                value={priority}
-                onChange={(e) => setPriority(e.target.value as any)}
-                className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white appearance-none focus:border-primary focus:outline-none cursor-pointer"
-              >
-                <option value="low" className="bg-[#0a0a1a]">Baixa</option>
-                <option value="medium" className="bg-[#0a0a1a]">Média</option>
-                <option value="high" className="bg-[#0a0a1a]">Alta</option>
-                <option value="urgent" className="bg-[#0a0a1a]">Urgente</option>
-              </select>
-              <ChevronDown size={14} className="text-gray-500 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+            {/* Feed Scrollável */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar bg-[#050510]/50">
+                {comments.length === 0 ? (
+                    <div className="text-center py-10 opacity-30">
+                        <MessageSquare size={32} className="mx-auto mb-2" />
+                        <p className="text-xs">Nenhuma atividade registrada.</p>
+                    </div>
+                ) : (
+                    comments.map(comment => (
+                        <div key={comment.id} className={`flex gap-3 ${comment.is_system_log ? 'opacity-50' : ''}`}>
+                             <div className={`w-6 h-6 rounded-lg flex items-center justify-center text-[10px] font-bold shrink-0 ${comment.is_system_log ? 'bg-white/5 text-gray-400' : 'bg-primary/20 text-primary'}`}>
+                                {comment.is_system_log ? <Info size={12} /> : (comment.user?.email?.[0]?.toUpperCase() || 'U')}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                                <div className="flex justify-between items-baseline mb-0.5">
+                                    <span className={`text-xs font-bold ${comment.is_system_log ? 'text-gray-500' : 'text-gray-300'}`}>
+                                        {comment.user_id ? (comment.user?.email || 'Usuário') : 'Sistema'}
+                                    </span>
+                                    <span className="text-[9px] text-gray-600">{new Date(comment.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+                                </div>
+                                <p className={`text-xs ${comment.is_system_log ? 'text-gray-500 italic' : 'text-gray-300'} break-words leading-relaxed`}>
+                                    {comment.content}
+                                </p>
+                            </div>
+                        </div>
+                    ))
+                )}
             </div>
-          </div>
 
-          {/* Responsável */}
-          <div className="space-y-1">
-            <label className="text-[10px] text-gray-500 font-bold uppercase">Responsável</label>
-            <div className="relative">
-              <select 
-                value={assignedTo}
-                onChange={(e) => setAssignedTo(e.target.value)}
-                className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white appearance-none focus:border-primary focus:outline-none cursor-pointer"
-              >
-                <option value="" className="bg-[#0a0a1a]">Sem responsável</option>
-                {members.map(m => (
-                  <option key={m.id} value={m.id} className="bg-[#0a0a1a]">{m.name}</option>
-                ))}
-              </select>
-              <ChevronDown size={14} className="text-gray-500 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+            {/* Input Fixo no Rodapé */}
+            <div className="p-4 border-t border-white/5 bg-[#0a0a1a]">
+                {/* Mentions Popup */}
+                {mentionQuery !== null && filteredMembers.length > 0 && (
+                    <div className="absolute bottom-20 left-4 right-4 bg-[#1a1a2e] border border-white/10 rounded-xl shadow-2xl overflow-hidden z-50 max-h-40 overflow-y-auto">
+                        {filteredMembers.map(member => (
+                            <button
+                                key={member.id}
+                                onClick={() => selectMention(member)}
+                                className="w-full text-left px-3 py-2 hover:bg-white/5 text-xs text-gray-300 flex items-center gap-2"
+                            >
+                                <div className="w-5 h-5 rounded bg-primary/20 flex items-center justify-center text-primary text-[9px] font-bold">
+                                    {member.name.charAt(0)}
+                                </div>
+                                {member.name}
+                            </button>
+                        ))}
+                    </div>
+                )}
+                
+                {userRole !== 'visualizador' && (
+                    <div className="relative group">
+                        <input 
+                            value={newComment}
+                            onChange={handleCommentChange}
+                            onKeyDown={(e) => e.key === 'Enter' && handleAddComment()}
+                            className="w-full bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.08] rounded-xl pl-4 pr-10 py-3 text-sm text-white focus:bg-white/[0.08] focus:border-primary/30 focus:ring-0 outline-none transition-all placeholder-gray-600"
+                            placeholder="Escreva um comentário..."
+                        />
+                        <button 
+                            onClick={handleAddComment}
+                            className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-gray-500 hover:text-primary transition-colors"
+                        >
+                            <Send size={16} />
+                        </button>
+                    </div>
+                )}
             </div>
-          </div>
-
-          {/* Calendário */}
-          <button 
-            onClick={() => setShowOnCalendar(!showOnCalendar)}
-            className={`w-full border rounded-lg px-3 py-2 flex items-center justify-center gap-2 transition-all text-sm ${
-              showOnCalendar 
-                ? 'bg-primary/20 border-primary text-primary' 
-                : 'bg-white/5 border-white/10 text-gray-300 hover:bg-white/10'
-            }`}
-          >
-            <Calendar size={14} />
-            {showOnCalendar ? 'No Calendário' : 'Add ao Calendário'}
-          </button>
-
-          {/* Previsão de Entrega */}
-          <div className="space-y-1">
-            <label className="text-[10px] text-gray-500 font-bold uppercase">Previsão de Entrega</label>
-            <div className="relative">
-              <input 
-                type="date" 
-                className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:border-primary focus:outline-none"
-                value={dueDate}
-                onChange={(e) => setDueDate(e.target.value)}
-              />
-            </div>
-          </div>
-
-          <div className="border-t border-white/10 my-1"></div>
-
-          {/* Categoria */}
-          <div className="space-y-1">
-            <label className="text-[10px] text-gray-500 font-bold uppercase">Categoria</label>
-            <input 
-              value={category}
-              onChange={(e) => setCategory(e.target.value)}
-              className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:border-primary focus:outline-none" 
-              placeholder="Ex: Design"
-            />
-          </div>
-
-          {/* Subcategoria */}
-          <div className="space-y-1">
-            <label className="text-[10px] text-gray-500 font-bold uppercase">Subcategoria</label>
-            <input 
-              value={subcategory}
-              onChange={(e) => setSubcategory(e.target.value)}
-              className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:border-primary focus:outline-none" 
-              placeholder="Ex: Redes Sociais"
-            />
-          </div>
-
-          <div className="mt-auto">
-            <button 
-              onClick={handleSave}
-              disabled={saving}
-              className="w-full bg-primary hover:bg-secondary text-white py-2.5 rounded-lg font-bold shadow-lg shadow-primary/20 transition-all disabled:opacity-50 flex items-center justify-center gap-2 text-sm"
-            >
-              {saving ? 'Salvando...' : 'Salvar Tudo'}
-            </button>
-          </div>
-
         </div>
+
       </div>
     </div>
 
-    {/* Modal de Seleção de Aprovador */}
+    {/* Modal de Seleção de Aprovador (Mantido Igual) */}
     {showApproverModal && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm">
-            <div className="bg-[#0f0f1a] p-6 rounded-xl border border-white/10 w-full max-w-sm shadow-2xl animate-in zoom-in-95">
-                <h3 className="text-lg font-bold text-white mb-2">Solicitar Aprovação</h3>
-                <p className="text-sm text-gray-400 mb-4">Selecione quem deve aprovar este item:</p>
-                
-                <div className="space-y-2 max-h-60 overflow-y-auto mb-4">
-                    {approvers.length === 0 ? (
-                        <p className="text-sm text-yellow-500">Nenhum membro configurado como "Aprovador" na equipe.</p>
-                    ) : (
-                        approvers.map(approver => (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <div 
+                className="absolute inset-0 bg-black/60 backdrop-blur-md z-0 animate-in fade-in duration-300"
+                onClick={() => setShowApproverModal(null)}
+            >
+                 <div className="absolute inset-0 opacity-[0.03] bg-[url('https://grainy-gradients.vercel.app/noise.svg')]"></div>
+            </div>
+
+            <div className="relative z-10 bg-[#0a0a1a]/80 backdrop-blur-xl p-6 rounded-[22px] border border-white/10 w-full max-w-sm shadow-2xl animate-in zoom-in-95 overflow-hidden">
+                <div className="absolute inset-0 rounded-[22px] border border-white/5 pointer-events-none"></div>
+                <div className="relative z-20">
+                    <h3 className="text-lg font-medium text-white/90 mb-2">Solicitar Aprovação</h3>
+                    <p className="text-sm text-gray-400 font-light mb-6">Selecione quem deve aprovar este item:</p>
+                    
+                    <div className="space-y-2 max-h-60 overflow-y-auto mb-6 custom-scrollbar pr-1">
+                        {approvers.map(approver => (
                             <button
                                 key={approver.id}
                                 onClick={() => updateApprovalStatus(showApproverModal, true, approver.id)}
-                                className="w-full flex items-center gap-3 p-3 rounded-lg bg-white/5 hover:bg-white/10 transition-colors text-left"
+                                className="w-full flex items-center gap-3 p-3 rounded-xl bg-white/[0.03] hover:bg-white/[0.08] border border-white/5 hover:border-white/10 transition-all text-left group"
                             >
-                                <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold text-xs">
+                                <div className="w-8 h-8 rounded-lg bg-primary/20 flex items-center justify-center text-primary text-xs font-bold group-hover:bg-primary group-hover:text-white transition-colors">
                                     {approver.name.charAt(0)}
                                 </div>
-                                <span className="text-sm text-white">{approver.name}</span>
+                                <span className="text-sm text-gray-300 group-hover:text-white font-light">{approver.name}</span>
                             </button>
-                        ))
-                    )}
-                </div>
+                        ))}
+                    </div>
 
-                <div className="flex justify-end">
-                    <button 
-                        onClick={() => setShowApproverModal(null)}
-                        className="text-sm text-gray-400 hover:text-white px-3 py-2"
-                    >
-                        Cancelar
-                    </button>
+                    <div className="flex justify-end">
+                        <button 
+                            onClick={() => setShowApproverModal(null)}
+                            className="text-sm text-gray-500 hover:text-white px-4 py-2 transition-colors"
+                        >
+                            Cancelar
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>

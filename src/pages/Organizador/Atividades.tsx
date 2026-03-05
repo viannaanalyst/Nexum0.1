@@ -40,6 +40,7 @@ const OrganizadorAtividades = () => {
   const [logs, setLogs] = useState<AuditLog[]>([]);
   const [filterType, setFilterType] = useState<string>('all'); // all, kanban, comments, approvals
   const [searchTerm, setSearchTerm] = useState('');
+  const [displayLimit, setDisplayLimit] = useState(10);
 
   useEffect(() => {
     if (selectedCompany) fetchLogs();
@@ -107,7 +108,7 @@ const OrganizadorAtividades = () => {
         `)
         .eq('company_id', selectedCompany.id)
         .order('created_at', { ascending: false })
-        .limit(50); // Pagination recommended for production
+        .limit(100); // Pagination recommended for production
 
       if (error) throw error;
       
@@ -284,42 +285,56 @@ const OrganizadorAtividades = () => {
       {/* Timeline */}
       <div className="space-y-6 relative before:absolute before:inset-0 before:ml-5 before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-transparent before:via-white/10 before:to-transparent">
         {filteredLogs.length > 0 ? (
-          filteredLogs.map((log) => (
-            <div key={log.id} className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active">
-              
-              {/* Icon Marker */}
-              <div className="flex items-center justify-center w-10 h-10 rounded-full border border-white/10 bg-[#0a0a1a] shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 z-10">
-                {getActionIcon(log.action_type)}
-              </div>
-              
-              {/* Content Card */}
-              <div className="w-[calc(100%-4rem)] md:w-[calc(50%-2.5rem)] bg-[#0f0f1a] p-5 rounded-xl border border-white/5 hover:border-primary/30 transition-all shadow-lg hover:shadow-primary/5">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-2">
-                    {log.user?.avatar_url ? (
-                        <img src={log.user.avatar_url} alt={log.user.full_name} className="w-6 h-6 rounded-full" />
-                    ) : (
-                        <div className="w-6 h-6 rounded-full bg-indigo-500 flex items-center justify-center text-white text-[10px] font-bold">
-                            {(log.user?.full_name || log.user?.email || '?').charAt(0).toUpperCase()}
-                        </div>
-                    )}
-                    <span className="text-xs text-gray-400 font-medium">
-                        {formatDistanceToNow(new Date(log.created_at), { addSuffix: true, locale: ptBR })}
-                    </span>
-                  </div>
-                  <span className={`text-[10px] px-2 py-0.5 rounded uppercase font-bold tracking-wider 
-                    ${log.entity_type === 'card' ? 'bg-blue-500/10 text-blue-400' : 
-                      log.entity_type === 'client' ? 'bg-green-500/10 text-green-400' : 'bg-gray-500/10 text-gray-400'}`}>
-                    {log.entity_type}
-                  </span>
+          <>
+            {filteredLogs.slice(0, displayLimit).map((log) => (
+              <div key={log.id} className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active">
+                
+                {/* Icon Marker */}
+                <div className="flex items-center justify-center w-10 h-10 rounded-full border border-white/10 bg-[#0a0a1a] shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 z-10">
+                  {getActionIcon(log.action_type)}
                 </div>
                 
-                <div className="text-sm text-gray-300 leading-relaxed">
-                  {getActionDescription(log)}
+                {/* Content Card */}
+                <div className="w-[calc(100%-4rem)] md:w-[calc(50%-2.5rem)] bg-[#0f0f1a] p-5 rounded-xl border border-white/5 hover:border-primary/30 transition-all shadow-lg hover:shadow-primary/5">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      {log.user?.avatar_url ? (
+                          <img src={log.user.avatar_url} alt={log.user.full_name} className="w-6 h-6 rounded-full" />
+                      ) : (
+                          <div className="w-6 h-6 rounded-full bg-indigo-500 flex items-center justify-center text-white text-[10px] font-bold">
+                              {(log.user?.full_name || log.user?.email || '?').charAt(0).toUpperCase()}
+                          </div>
+                      )}
+                      <span className="text-xs text-gray-400 font-medium">
+                          {formatDistanceToNow(new Date(log.created_at), { addSuffix: true, locale: ptBR })}
+                      </span>
+                    </div>
+                    <span className={`text-[10px] px-2 py-0.5 rounded uppercase font-bold tracking-wider 
+                      ${log.entity_type === 'card' ? 'bg-blue-500/10 text-blue-400' : 
+                        log.entity_type === 'client' ? 'bg-green-500/10 text-green-400' : 'bg-gray-500/10 text-gray-400'}`}>
+                      {log.entity_type}
+                    </span>
+                  </div>
+                  
+                  <div className="text-sm text-gray-300 leading-relaxed">
+                    {getActionDescription(log)}
+                  </div>
                 </div>
               </div>
-            </div>
-          ))
+            ))}
+            
+            {filteredLogs.length > displayLimit && (
+                <div className="flex justify-center pt-8 relative z-10">
+                    <button 
+                        onClick={() => setDisplayLimit(prev => prev + 20)}
+                        className="px-6 py-2.5 bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white rounded-xl border border-white/5 transition-all text-sm font-medium flex items-center gap-2 backdrop-blur-md"
+                    >
+                        <ArrowRight size={16} className="rotate-90" />
+                        Ver mais histórico
+                    </button>
+                </div>
+            )}
+          </>
         ) : (
           <div className="text-center py-12">
             <div className="bg-white/5 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 text-gray-500">

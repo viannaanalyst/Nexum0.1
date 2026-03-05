@@ -306,7 +306,7 @@ const FinanceiroLancamentos = () => {
               className="bg-primary hover:bg-secondary text-white px-6 py-3 rounded-xl flex items-center space-x-2 transition-all shadow-lg shadow-primary/20 hover:scale-105"
             >
                 <Plus size={20} />
-                <span>Novo Lançamento</span>
+                <span>Novo lançamento</span>
             </button>
         </div>
       </div>
@@ -408,45 +408,68 @@ const FinanceiroLancamentos = () => {
 
       {/* Modal Novo Lançamento */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-          <div className="glass-card w-full max-w-lg p-6 rounded-2xl border border-white/10 relative bg-[#0a0a1a]">
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-2xl font-bold text-white">{editingId ? 'Editar Lançamento' : 'Novo Lançamento'}</h2>
-              <button onClick={() => { setIsModalOpen(false); setEditingId(null); setNewTransaction({type: 'expense', status: 'pending', due_date: new Date().toISOString().split('T')[0]}); }} className="text-gray-400 hover:text-white"><X size={24} /></button>
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          {/* 1. Overlay Premium */}
+          <div 
+            className="absolute inset-0 bg-black/60 backdrop-blur-md z-0 animate-in fade-in duration-300"
+            onClick={() => { setIsModalOpen(false); setEditingId(null); setNewTransaction({type: 'expense', status: 'pending', due_date: new Date().toISOString().split('T')[0]}); }}
+          >
+             <div className="absolute inset-0 opacity-[0.03] bg-[url('https://grainy-gradients.vercel.app/noise.svg')]"></div>
+          </div>
+
+          {/* 2. Container Glass Premium */}
+          <div className="relative z-10 w-full max-w-lg rounded-[22px] overflow-hidden shadow-2xl animate-in zoom-in-95 duration-300 border border-white/10 bg-[#0a0a1a]/80 backdrop-blur-xl">
+            
+            {/* Glow Effects */}
+            <div className="absolute inset-0 rounded-[22px] border border-white/5 pointer-events-none"></div>
+            <div className="absolute top-[-50px] left-1/2 -translate-x-1/2 w-[80%] h-[100px] bg-primary/40 blur-[80px] pointer-events-none rounded-[100%]"></div>
+            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-1/3 h-[2px] bg-gradient-to-r from-transparent via-primary to-transparent shadow-[0_0_20px_2px_rgba(99,102,241,0.6)]"></div>
+
+            <div className="flex justify-between items-start p-8 pb-4 relative z-20">
+              <div>
+                <h2 className="text-xl font-medium text-white/90">{editingId ? 'Editar Lançamento' : 'Novo lançamento'}</h2>
+                <p className="text-gray-400/80 text-xs mt-1 font-light">Registre suas movimentações financeiras.</p>
+              </div>
+              <button 
+                onClick={() => { setIsModalOpen(false); setEditingId(null); setNewTransaction({type: 'expense', status: 'pending', due_date: new Date().toISOString().split('T')[0]}); }} 
+                className="p-1.5 text-gray-500 hover:text-white rounded-lg hover:bg-white/10 transition-colors"
+              >
+                <X size={18} />
+              </button>
             </div>
             
-            <form onSubmit={handleSaveTransaction} className="space-y-4">
+            <form onSubmit={handleSaveTransaction} className="p-8 pt-2 space-y-5 relative z-20">
               {/* Tipo */}
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-3">
                 <button
                   type="button"
                   onClick={() => setNewTransaction({...newTransaction, type: 'income'})}
-                  className={`p-3 rounded-xl border flex items-center justify-center gap-2 transition-all ${
+                  className={`p-3 rounded-xl border flex items-center justify-center gap-2 transition-all text-sm font-medium ${
                     newTransaction.type === 'income' 
-                    ? 'bg-green-500/20 border-green-500 text-green-400' 
-                    : 'bg-white/5 border-white/10 text-gray-400 hover:bg-white/10'
+                    ? 'bg-green-500/10 border-green-500/30 text-green-400 shadow-[0_0_15px_-5px_rgba(34,197,94,0.3)]' 
+                    : 'bg-white/[0.03] border-white/[0.08] text-gray-400 hover:bg-white/[0.06] hover:text-white'
                   }`}
                 >
-                  <TrendingUp size={20} /> Receita
+                  <TrendingUp size={18} /> Receita
                 </button>
                 <button
                   type="button"
                   onClick={() => setNewTransaction({...newTransaction, type: 'expense'})}
-                  className={`p-3 rounded-xl border flex items-center justify-center gap-2 transition-all ${
+                  className={`p-3 rounded-xl border flex items-center justify-center gap-2 transition-all text-sm font-medium ${
                     newTransaction.type === 'expense' 
-                    ? 'bg-red-500/20 border-red-500 text-red-400' 
-                    : 'bg-white/5 border-white/10 text-gray-400 hover:bg-white/10'
+                    ? 'bg-red-500/10 border-red-500/30 text-red-400 shadow-[0_0_15px_-5px_rgba(239,68,68,0.3)]' 
+                    : 'bg-white/[0.03] border-white/[0.08] text-gray-400 hover:bg-white/[0.06] hover:text-white'
                   }`}
                 >
-                  <TrendingDown size={20} /> Despesa
+                  <TrendingDown size={18} /> Despesa
                 </button>
               </div>
 
-              <div>
-                <label className="block text-sm text-gray-400 mb-1">Descrição</label>
+              <div className="space-y-1.5">
+                <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wide ml-1">Descrição</label>
                 <input 
                   required
-                  className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-white focus:border-primary focus:outline-none"
+                  className="w-full bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.08] rounded-xl px-4 py-3 text-white/90 focus:bg-white/[0.08] focus:border-primary/30 focus:ring-0 outline-none transition-all duration-300 text-sm font-light placeholder-gray-600"
                   placeholder="Ex: Aluguel, Projeto X..."
                   value={newTransaction.description || ''}
                   onChange={e => setNewTransaction({...newTransaction, description: e.target.value})}
@@ -454,79 +477,78 @@ const FinanceiroLancamentos = () => {
               </div>
 
               <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm text-gray-400 mb-1">Valor (R$)</label>
+                <div className="space-y-1.5">
+                  <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wide ml-1">Valor (R$)</label>
                   <input 
                     required
                     type="number"
                     step="0.01"
-                    className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-white focus:border-primary focus:outline-none"
+                    className="w-full bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.08] rounded-xl px-4 py-3 text-white/90 focus:bg-white/[0.08] focus:border-primary/30 focus:ring-0 outline-none transition-all duration-300 text-sm font-light placeholder-gray-600"
                     placeholder="0,00"
                     value={newTransaction.amount || ''}
                     onChange={e => setNewTransaction({...newTransaction, amount: Number(e.target.value)})}
                   />
                 </div>
-                <div>
-                  <label className="block text-sm text-gray-400 mb-1">Data de Vencimento</label>
+                <div className="space-y-1.5">
+                  <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wide ml-1">Data de Vencimento</label>
                   <input 
                     required
                     type="date"
-                    className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-white focus:border-primary focus:outline-none"
+                    className="w-full bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.08] rounded-xl px-4 py-3 text-white/90 focus:bg-white/[0.08] focus:border-primary/30 focus:ring-0 outline-none transition-all duration-300 text-sm font-light"
                     value={newTransaction.due_date || ''}
                     onChange={e => setNewTransaction({...newTransaction, due_date: e.target.value})}
                   />
                 </div>
               </div>
 
-              <div>
-                <label className="block text-sm text-gray-400 mb-1">Categoria</label>
-                <select 
-                  className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-white focus:border-primary focus:outline-none"
-                  value={newTransaction.category || ''}
-                  onChange={e => setNewTransaction({...newTransaction, category: e.target.value})}
-                >
-                  <option value="" disabled>Selecione...</option>
-                  <option value="Operacional" className="bg-[#0a0a1a]">Operacional</option>
-                  <option value="Marketing" className="bg-[#0a0a1a]">Marketing</option>
-                  <option value="Ferramentas" className="bg-[#0a0a1a]">Ferramentas</option>
-                  <option value="Impostos" className="bg-[#0a0a1a]">Impostos</option>
-                  <option value="Pessoal" className="bg-[#0a0a1a]">Pessoal</option>
-                  <option value="Outros" className="bg-[#0a0a1a]">Outros</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm text-gray-400 mb-1">Status Inicial</label>
-                <div className="flex gap-4">
-                  <label className="flex items-center space-x-2 cursor-pointer">
-                    <input 
-                      type="radio" 
-                      name="status" 
-                      checked={newTransaction.status === 'pending'}
-                      onChange={() => setNewTransaction({...newTransaction, status: 'pending'})}
-                      className="text-primary focus:ring-primary"
-                    />
-                    <span className="text-white">Pendente</span>
-                  </label>
-                  <label className="flex items-center space-x-2 cursor-pointer">
-                    <input 
-                      type="radio" 
-                      name="status" 
-                      checked={newTransaction.status === 'paid'}
-                      onChange={() => setNewTransaction({...newTransaction, status: 'paid'})}
-                      className="text-primary focus:ring-primary"
-                    />
-                    <span className="text-white">Pago</span>
-                  </label>
+              <div className="space-y-1.5">
+                <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wide ml-1">Categoria</label>
+                <div className="relative group">
+                  <select 
+                    className="w-full bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.08] rounded-xl px-4 py-3 text-white/90 focus:bg-white/[0.08] focus:border-primary/30 focus:ring-0 outline-none appearance-none cursor-pointer transition-all duration-300 text-sm font-light"
+                    value={newTransaction.category || ''}
+                    onChange={e => setNewTransaction({...newTransaction, category: e.target.value})}
+                  >
+                    <option value="" disabled>Selecione...</option>
+                    <option value="Operacional" className="bg-[#0a0a1a]">Operacional</option>
+                    <option value="Marketing" className="bg-[#0a0a1a]">Marketing</option>
+                    <option value="Ferramentas" className="bg-[#0a0a1a]">Ferramentas</option>
+                    <option value="Impostos" className="bg-[#0a0a1a]">Impostos</option>
+                    <option value="Pessoal" className="bg-[#0a0a1a]">Pessoal</option>
+                    <option value="Outros" className="bg-[#0a0a1a]">Outros</option>
+                  </select>
                 </div>
               </div>
 
-              <button 
-                type="submit" 
-                className="w-full bg-primary hover:bg-secondary text-white py-3 rounded-xl font-bold transition-all mt-4 shadow-lg shadow-primary/20"
-              >
-                Salvar Lançamento
-              </button>
+              <div className="space-y-1.5">
+                <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wide ml-1">Status Inicial</label>
+                <div className="flex gap-3 bg-white/[0.02] p-1.5 rounded-xl border border-white/[0.05]">
+                  <button
+                    type="button"
+                    onClick={() => setNewTransaction({...newTransaction, status: 'pending'})}
+                    className={`flex-1 py-2 rounded-lg text-xs font-medium transition-all ${newTransaction.status === 'pending' ? 'bg-white/10 text-white shadow-sm' : 'text-gray-500 hover:text-gray-300'}`}
+                  >
+                    Pendente
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setNewTransaction({...newTransaction, status: 'paid'})}
+                    className={`flex-1 py-2 rounded-lg text-xs font-medium transition-all ${newTransaction.status === 'paid' ? 'bg-green-500/20 text-green-400 shadow-sm' : 'text-gray-500 hover:text-gray-300'}`}
+                  >
+                    Pago
+                  </button>
+                </div>
+              </div>
+
+              <div className="pt-2">
+                <button 
+                  type="submit" 
+                  className="w-full bg-white/[0.05] hover:bg-white/[0.1] text-white py-3.5 rounded-xl border border-white/5 hover:border-white/20 transition-all duration-300 font-medium text-sm flex items-center justify-center gap-2 group"
+                >
+                  <span>Salvar Lançamento</span>
+                  <span className="text-primary group-hover:translate-x-1 transition-transform">→</span>
+                </button>
+              </div>
             </form>
           </div>
         </div>
