@@ -1051,36 +1051,8 @@ const KanbanCard = ({
                 <KanbanCard
                     key={subtask.id}
                     card={subtask}
-                    onClick={() => onClick()} // Abre o mesmo modal? Ou modal da subtarefa? Geralmente da subtarefa. Mas o onClick passado pro pai abre o modal do pai.
-                    // Aqui precisamos passar um onClick que abra a subtarefa.
-                    // Mas o componente pai KanbanColumn passa onClick={() => onCardClick(card)}.
-                    // Precisamos de acesso ao onCardClick global aqui?
-                    // Sim. Mas KanbanCard recebe onClick específico.
-                    // Vamos assumir que clicar na subtarefa deve abrir a subtarefa.
-                    // Porem, aqui estamos recursivos.
-                    // O KanbanCard pai recebeu onClick={() => onCardClick(pai)}.
-                    // Precisamos que o KanbanCard pai receba uma prop onSubtaskClick?
-                    // Ou melhor: KanbanCard recebe `onCardClick` genérico? Não, recebe `onClick`.
-                    // Vamos simplificar: Subtarefas não abrem modal por enquanto ou abrem o modal do PAI?
-                    // O usuário quer editar subtarefas? Provavelmente.
-                    // Mas para abrir o modal da subtarefa, precisamos do ID dela.
-                    // O `onClick` passado para o pai é `() => onCardClick(pai)`.
-                    // Se usarmos esse mesmo `onClick` na subtarefa, vai abrir o pai.
-                    // CORREÇÃO: O componente KanbanCard precisa receber a função `onCardClick` original se quisermos recursividade correta, ou a prop `onClick` deve ser customizada.
-                    // Mas eu não tenho acesso ao `setSelectedCardId` aqui dentro facilmente a menos que eu propague.
-                    // Vou usar o `onClick` do pai por enquanto (abre o pai), pois o modal do pai TEM a aba de subtarefas onde se pode editar.
-                    // Isso pode ser confuso.
-                    // Mas se eu clicar na subtarefa e abrir o pai, eu vejo a lista de subtarefas.
-                    // Idealmente abriria a subtarefa.
-                    // Como resolver rápido:
-                    // O `KanbanCard` não tem acesso ao contexto global de `setSelectedCardId`.
-                    // Mas o `KanbanColumn` tem.
-                    // O `KanbanColumn` passa `onClick={() => onCardClick(card)}` para o pai.
-                    // Eu não consigo mudar o `onClick` das subtarefas aqui dentro facilmente sem mudar a assinatura.
-                    // Vou deixar abrindo o PAI por enquanto, já que o modal do pai gerencia subtarefas.
-                    // E adicionar um comentário.
-                    onClick={onClick} 
-                    onDelete={onDelete} // Subtarefas não deletam por aqui geralmente, ou sim?
+                    onClick={onClick}
+                    onDelete={onDelete}
                     userRole={userRole}
                     isSubtask={true}
                 />

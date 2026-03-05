@@ -108,7 +108,7 @@ const OrganizadorAtividades = () => {
         `)
         .eq('company_id', selectedCompany.id)
         .order('created_at', { ascending: false })
-        .limit(100); // Pagination recommended for production
+        .limit(100) as any; // Pagination recommended for production
 
       if (error) throw error;
       
@@ -119,7 +119,7 @@ const OrganizadorAtividades = () => {
       
       // Manual User Fetch Fallback (if join fails or returns null)
       if (data) {
-          const logsWithUsers = await Promise.all(data.map(async (log) => {
+          const logsWithUsers = await Promise.all(data.map(async (log: any) => {
               if (log.user) return log;
               
               // Fallback

@@ -529,7 +529,7 @@ const NavItem = ({ to, icon, label, expanded }: { to: string, icon: React.ReactN
       }
     >
       <span className={expanded ? "" : "mx-auto"}>
-        {React.cloneElement(icon as React.ReactElement, { 
+        {React.cloneElement(icon as any, { 
           className: `w-5 h-5 ${expanded ? '' : ''}` // Could add classes if active
         })}
       </span>

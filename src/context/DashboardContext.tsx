@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
 import { useCompany } from './CompanyContext';
 import { useAuth } from './AuthContext';
 import { supabase } from '../lib/supabase';
@@ -115,7 +115,7 @@ export const DashboardProvider = ({ children }: { children: ReactNode }) => {
         (c.priority === 'high' || c.priority === 'urgent') && 
         !doneCards.includes(c)
       ) || [];
-      setPriorityTasks(pendingPriority.slice(0, 5));
+      setPriorityTasks(pendingPriority.slice(0, 5) as any);
 
       // 3. Productivity Chart (Audit Logs)
       const sevenDaysAgo = new Date();
@@ -153,7 +153,7 @@ export const DashboardProvider = ({ children }: { children: ReactNode }) => {
       const deadlines = allCards?.filter((c: any) => c.due_date && !doneCards.includes(c))
         .sort((a: any, b: any) => new Date(a.due_date).getTime() - new Date(b.due_date).getTime())
         .slice(0, 5) || [];
-      setUpcomingDeadlines(deadlines);
+      setUpcomingDeadlines(deadlines as any);
 
       setLastUpdated(new Date());
 

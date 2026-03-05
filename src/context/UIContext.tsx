@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useCallback, type ReactNode } from 'react';
 import { Modal, type ModalProps } from '../components/ui/Modal';
 import { ToastContainer, type ToastProps } from '../components/ui/Toast';
 
