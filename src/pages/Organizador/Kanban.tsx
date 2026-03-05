@@ -84,6 +84,10 @@ const OrganizadorKanban = () => {
   const [selectedCardId, setSelectedCardId] = useState<string | { id: string; columnId?: string } | null>(null);
   const [loading, setLoading] = useState(true);
   
+  // Client Filter State
+  const [clients, setClients] = useState<{ id: string; name: string }[]>([]);
+  const [selectedClient, setSelectedClient] = useState<string>('');
+
   // Auxiliary Data Maps
   const [clientsMap, setClientsMap] = useState<Record<string, string>>({});
   const [membersMap, setMembersMap] = useState<Record<string, { name: string; avatar_url?: string }>>({});
@@ -126,11 +130,28 @@ const OrganizadorKanban = () => {
   );
 
   useEffect(() => {
+    // Load saved client filter
+    const savedClient = localStorage.getItem('kanban_selected_client');
+    if (savedClient) {
+        setSelectedClient(savedClient);
+    }
+  }, []);
+
+  useEffect(() => {
     if (selectedCompany) {
         fetchKanbanData();
         fetchUserPermissions();
     }
   }, [selectedCompany]);
+
+  const handleClientChange = (clientId: string) => {
+      setSelectedClient(clientId);
+      if (clientId) {
+          localStorage.setItem('kanban_selected_client', clientId);
+      } else {
+          localStorage.removeItem('kanban_selected_client');
+      }
+  };
 
   const fetchUserPermissions = async () => {
     if (!selectedCompany) return;
@@ -203,9 +224,12 @@ const OrganizadorKanban = () => {
       const { data: clientsData } = await supabase
         .from('clients')
         .select('id, name')
-        .eq('company_id', selectedCompany.id);
+        .eq('company_id', selectedCompany.id)
+        .eq('status', 'active')
+        .order('name');
 
       if (clientsData) {
+        setClients(clientsData);
         const clientMap = clientsData.reduce((acc, client) => ({ ...acc, [client.id]: client.name }), {});
         setClientsMap(clientMap);
       }
@@ -508,6 +532,11 @@ const OrganizadorKanban = () => {
 
   if (loading) return <div className="p-8 text-white">Carregando quadro...</div>;
 
+  // Filter cards by client
+  const filteredCards = selectedClient 
+    ? cards.filter(c => c.client_id === selectedClient)
+    : cards;
+
   return (
     <div className="p-8 h-full flex flex-col">
       <div className="flex justify-between items-center mb-6">
@@ -515,7 +544,27 @@ const OrganizadorKanban = () => {
           <h1 className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-white to-gray-400">Quadro Kanban</h1>
           <p className="text-gray-400 mt-2">Gerencie tarefas com fluxo de aprovação.</p>
         </div>
-        <div className="flex gap-3">
+        <div className="flex gap-3 items-center">
+          {/* Client Filter Dropdown */}
+          <div className="relative group">
+              <div className="flex items-center bg-[#1a1a2e] border border-white/10 rounded-lg px-3 py-2 gap-2 min-w-[200px]">
+                  <Filter size={16} className="text-gray-400" />
+                  <select 
+                      value={selectedClient}
+                      onChange={(e) => handleClientChange(e.target.value)}
+                      className="bg-transparent border-none text-sm text-white focus:outline-none w-full appearance-none cursor-pointer"
+                  >
+                      <option value="">Todos os Clientes</option>
+                      {clients.map(client => (
+                          <option key={client.id} value={client.id} className="bg-[#1a1a2e] text-white">
+                              {client.name}
+                          </option>
+                      ))}
+                  </select>
+                  <ChevronDown size={14} className="text-gray-500 pointer-events-none absolute right-3" />
+              </div>
+          </div>
+
           {userRole !== 'visualizador' && (
             <button 
               onClick={() => setIsNewColumnModalOpen(true)}
@@ -538,7 +587,7 @@ const OrganizadorKanban = () => {
             <KanbanColumn 
               key={col.id} 
               column={col} 
-              cards={cards.filter(c => c.column_id === col.id)}
+              cards={filteredCards.filter(c => c.column_id === col.id)}
               allSubtasksMap={parentToSubtasksMap}
               expandedCards={expandedCards}
               onToggleExpanded={toggleCardExpanded}
