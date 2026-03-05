@@ -176,7 +176,11 @@ BrowserRouter
               ├── /configuracao/regras-financeiras → RegrasFinanceiras
               ├── /configuracao/clientes           → Clientes
               ├── /configuracao/ia-automacao       → placeholder (Em construção)
-              └── /configuracao/equipe             → EquipeConfig
+              ├── /configuracao/equipe             → EquipeConfig
+              └── /configuracao/kanban             → ConfiguracaoKanban
+                    tabs: [Colunas] [Tarefas]
+                    Colunas → template padrão de colunas (toggle + drag-and-drop)
+                    Tarefas → templates de tarefas pré-definidas (subtarefas + responsáveis)
 ```
 
 Rota `*` redireciona para `/`.

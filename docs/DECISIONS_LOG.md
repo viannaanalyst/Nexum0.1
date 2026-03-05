@@ -158,4 +158,36 @@ Toda decisão estrutural futura deve ser adicionada aqui antes ou imediatamente 
 
 ---
 
+## DEC-018
+
+**Data:** 2026-03-05
+**Decisão:** Criar submenu "Kanban" dentro de Configuração com rota `/configuracao/kanban`
+**Motivo:** Centralizar a configuração do quadro Kanban em um local dedicado dentro do menu Configuração, seguindo o padrão já existente de submenus (Empresa, Equipe, Clientes etc.).
+**Impacto no sistema:**
+- Nova rota `/configuracao/kanban` adicionada em `App.tsx`
+- Novo item "Kanban" adicionado ao submenu de Configuração em `MainLayout.tsx` (ícone `Columns` já importado)
+- Nova página `src/pages/Configuracao/Kanban.tsx` com duas abas: **Colunas** e **Tarefas**
+- Aba **Colunas**: editor drag-and-drop de template padrão de colunas salvo em `companies.kanban_columns` (jsonb); toggle `use_default` para novos clientes; botão para aplicar a todos os clientes existentes (sobrescreve `kanban_columns` com flag `is_default`)
+- Novos campos no banco: `companies.kanban_columns` (jsonb), `kanban_columns.is_default` (bool), `kanban_columns.company_id` (uuid) — **requer migration manual no Supabase Dashboard** (arquivo `migration_sql.md`)
+- O `companies.kanban_columns` foi confirmado como sem uso anterior no frontend antes desta alteração
+
+---
+
+## DEC-019
+
+**Data:** 2026-03-05
+**Decisão:** Criação de tabela `kanban_task_templates` para templates de tarefas pré-definidas
+**Motivo:** Permitir que usuários criem modelos reutilizáveis de tarefas (com subtarefas e responsáveis pré-selecionados) para evitar criação manual repetitiva de tarefas recorrentes no Kanban.
+**Impacto no sistema:**
+- Nova tabela `kanban_task_templates` com campos: `id`, `company_id`, `title`, `description`, `priority`, `subtasks` (jsonb array), `assignees` (uuid[]), timestamps e soft-delete padrão
+- Formato de `subtasks`: `[{ "id": "uuid", "title": "Subtarefa 1", "order": 0 }, ...]`
+- Formato de `assignees`: array de `user_id` de `organization_members`
+- RLS habilitado: membros ativos da empresa podem ler e gerenciar templates
+- Aba **Tarefas** na página `/configuracao/kanban` implementa CRUD completo: listar, criar (modal), editar (mesmo modal) e excluir com confirmação
+- Subtarefas criadas com nome incremental automático ("Subtarefa 1", "Subtarefa 2"...) e editáveis inline
+- Responsáveis selecionados via lista de membros ativos da `organization_members` + `profiles`
+- Requer migration manual no Supabase Dashboard (arquivo `migration_sql.md`)
+
+---
+
 *Novas decisões devem ser adicionadas ao final deste arquivo seguindo o padrão DEC-NNN.*

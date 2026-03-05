@@ -1,16 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { Outlet, NavLink, useLocation, useNavigate } from 'react-router-dom';
-import { 
-  LayoutDashboard, 
-  FolderKanban, 
-  Bot, 
-  Calendar, 
-  DollarSign, 
-  Settings, 
-  Building2, 
-  FileText, 
-  Users, 
-  Cpu, 
+import {
+  LayoutDashboard,
+  FolderKanban,
+  Bot,
+  Calendar,
+  DollarSign,
+  Settings,
+  Building2,
+  FileText,
+  Users,
+  Cpu,
   UserCheck,
   Menu,
   Bell,
@@ -41,7 +41,7 @@ const MainLayout = () => {
   const { selectedCompany, selectCompany } = useCompany();
   const location = useLocation();
   const navigate = useNavigate();
-  
+
   // Initialize closed by default, allow useEffect to open based on route
   const [configOpen, setConfigOpen] = useState(false);
   const [financeiroOpen, setFinanceiroOpen] = useState(false);
@@ -148,7 +148,7 @@ const MainLayout = () => {
   return (
     <div className="flex h-screen overflow-hidden bg-[#0a0a1a] text-white font-sans">
       {/* Background Layer */}
-      <div 
+      <div
         className="fixed inset-0 z-0 opacity-20 pointer-events-none"
         style={{
           backgroundImage: "url('https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=1920&q=80')",
@@ -156,44 +156,41 @@ const MainLayout = () => {
           backgroundPosition: 'center',
         }}
       ></div>
-      
+
       {/* Sidebar */}
-      <aside 
-        className={`relative z-20 flex flex-col transition-all duration-300 ${
-          sidebarOpen ? 'w-64' : 'w-20'
-        } glass-card border-r border-white/10 bg-[#0a0a1a]/80 backdrop-blur-md`}
+      <aside
+        className={`relative z-20 flex flex-col transition-all duration-300 ${sidebarOpen ? 'w-64' : 'w-20'
+          } glass-card border-r border-white/10 bg-[#0a0a1a]/80 backdrop-blur-md`}
       >
         {/* Logo Area */}
         <div className="flex items-center justify-center h-20 border-b border-white/10 relative">
-          <h1 className={`text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-primary to-accent transition-all duration-300 ${
-            !sidebarOpen && 'scale-0 w-0'
-          }`}>
+          <h1 className={`text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-primary to-accent transition-all duration-300 ${!sidebarOpen && 'scale-0 w-0'
+            }`}>
             Nexum
           </h1>
           {!sidebarOpen && <span className="text-2xl font-bold text-primary">N</span>}
-          
+
           {user?.role === 'SUPER ADMIN' && sidebarOpen && (
-             <button 
-               onClick={handleBackToSuperAdmin}
-               className="absolute left-2 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-white"
-               title="Voltar para Super Admin"
-             >
-               <ArrowLeft size={20} />
-             </button>
+            <button
+              onClick={handleBackToSuperAdmin}
+              className="absolute left-2 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-white"
+              title="Voltar para Super Admin"
+            >
+              <ArrowLeft size={20} />
+            </button>
           )}
         </div>
 
         {/* Navigation */}
         <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-2 scrollbar-thin scrollbar-thumb-white/10">
           <NavItem to="/atividades" icon={<LayoutDashboard />} label="Atividades" expanded={sidebarOpen} />
-          
+
           {/* Organizador with Submenu */}
           <div>
             <button
               onClick={toggleOrganizador}
-              className={`w-full flex items-center justify-between p-3 rounded-lg transition-colors hover:bg-white/5 ${
-                location.pathname.includes('/organizador') ? 'text-primary bg-white/5' : 'text-gray-400'
-              }`}
+              className={`w-full flex items-center justify-between p-3 rounded-lg transition-colors hover:bg-white/5 ${location.pathname.includes('/organizador') ? 'text-primary bg-white/5' : 'text-gray-400'
+                }`}
             >
               <div className="flex items-center space-x-3">
                 <FolderKanban className={`w-5 h-5 ${location.pathname.includes('/organizador') ? 'text-primary glow-icon' : ''}`} />
@@ -205,9 +202,8 @@ const MainLayout = () => {
             </button>
 
             {/* Submenu */}
-            <div className={`overflow-hidden transition-all duration-300 ${
-              organizadorOpen && sidebarOpen ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'
-            }`}>
+            <div className={`overflow-hidden transition-all duration-300 ${organizadorOpen && sidebarOpen ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'
+              }`}>
               <div className="ml-4 mt-2 space-y-1 border-l border-white/10 pl-2">
                 <SubNavItem to="/organizador/kanban" icon={<FolderKanban size={16} />} label="Kanban" />
                 <SubNavItem to="/organizador/lista" icon={<List size={16} />} label="Lista" />
@@ -219,14 +215,13 @@ const MainLayout = () => {
 
           <NavItem to="/relatorios" icon={<Bot />} label="Relatórios IA e Agente" expanded={sidebarOpen} />
           <NavItem to="/calendario" icon={<Calendar />} label="Calendário" expanded={sidebarOpen} />
-          
+
           {/* Financeiro with Submenu */}
           <div>
             <button
               onClick={toggleFinanceiro}
-              className={`w-full flex items-center justify-between p-3 rounded-lg transition-colors hover:bg-white/5 ${
-                location.pathname.includes('/financeiro') ? 'text-primary bg-white/5' : 'text-gray-400'
-              }`}
+              className={`w-full flex items-center justify-between p-3 rounded-lg transition-colors hover:bg-white/5 ${location.pathname.includes('/financeiro') ? 'text-primary bg-white/5' : 'text-gray-400'
+                }`}
             >
               <div className="flex items-center space-x-3">
                 <DollarSign className={`w-5 h-5 ${location.pathname.includes('/financeiro') ? 'text-primary glow-icon' : ''}`} />
@@ -238,9 +233,8 @@ const MainLayout = () => {
             </button>
 
             {/* Submenu */}
-            <div className={`overflow-hidden transition-all duration-300 ${
-              financeiroOpen && sidebarOpen ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'
-            }`}>
+            <div className={`overflow-hidden transition-all duration-300 ${financeiroOpen && sidebarOpen ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'
+              }`}>
               <div className="ml-4 mt-2 space-y-1 border-l border-white/10 pl-2">
                 <SubNavItem to="/financeiro/visao-geral" icon={<PieChart size={16} />} label="Visão Geral" />
                 <SubNavItem to="/financeiro/lancamentos" icon={<Receipt size={16} />} label="Lançamentos" />
@@ -254,9 +248,8 @@ const MainLayout = () => {
           <div>
             <button
               onClick={toggleConfig}
-              className={`w-full flex items-center justify-between p-3 rounded-lg transition-colors hover:bg-white/5 ${
-                location.pathname.includes('/configuracao') ? 'text-primary bg-white/5' : 'text-gray-400'
-              }`}
+              className={`w-full flex items-center justify-between p-3 rounded-lg transition-colors hover:bg-white/5 ${location.pathname.includes('/configuracao') ? 'text-primary bg-white/5' : 'text-gray-400'
+                }`}
             >
               <div className="flex items-center space-x-3">
                 <Settings className={`w-5 h-5 ${location.pathname.includes('/configuracao') ? 'text-primary glow-icon' : ''}`} />
@@ -268,15 +261,15 @@ const MainLayout = () => {
             </button>
 
             {/* Submenu */}
-            <div className={`overflow-hidden transition-all duration-300 ${
-              configOpen && sidebarOpen ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'
-            }`}>
+            <div className={`overflow-hidden transition-all duration-300 ${configOpen && sidebarOpen ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'
+              }`}>
               <div className="ml-4 mt-2 space-y-1 border-l border-white/10 pl-2">
                 <SubNavItem to="/configuracao/empresa" icon={<Building2 size={16} />} label="Empresa" />
                 <SubNavItem to="/configuracao/regras-financeiras" icon={<FileText size={16} />} label="Regras Financeiras" />
                 <SubNavItem to="/configuracao/clientes" icon={<Users size={16} />} label="Gestão de Clientes" />
                 <SubNavItem to="/configuracao/ia-automacao" icon={<Cpu size={16} />} label="IA e Automação" />
                 <SubNavItem to="/configuracao/equipe" icon={<UserCheck size={16} />} label="Equipe" />
+                <SubNavItem to="/configuracao/kanban" icon={<Columns size={16} />} label="Kanban" />
               </div>
             </div>
           </div>
@@ -293,17 +286,17 @@ const MainLayout = () => {
             </button>
             <div className="relative hidden md:block">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 w-4 h-4" />
-              <input 
-                type="text" 
-                placeholder="Pesquisar..." 
+              <input
+                type="text"
+                placeholder="Pesquisar..."
                 className="bg-white/5 border border-white/10 rounded-full py-2 pl-10 pr-4 text-sm text-white focus:outline-none focus:ring-1 focus:ring-primary w-64 placeholder-gray-500"
               />
             </div>
           </div>
-          
+
           <div className="flex items-center space-x-6 relative">
             <div className="relative">
-              <button 
+              <button
                 onClick={() => setNotificationsOpen(!notificationsOpen)}
                 className="relative text-gray-400 hover:text-white transition-colors p-2 rounded-lg hover:bg-white/5"
               >
@@ -321,7 +314,7 @@ const MainLayout = () => {
                     <div className="p-4 border-b border-white/10 flex items-center justify-between bg-white/[0.02]">
                       <h3 className="text-sm font-bold text-white">Notificações</h3>
                       {hasUnread && (
-                        <button 
+                        <button
                           onClick={markAllAsRead}
                           className="text-[10px] font-bold text-primary hover:text-primary-hover transition-colors uppercase tracking-wider"
                         >
@@ -329,13 +322,13 @@ const MainLayout = () => {
                         </button>
                       )}
                     </div>
-                    
+
                     <div className="max-h-[400px] overflow-y-auto scrollbar-thin scrollbar-thumb-white/10">
                       {notifications.length > 0 ? (
                         <div className="divide-y divide-white/5">
                           {notifications.map((notification) => (
-                            <div 
-                              key={notification.id} 
+                            <div
+                              key={notification.id}
                               onClick={() => markAsRead(notification.id)}
                               className={`p-4 hover:bg-white/5 transition-colors cursor-pointer group relative ${notification.unread ? 'bg-primary/5' : ''}`}
                             >
@@ -365,9 +358,9 @@ const MainLayout = () => {
                         </div>
                       )}
                     </div>
-                    
+
                     <div className="p-3 border-t border-white/10 bg-white/[0.02] text-center">
-                      <button 
+                      <button
                         onClick={() => {
                           setNotificationsHistoryOpen(true);
                           setNotificationsOpen(false);
@@ -381,20 +374,20 @@ const MainLayout = () => {
                 </>
               )}
             </div>
-            
+
             {/* User Trigger */}
             <div className="flex items-center space-x-3">
               <div className="text-right hidden md:block cursor-pointer" onClick={() => setUserMenuOpen(!userMenuOpen)}>
                 <p className="text-sm font-medium text-white hover:text-primary transition-colors">
-                   Olá, {user?.name}!
-                   <span className="block text-[10px] text-gray-400/60 uppercase tracking-widest font-bold">Nexum</span>
-                   {user?.role === 'SUPER ADMIN' && selectedCompany && (
-                     <span className="block text-xs text-primary">Gerenciando: {selectedCompany.name}</span>
-                   )}
+                  Olá, {user?.name}!
+                  <span className="block text-[10px] text-gray-400/60 uppercase tracking-widest font-bold">Nexum</span>
+                  {user?.role === 'SUPER ADMIN' && selectedCompany && (
+                    <span className="block text-xs text-primary">Gerenciando: {selectedCompany.name}</span>
+                  )}
                 </p>
                 {!selectedCompany && <p className="text-xs text-gray-400 capitalize">{user?.role}</p>}
               </div>
-              <button 
+              <button
                 onClick={() => setUserMenuOpen(!userMenuOpen)}
                 className="w-10 h-10 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center text-white font-bold shadow-lg shadow-primary/30 shrink-0 hover:scale-105 transition-transform overflow-hidden"
               >
@@ -410,11 +403,11 @@ const MainLayout = () => {
             {userMenuOpen && (
               <>
                 {/* Backdrop to close menu */}
-                <div 
-                  className="fixed inset-0 z-[60]" 
+                <div
+                  className="fixed inset-0 z-[60]"
                   onClick={() => setUserMenuOpen(false)}
                 ></div>
-                
+
                 <div className="absolute right-0 top-full mt-2 w-72 border border-white/10 bg-[#161635]/95 backdrop-blur-md shadow-[0_10px_40px_rgba(0,0,0,0.7)] z-[70] rounded-xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
                   {/* User Info Section */}
                   <div className="p-4 border-b border-white/10">
@@ -446,15 +439,15 @@ const MainLayout = () => {
 
                   {/* Action Menu */}
                   <div className="p-2">
-                    <button 
+                    <button
                       onClick={() => openUserSettings('profile')}
                       className="w-full flex items-center space-x-3 p-3 rounded-lg text-sm text-gray-300 hover:bg-white/5 hover:text-white transition-colors"
                     >
                       <UserIcon size={18} className="text-gray-500" />
                       <span>Meu Perfil</span>
                     </button>
-                    
-                    <button 
+
+                    <button
                       onClick={() => openUserSettings('settings')}
                       className="w-full flex items-center space-x-3 p-3 rounded-lg text-sm text-gray-300 hover:bg-white/5 hover:text-white transition-colors"
                     >
@@ -462,7 +455,7 @@ const MainLayout = () => {
                       <span>Configurações</span>
                     </button>
 
-                    <button 
+                    <button
                       onClick={() => openUserSettings('preferences')}
                       className="w-full flex items-center justify-between p-3 rounded-lg text-sm text-gray-300 hover:bg-white/5 hover:text-white transition-colors"
                     >
@@ -477,7 +470,7 @@ const MainLayout = () => {
 
                     <div className="my-1 border-t border-white/5"></div>
 
-                    <button 
+                    <button
                       onClick={logout}
                       className="w-full flex items-center space-x-3 p-3 rounded-lg text-sm text-red-400 hover:bg-red-400/10 transition-colors"
                     >
@@ -498,13 +491,13 @@ const MainLayout = () => {
       </div>
 
       {/* Modals */}
-      <UserSettingsModal 
-        isOpen={userSettingsOpen} 
-        onClose={() => setUserSettingsOpen(false)} 
+      <UserSettingsModal
+        isOpen={userSettingsOpen}
+        onClose={() => setUserSettingsOpen(false)}
         initialTab={userSettingsTab}
       />
 
-      <NotificationsHistoryModal 
+      <NotificationsHistoryModal
         isOpen={notificationsHistoryOpen}
         onClose={() => setNotificationsHistoryOpen(false)}
         notifications={notifications}
@@ -518,18 +511,17 @@ const MainLayout = () => {
 
 const NavItem = ({ to, icon, label, expanded }: { to: string, icon: React.ReactNode, label: string, expanded: boolean }) => {
   return (
-    <NavLink 
-      to={to} 
-      className={({ isActive }) => 
-        `flex items-center space-x-3 p-3 rounded-lg transition-all duration-200 ${
-          isActive 
-            ? 'bg-primary/10 text-primary border-l-2 border-primary shadow-[0_0_15px_rgba(99,102,241,0.3)]' 
-            : 'text-gray-400 hover:bg-white/5 hover:text-white'
+    <NavLink
+      to={to}
+      className={({ isActive }) =>
+        `flex items-center space-x-3 p-3 rounded-lg transition-all duration-200 ${isActive
+          ? 'bg-primary/10 text-primary border-l-2 border-primary shadow-[0_0_15px_rgba(99,102,241,0.3)]'
+          : 'text-gray-400 hover:bg-white/5 hover:text-white'
         }`
       }
     >
       <span className={expanded ? "" : "mx-auto"}>
-        {React.cloneElement(icon as any, { 
+        {React.cloneElement(icon as any, {
           className: `w-5 h-5 ${expanded ? '' : ''}` // Could add classes if active
         })}
       </span>
@@ -540,13 +532,12 @@ const NavItem = ({ to, icon, label, expanded }: { to: string, icon: React.ReactN
 
 const SubNavItem = ({ to, icon, label }: { to: string, icon: React.ReactNode, label: string }) => {
   return (
-    <NavLink 
-      to={to} 
-      className={({ isActive }) => 
-        `flex items-center space-x-3 p-2 rounded-lg text-sm transition-all duration-200 ${
-          isActive 
-            ? 'text-primary font-medium bg-primary/5' 
-            : 'text-gray-500 hover:text-gray-300'
+    <NavLink
+      to={to}
+      className={({ isActive }) =>
+        `flex items-center space-x-3 p-2 rounded-lg text-sm transition-all duration-200 ${isActive
+          ? 'text-primary font-medium bg-primary/5'
+          : 'text-gray-500 hover:text-gray-300'
         }`
       }
     >

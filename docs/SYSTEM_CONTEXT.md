@@ -172,8 +172,8 @@ src/
 
 - profiles
 - organization_members
-- companies
-- kanban_columns
+- companies (`kanban_columns` jsonb — template padrão de colunas Kanban, adicionado em 2026-03-05)
+- kanban_columns (`company_id`, `is_default` — adicionados em 2026-03-05 para suporte ao template padrão)
 - kanban_cards
 - kanban_checklists
 - kanban_comments
@@ -183,6 +183,7 @@ src/
 - audit_logs (Novo: Log de atividades e produtividade)
 - monthly_schedules (Novo: Planejamento estratégico)
 - schedule_posts (Novo: Posts do cronograma)
+- kanban_task_templates (Novo 2026-03-05: Templates de tarefas pré-definidas com subtarefas e responsáveis)
 
 ---
 
