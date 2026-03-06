@@ -367,21 +367,21 @@ const MainLayout = () => {
                       <div className="grid grid-cols-3 gap-2">
                         <button
                           onClick={() => { setLayoutMode('normal'); setSidebarOpen(true); }}
-                          className={`flex flex-col items-center justify-center p-2 rounded-lg border transition-all ${layoutMode === 'normal' ? 'bg-primary/10 border-primary/50 text-primary' : 'bg-white/5 border-white/10 text-gray-400 hover:border-primary/50 hover:text-white'}`}
+                          className={`flex flex-col items-center justify-center p-2 rounded-lg border transition-all ${(layoutMode as string) === 'normal' ? 'bg-primary/10 border-primary/50 text-primary' : 'bg-white/5 border-white/10 text-gray-400 hover:border-primary/50 hover:text-white'}`}
                           title="Header + Sidebar"
                         >
                           <IconLayoutGrid size={18} />
                         </button>
                         <button
                           onClick={() => { setLayoutMode('no-header'); setSidebarOpen(true); }}
-                          className={`flex flex-col items-center justify-center p-2 rounded-lg border transition-all ${layoutMode === 'no-header' ? 'bg-primary/10 border-primary/50 text-primary' : 'bg-white/5 border-white/10 text-gray-400 hover:border-primary/50 hover:text-white'}`}
+                          className={`flex flex-col items-center justify-center p-2 rounded-lg border transition-all ${(layoutMode as string) === 'no-header' ? 'bg-primary/10 border-primary/50 text-primary' : 'bg-white/5 border-white/10 text-gray-400 hover:border-primary/50 hover:text-white'}`}
                           title="Sem Header"
                         >
                           <IconLayoutSidebarLeftCollapse size={18} />
                         </button>
                         <button
                           onClick={() => { setLayoutMode('zen'); setUserMenuOpen(false); }}
-                          className={`flex flex-col items-center justify-center p-2 rounded-lg border transition-all ${layoutMode === 'zen' ? 'bg-primary/10 border-primary/50 text-primary' : 'bg-white/5 border-white/10 text-gray-400 hover:border-primary/50 hover:text-white'}`}
+                          className={`flex flex-col items-center justify-center p-2 rounded-lg border transition-all ${(layoutMode as string) === 'zen' ? 'bg-primary/10 border-primary/50 text-primary' : 'bg-white/5 border-white/10 text-gray-400 hover:border-primary/50 hover:text-white'}`}
                           title="Modo Zen"
                         >
                           <IconArrowsMaximize size={18} />
