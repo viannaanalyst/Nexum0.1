@@ -566,8 +566,8 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose }: KanbanC
                 subcategory,
                 client_id: clientId || null, // New: Save Client ID
                 company_id: selectedCompany.id,
-                // Only include column_id if creating new
-                ...(cardId === 'new' ? { column_id: columnId, position: 9999 } : {})
+                column_id: currentColumnId || columnId, // Always include the current/selected column
+                ...(cardId === 'new' ? { position: 9999 } : {})
             };
 
             let finalCardId = cardId;
@@ -587,7 +587,18 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose }: KanbanC
                 if (error) throw error;
             }
 
-            // Check for changes and create system logs (only for existing cards or newly created ones)
+            // Process Assignment Notifications (for both new and existing cards)
+            if (assignedTo && assignedTo !== originalAssignedTo) {
+                await createTaskNotification(
+                    assignedTo,
+                    'Nova Tarefa Atribuída',
+                    `Você foi atribuído à tarefa: ${title}`,
+                    finalCardId,
+                    'assignment'
+                );
+            }
+
+            // Check for other changes and create system logs (only for existing cards)
             if (cardId !== 'new') {
                 if (assignedTo !== originalAssignedTo) {
                     const oldUser = members.find(m => m.id === originalAssignedTo)?.name || 'Ninguém';
@@ -601,17 +612,6 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose }: KanbanC
                         from: oldUser,
                         to: newUser
                     });
-
-                    // Send Notification for assignment
-                    if (assignedTo) {
-                        await createTaskNotification(
-                            assignedTo,
-                            'Nova Tarefa Atribuída',
-                            `Você foi atribuído à tarefa: ${title}`,
-                            finalCardId,
-                            'assignment'
-                        );
-                    }
                 }
 
                 if (dueDate !== originalDueDate) {

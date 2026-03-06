@@ -46,17 +46,55 @@ export const createTaskNotification = async (
     title: string,
     description: string,
     taskId: string,
-    type: 'assignment' | 'comment' | 'status' | 'mention' = 'assignment'
+    type: 'assignment' | 'comment' | 'status' | 'mention' | 'approval' = 'assignment'
 ) => {
-    // Get current user to avoid self-notification (optional, but usually better)
-    const { data: { user } } = await supabase.auth.getUser();
-    if (user?.id === recipientId) return { success: true }; // Skip self-notification
+    try {
+        // 1. Check user notification preferences
+        const { data: settings, error: settingsError } = await supabase
+            .from('user_notification_settings')
+            .select('*')
+            .eq('user_id', recipientId)
+            .single();
 
-    return sendNotification({
-        user_id: recipientId,
-        title,
-        description,
-        type,
-        metadata: { task_id: taskId }
-    });
+        if (settingsError && settingsError.code !== 'PGRST116') {
+            console.error('Error fetching settings:', settingsError);
+        }
+
+        // 2. Decide if we should notify based on type
+        let shouldNotify = true;
+        if (settings) {
+            switch (type) {
+                case 'assignment':
+                    shouldNotify = settings.new_tasks;
+                    break;
+                case 'comment':
+                    shouldNotify = settings.comments;
+                    break;
+                case 'status':
+                    shouldNotify = settings.status_changes;
+                    break;
+                case 'approval':
+                    shouldNotify = settings.approvals;
+                    break;
+                case 'mention':
+                    shouldNotify = settings.comments; // Mention goes into comments settings
+                    break;
+                // Add more cases as needed
+            }
+        }
+
+        if (!shouldNotify) return { success: true, message: 'Settings disabled' };
+
+        // 3. Send the notification
+        return sendNotification({
+            user_id: recipientId,
+            title,
+            description,
+            type,
+            metadata: { task_id: taskId }
+        });
+    } catch (error) {
+        console.error('Error in createTaskNotification:', error);
+        return { success: false, error };
+    }
 };

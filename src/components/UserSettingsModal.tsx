@@ -49,31 +49,95 @@ const UserSettingsModal: React.FC<UserSettingsModalProps> = ({ isOpen, onClose, 
   }, [user]);
 
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && user) {
       setActiveTab(initialTab);
       setMessage(null);
 
-      // Load preferences from localStorage
-      const savedNotifs = localStorage.getItem(`notifs_${user?.id}`);
-      if (savedNotifs) setNotifications(JSON.parse(savedNotifs));
+      const fetchSettings = async () => {
+        const { data, error } = await supabase
+          .from('user_notification_settings')
+          .select('*')
+          .eq('user_id', user.id)
+          .single();
+
+        if (error && error.code !== 'PGRST116') {
+          console.error(error);
+        } else if (data) {
+          setNotifications({
+            email: data.email_notifications,
+            browser: data.browser_notifications,
+            marketing: false, // Not in DB yet
+            newTasks: data.new_tasks,
+            dueDates: data.due_dates,
+            comments: data.comments,
+            statusChanges: data.status_changes,
+            approvals: data.approvals
+          });
+        }
+      };
+
+      fetchSettings();
     }
-  }, [isOpen, initialTab]);
+  }, [isOpen, initialTab, user]);
 
   if (!isOpen) return null;
 
-  const toggleNotification = (id: keyof typeof notifications) => {
+  const toggleNotification = async (id: keyof typeof notifications) => {
     const newNotifs = { ...notifications, [id]: !notifications[id] };
     setNotifications(newNotifs);
-    localStorage.setItem(`notifs_${user?.id}`, JSON.stringify(newNotifs));
 
-    // Show a quick message
-    setMessage({ type: 'success', text: 'Preferência de notificação atualizada!' });
-    setTimeout(() => setMessage(null), 3000);
+    // Save to Supabase
+    if (user) {
+      const dbData = {
+        user_id: user.id,
+        new_tasks: newNotifs.newTasks,
+        due_dates: newNotifs.dueDates,
+        comments: newNotifs.comments,
+        status_changes: newNotifs.statusChanges,
+        approvals: newNotifs.approvals,
+        email_notifications: newNotifs.email,
+        browser_notifications: newNotifs.browser
+      };
+
+      const { error } = await supabase
+        .from('user_notification_settings')
+        .upsert(dbData);
+
+      if (error) {
+        console.error('Error saving notification preferences:', error);
+        setMessage({ type: 'error', text: 'Erro ao salvar preferência.' });
+      } else {
+        setMessage({ type: 'success', text: 'Preferência atualizada!' });
+      }
+      setTimeout(() => setMessage(null), 3000);
+    }
   };
 
-  const handleSavePreferences = () => {
-    localStorage.setItem(`notifs_${user?.id}`, JSON.stringify(notifications));
-    setMessage({ type: 'success', text: 'Preferências salvas com sucesso!' });
+  const handleSavePreferences = async () => {
+    if (!user) return;
+    setLoading(true);
+
+    const dbData = {
+      user_id: user.id,
+      new_tasks: notifications.newTasks,
+      due_dates: notifications.dueDates,
+      comments: notifications.comments,
+      status_changes: notifications.statusChanges,
+      approvals: notifications.approvals,
+      email_notifications: notifications.email,
+      browser_notifications: notifications.browser
+    };
+
+    const { error } = await supabase
+      .from('user_notification_settings')
+      .upsert(dbData);
+
+    setLoading(false);
+    if (error) {
+      setMessage({ type: 'error', text: 'Erro ao salvar preferências.' });
+    } else {
+      setMessage({ type: 'success', text: 'Preferências salvas com sucesso!' });
+    }
     setTimeout(() => setMessage(null), 3000);
   };
 
