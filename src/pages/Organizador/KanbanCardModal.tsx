@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import {
     X, Paperclip,
     CheckSquare, MessageSquare, FileText, Plus,
-    ChevronDown, Lock, Send, MoreVertical, Trash2,
+    ChevronDown, ChevronUp, Lock, Send, MoreVertical, Trash2,
     File, FileCode, FileImage, Download, GitBranch, Info,
     // Mantendo ícones Lucide que ainda podem ser usados em outros lugares ou como fallback
     Calendar as LucideCalendar, Clock as LucideClock, User as LucideUser, Tag as LucideTag, Share2
@@ -23,6 +24,25 @@ import { useUI } from '../../context/UIContext';
 import { createTaskNotification } from '../../lib/notificationService';
 
 // Tipos
+interface TimeEntry {
+    id: string;
+    card_id: string;
+    user_id: string;
+    start_time: string;
+    end_time?: string;
+    duration_minutes?: number;
+    date: string;
+    notes?: string;
+    is_billable: boolean;
+    is_running: boolean;
+    created_at: string;
+    // Helper para UI
+    profiles?: {
+        full_name: string;
+        avatar_url?: string;
+    }
+}
+
 interface KanbanCardModalProps {
     cardId: string;
     columnId?: string; // If cardId is 'new', this is required
@@ -49,7 +69,8 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose }: KanbanC
     const [clientId, setClientId] = useState('');
 
     const [checklist, setChecklist] = useState<any[]>([]);
-    const [checklistTitle, setChecklistTitle] = useState('Checklist Principal'); // New State for Checklist Title
+    const [checklistGroups, setChecklistGroups] = useState<any[]>([{ id: 'default', title: 'Checklist Principal' }]);
+    const [newChecklistItems, setNewChecklistItems] = useState<Record<string, string>>({});
     const [comments, setComments] = useState<any[]>([]);
     const [files, setFiles] = useState<any[]>([]);
     const [selectedTags, setSelectedTags] = useState<string[]>([]);
@@ -63,7 +84,6 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose }: KanbanC
     const [clients, setClients] = useState<any[]>([]);
     const [tags, setTags] = useState<any[]>([]);
     const [newComment, setNewComment] = useState('');
-    const [newChecklistItem, setNewChecklistItem] = useState('');
 
     // New Tag Creation State
     const [newTagName, setNewTagName] = useState('');
@@ -85,6 +105,9 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose }: KanbanC
     const [originalDueDate, setOriginalDueDate] = useState<string>('');
     const [startDate, setStartDate] = useState(''); // New: Start Date
     const [deliveryDate, setDeliveryDate] = useState(''); // New: Delivery Date
+    const [isEditingDescription, setIsEditingDescription] = useState(false);
+    const [isExpandedDescription, setIsExpandedDescription] = useState(true);
+    const descriptionRef = useRef<HTMLTextAreaElement>(null);
 
     // Subtask Interaction State
     const [activeSubtaskId, setActiveSubtaskId] = useState<string | null>(null);
@@ -92,11 +115,52 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose }: KanbanC
     const [showSubtaskPrioritySelect, setShowSubtaskPrioritySelect] = useState<string | null>(null);
     const [showSubtaskDateSelect, setShowSubtaskDateSelect] = useState<string | null>(null);
     const [showSubtaskStatusSelect, setShowSubtaskStatusSelect] = useState<string | null>(null);
+    const [isSubtasksCollapsed, setIsSubtasksCollapsed] = useState(false);
+    const [editingSubtaskId, setEditingSubtaskId] = useState<string | null>(null);
+    const [editingSubtaskTitle, setEditingSubtaskTitle] = useState('');
+    const [showSubtaskTagSelectId, setShowSubtaskTagSelectId] = useState<string | null>(null);
 
     // Mentions State
     const [mentionQuery, setMentionQuery] = useState<string | null>(null);
     const [mentionIndex, setMentionIndex] = useState<number | null>(null); // Index where @ started
     const [filteredMembers, setFilteredMembers] = useState<any[]>([]);
+
+    // Time Tracking State
+    const [timeEntries, setTimeEntries] = useState<TimeEntry[]>([]);
+    const [isRunning, setIsRunning] = useState(false);
+    const [activeTimer, setActiveTimer] = useState<TimeEntry | null>(null);
+    const [showTimePopover, setShowTimePopover] = useState(false);
+    const [totalMinutes, setTotalMinutes] = useState(0);
+
+    // Timer Tick Effect
+    const [timerDisplay, setTimerDisplay] = useState('0h 0m 0s');
+
+    useEffect(() => {
+        if (descriptionRef.current) {
+            descriptionRef.current.style.height = 'auto'; // Reset height
+            descriptionRef.current.style.height = `${descriptionRef.current.scrollHeight}px`; // Set height based on content
+        }
+    }, [description, isEditingDescription, isExpandedDescription]);
+
+    useEffect(() => {
+        let interval: any;
+        if (isRunning && activeTimer) {
+            interval = setInterval(() => {
+                const now = new Date();
+                const start = new Date(activeTimer.start_time);
+                const diffMs = now.getTime() - start.getTime();
+
+                const hours = Math.floor(diffMs / 3600000);
+                const minutes = Math.floor((diffMs % 3600000) / 60000);
+                const seconds = Math.floor((diffMs % 60000) / 1000);
+
+                setTimerDisplay(`${hours}h ${minutes}m ${seconds}s`);
+            }, 1000);
+        } else {
+            setTimerDisplay('0h 0m 0s');
+        }
+        return () => clearInterval(interval);
+    }, [isRunning, activeTimer]);
 
     // Fetch Data
     useEffect(() => {
@@ -106,9 +170,14 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose }: KanbanC
         fetchColumns(); // Fetch columns for subtasks status
         fetchApprovers(); // Fetch approvers list
         checkCurrentUserRole(); // Check role
+        fetchTimeEntries(); // Fetch time entries
 
         if (cardId !== 'new') {
-            fetchCardData();
+            fetchCardDetails();
+            fetchChecklist();
+            fetchComments();
+            fetchFiles();
+            fetchSubtasks();
         } else {
             setLoading(false);
             setTitle('Nova tarefa');
@@ -261,10 +330,9 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose }: KanbanC
         }
     };
 
-    const fetchCardData = async () => {
+    const fetchCardDetails = async () => {
         setLoading(true);
         try {
-            // Fetch Card Details
             const { data: cardData } = await supabase
                 .from('kanban_cards')
                 .select('*')
@@ -284,11 +352,18 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose }: KanbanC
                 setShowOnCalendar(cardData.show_on_calendar || false);
                 setCategory(cardData.category || '');
                 setSubcategory(cardData.subcategory || '');
-                setClientId(cardData.client_id || ''); // New: Set Client ID
+                setClientId(cardData.client_id || '');
                 setCurrentColumnId(cardData.column_id || '');
             }
+        } catch (error) {
+            console.error('Error fetching card details:', error);
+        } finally {
+            setLoading(false);
+        }
+    };
 
-            // Fetch Checklist
+    const fetchChecklist = async () => {
+        try {
             const { data: checkData } = await supabase
                 .from('kanban_checklists')
                 .select('*')
@@ -296,7 +371,26 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose }: KanbanC
                 .order('position');
             setChecklist(checkData || []);
 
-            // Fetch Comments
+            try {
+                const { data: groupsData, error: groupsError } = await supabase
+                    .from('kanban_checklist_groups')
+                    .select('*')
+                    .eq('card_id', cardId)
+                    .order('created_at', { ascending: true });
+
+                if (!groupsError && groupsData && groupsData.length > 0) {
+                    setChecklistGroups(groupsData);
+                }
+            } catch (e) {
+                console.warn('Error fetching checklist groups - migration may be needed', e);
+            }
+        } catch (error) {
+            console.error('Error fetching checklist:', error);
+        }
+    };
+
+    const fetchComments = async () => {
+        try {
             const { data: commentData, error: commentError } = await supabase
                 .from('kanban_comments')
                 .select('*')
@@ -305,7 +399,6 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose }: KanbanC
 
             if (commentError) throw commentError;
 
-            // Manually fetch user emails for comments
             let commentsWithUsers: any[] = [];
             if (commentData) {
                 const userIds = [...new Set(commentData.map(c => c.user_id).filter(Boolean))];
@@ -320,7 +413,7 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose }: KanbanC
                     if (profiles) {
                         profileMap = profiles.reduce((acc, p) => ({
                             ...acc,
-                            [p.id]: { ...p, email: p.full_name || p.email } // Use name if available, fallback to email. Kept property 'email' for compatibility with existing code
+                            [p.id]: { ...p, email: p.full_name || p.email }
                         }), {} as Record<string, any>);
                     }
                 }
@@ -331,37 +424,71 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose }: KanbanC
                 }));
             }
             setComments(commentsWithUsers);
+        } catch (error) {
+            console.error('Error fetching comments:', error);
+        }
+    };
 
-            // Fetch Files
+    const fetchFiles = async () => {
+        try {
             const { data: fileData } = await supabase
                 .from('kanban_attachments')
                 .select('*')
                 .eq('card_id', cardId)
                 .order('created_at', { ascending: false });
             setFiles(fileData || []);
+        } catch (error) {
+            console.error('Error fetching files:', error);
+        }
+    };
 
-            // Fetch Selected Tags
-            const { data: tagData } = await supabase
-                .from('kanban_card_tags')
-                .select('tag_id')
-                .eq('card_id', cardId);
-            if (tagData) {
-                setSelectedTags(tagData.map(t => t.tag_id));
-            }
-
-            // Fetch Subtasks
+    const fetchSubtasks = async () => {
+        try {
             const { data: subData } = await supabase
                 .from('kanban_cards')
                 .select('*')
                 .eq('parent_id', cardId)
                 .order('position');
             setSubtasks(subData || []);
-
         } catch (error) {
-            console.error('Error fetching card details:', error);
-        } finally {
-            setLoading(false);
+            console.error('Error fetching subtasks:', error);
         }
+    };
+
+    const fetchTimeEntries = async () => {
+        if (cardId === 'new') return;
+        try {
+            const { data, error } = await supabase
+                .from('time_entries')
+                .select('*, profiles:user_id(full_name, avatar_url)')
+                .eq('card_id', cardId)
+                .order('created_at', { ascending: false });
+
+            if (error) throw error;
+            setTimeEntries(data || []);
+
+            // Calcular total e checar se há algum rodando
+            const total = (data || []).reduce((acc, entry) => acc + (entry.duration_minutes || 0), 0);
+            setTotalMinutes(total);
+
+            const running = (data || []).find(entry => entry.is_running);
+            if (running) {
+                setIsRunning(true);
+                setActiveTimer(running);
+            } else {
+                setIsRunning(false);
+                setActiveTimer(null);
+            }
+        } catch (error) {
+            console.error('Error fetching time entries:', error);
+        }
+    };
+
+    const formatDuration = (totalMinutes: number) => {
+        if (totalMinutes === 0) return '0h';
+        const h = Math.floor(totalMinutes / 60);
+        const m = totalMinutes % 60;
+        return h > 0 ? `${h}h${m > 0 ? ` ${m}m` : ''}` : `${m}m`;
     };
 
     const createSystemLog = async (cardId: string, content: string, userId: string | null = null) => {
@@ -705,20 +832,69 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose }: KanbanC
         }
     };
 
-    const handleAddChecklistItem = async () => {
-        if (!newChecklistItem.trim()) return;
+    const handleAddChecklistGroup = async () => {
+        if (!selectedCompany || cardId === 'new') {
+            const newGroup = { id: `temp-group-${Date.now()}`, title: 'Novo Checklist' };
+            setChecklistGroups([...checklistGroups, newGroup]);
+            return;
+        }
 
-        // If it's a new card, just add to local state
-        if (cardId === 'new') {
+        try {
+            const { data, error } = await supabase
+                .from('kanban_checklist_groups')
+                .insert({ card_id: cardId, title: 'Novo Checklist' })
+                .select()
+                .single();
+
+            if (data) {
+                setChecklistGroups([...checklistGroups, data]);
+            }
+        } catch (err) {
+            console.error('Error adding checklist group', err);
+            const newGroup = { id: `temp-group-${Date.now()}`, title: 'Novo Checklist' };
+            setChecklistGroups([...checklistGroups, newGroup]);
+        }
+    };
+
+    const handleUpdateChecklistGroup = async (groupId: string, title: string) => {
+        setChecklistGroups(checklistGroups.map(g => g.id === groupId ? { ...g, title } : g));
+        if (!groupId.startsWith('temp-') && cardId !== 'new') {
+            try {
+                await supabase.from('kanban_checklist_groups').update({ title }).eq('id', groupId);
+            } catch (err) {
+                console.error('Update checklist group error', err);
+            }
+        }
+    };
+
+    const handleDeleteChecklistGroup = async (groupId: string) => {
+        setChecklistGroups(checklistGroups.filter(g => g.id !== groupId));
+        setChecklist(checklist.filter(item => item.group_id !== groupId));
+        if (!groupId.startsWith('temp-') && cardId !== 'new') {
+            try {
+                await supabase.from('kanban_checklist_groups').delete().eq('id', groupId);
+            } catch (err) {
+                console.error('Delete checklist group error', err);
+            }
+        }
+    };
+
+    const handleAddChecklistItem = async (groupId: string = 'default') => {
+        const itemText = newChecklistItems[groupId];
+        if (!itemText?.trim()) return;
+
+        // If it's a new card
+        if (cardId === 'new' || groupId.startsWith('temp-') || groupId === 'default') {
             const newItem = {
                 id: `temp-${Date.now()}`,
-                description: newChecklistItem,
+                description: itemText,
                 is_completed: false,
                 needs_approval: false,
+                group_id: groupId,
                 position: checklist.length
             };
             setChecklist([...checklist, newItem]);
-            setNewChecklistItem('');
+            setNewChecklistItems({ ...newChecklistItems, [groupId]: '' });
             return;
         }
 
@@ -729,19 +905,26 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose }: KanbanC
                 .from('kanban_checklists')
                 .insert({
                     card_id: cardId,
-                    description: newChecklistItem,
+                    group_id: groupId,
+                    description: itemText,
                     position: checklist.length,
                     is_completed: false,
-                    needs_approval: false // Default false
+                    needs_approval: false
                 })
                 .select()
                 .single();
 
             if (error) throw error;
             setChecklist([...checklist, data]);
-            setNewChecklistItem('');
-        } catch (error) {
+            setNewChecklistItems({ ...newChecklistItems, [groupId]: '' });
+        } catch (error: any) {
             console.error('Error adding checklist item:', error);
+            // Fallback for no group mapped yet
+            if (error?.code === '42703') { // column "group_id" does not exist
+                const { data: fData } = await supabase.from('kanban_checklists').insert({ card_id: cardId, description: itemText, position: checklist.length }).select().single();
+                if (fData) setChecklist([...checklist, fData]);
+                setNewChecklistItems({ ...newChecklistItems, [groupId]: '' });
+            }
         }
     };
 
@@ -1140,11 +1323,26 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose }: KanbanC
 
     const isNew = cardId === 'new';
 
-    if (loading) return <div className="fixed inset-0 z-[100] bg-black/80 flex items-center justify-center text-white">Carregando...</div>;
+    if (loading) return createPortal(<div className="fixed inset-0 z-[100] bg-black/80 flex items-center justify-center text-white">Carregando...</div>, document.body);
 
-    return (
+    return createPortal(
         <>
             <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+                {/* Time Tracking Popover (Rendered inside the portal but absolute to the field) */}
+                {showTimePopover && (
+                    <TimeTrackingPopover
+                        cardId={cardId}
+                        isRunning={isRunning}
+                        activeTimer={activeTimer}
+                        totalMinutes={totalMinutes}
+                        timerDisplay={timerDisplay}
+                        timeEntries={timeEntries}
+                        onClose={() => setShowTimePopover(false)}
+                        onRefresh={fetchTimeEntries}
+                        members={members}
+                        formatDuration={formatDuration}
+                    />
+                )}
                 {/* 1. Overlay Premium */}
                 <div
                     className="absolute inset-0 bg-black/60 backdrop-blur-md z-0 animate-in fade-in duration-300"
@@ -1459,8 +1657,12 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose }: KanbanC
                                             >
                                                 {assignedTo ? (
                                                     <div className="flex items-center gap-2 group/assigned">
-                                                        <div className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center text-[10px] font-bold text-primary shrink-0 border border-primary/30">
-                                                            {members.find(m => m.id === assignedTo)?.name.charAt(0) || 'U'}
+                                                        <div className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center text-[10px] font-bold text-primary shrink-0 border border-primary/30 overflow-hidden">
+                                                            {members.find(m => m.id === assignedTo)?.avatar_url ? (
+                                                                <img src={members.find(m => m.id === assignedTo).avatar_url} alt="" className="w-full h-full object-cover" />
+                                                            ) : (
+                                                                members.find(m => m.id === assignedTo)?.name.charAt(0) || 'U'
+                                                            )}
                                                         </div>
                                                         <span className="text-sm text-gray-300 group-hover/assigned:text-white transition-colors truncate max-w-[120px]">
                                                             {members.find(m => m.id === assignedTo)?.name}
@@ -1500,8 +1702,12 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose }: KanbanC
                                                                 }}
                                                                 className={`w-full flex items-center gap-2 px-2 py-2 rounded-lg text-sm text-gray-300 hover:bg-white/5 hover:text-white transition-colors text-left ${assignedTo === m.id ? 'bg-primary/10 text-primary' : ''}`}
                                                             >
-                                                                <div className="w-6 h-6 rounded-full bg-white/10 flex items-center justify-center text-[10px] font-bold">
-                                                                    {m.name.charAt(0)}
+                                                                <div className="w-6 h-6 rounded-full bg-white/10 flex items-center justify-center text-[10px] font-bold overflow-hidden">
+                                                                    {m.avatar_url ? (
+                                                                        <img src={m.avatar_url} alt="" className="w-full h-full object-cover" />
+                                                                    ) : (
+                                                                        m.name.charAt(0)
+                                                                    )}
                                                                 </div>
                                                                 <span className="truncate">{m.name}</span>
                                                                 {assignedTo === m.id && <CheckSquare size={12} className="ml-auto text-primary" />}
@@ -1578,11 +1784,20 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose }: KanbanC
                                             <span className="text-sm font-medium text-gray-400 group-hover:text-gray-300 transition-colors">Tempo rastreado</span>
                                         </div>
                                         <div className="flex-1 flex justify-start">
-                                            <button className="flex items-center gap-2 text-gray-500 hover:text-white transition-colors bg-white/5 hover:bg-white/10 px-2 py-0.5 rounded-full">
-                                                <div className="w-4 h-4 rounded-full bg-white/10 flex items-center justify-center">
-                                                    <div className="w-0 h-0 border-t-[3px] border-t-transparent border-l-[5px] border-l-white border-b-[3px] border-b-transparent ml-0.5"></div>
+                                            <button
+                                                onClick={() => setShowTimePopover(!showTimePopover)}
+                                                className={`flex items-center gap-2 transition-colors px-2 py-0.5 rounded-full ${isRunning ? 'bg-primary/20 text-primary border border-primary/30 animate-pulse' : 'text-gray-500 hover:text-white bg-white/5 hover:bg-white/10'}`}
+                                            >
+                                                <div className={`w-4 h-4 rounded-full flex items-center justify-center ${isRunning ? 'bg-primary text-white' : 'bg-white/10'}`}>
+                                                    {isRunning ? (
+                                                        <div className="w-1.5 h-1.5 bg-white rounded-sm" />
+                                                    ) : (
+                                                        <div className="w-0 h-0 border-t-[3px] border-t-transparent border-l-[5px] border-l-white border-b-[3px] border-b-transparent ml-0.5"></div>
+                                                    )}
                                                 </div>
-                                                <span className="text-xs">Adicionar hora</span>
+                                                <span className="text-xs font-bold">
+                                                    {isRunning ? timerDisplay : totalMinutes > 0 ? formatDuration(totalMinutes) : 'Adicionar hora'}
+                                                </span>
                                             </button>
                                         </div>
                                     </div>
@@ -1665,17 +1880,48 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose }: KanbanC
 
                             {/* 2. Descrição */}
                             <div className="space-y-3 group">
-                                <div className="flex items-center gap-2 text-gray-400">
-                                    <FileText size={16} />
-                                    <h3 className="text-sm font-bold uppercase tracking-wide">Descrição</h3>
-                                </div>
-                                <textarea
-                                    className="w-full min-h-[60px] bg-white/[0.02] hover:bg-white/[0.04] text-gray-300 resize-y focus:outline-none placeholder:text-gray-600 leading-relaxed text-sm font-light border border-white/5 focus:border-primary/20 rounded-xl p-4 transition-all focus:bg-white/[0.05] focus:shadow-[0_0_15px_-3px_rgba(99,102,241,0.1)]"
-                                    placeholder="Clique para adicionar uma descrição detalhada..."
-                                    value={description}
-                                    onChange={(e) => setDescription(e.target.value)}
-                                    disabled={userRole === 'visualizador'}
-                                />
+                                {(!description && !isEditingDescription) ? (
+                                    <button
+                                        onClick={() => setIsEditingDescription(true)}
+                                        className="flex items-center gap-2 px-3 py-2 rounded-xl text-white hover:bg-white/5 transition-all group/btn"
+                                    >
+                                        <span className="text-base font-medium">Adicionar descrição</span>
+                                    </button>
+                                ) : (
+                                    <>
+                                        <div className="flex items-center justify-between text-white pr-2">
+                                            <div className="flex items-center gap-2">
+                                                <h3 className="text-sm font-bold uppercase tracking-wide">Descrição</h3>
+                                            </div>
+                                            {description && (
+                                                <button
+                                                    onClick={() => setIsExpandedDescription(!isExpandedDescription)}
+                                                    className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-white/5 hover:bg-white/10 text-[10px] uppercase font-bold text-gray-400 hover:text-white transition-all border border-white/5 shadow-sm"
+                                                >
+                                                    {isExpandedDescription ? (
+                                                        <>Recolher <ChevronUp size={12} className="text-primary" strokeWidth={3} /></>
+                                                    ) : (
+                                                        <>Expandir <ChevronDown size={12} className="text-primary" strokeWidth={3} /></>
+                                                    )}
+                                                </button>
+                                            )}
+                                        </div>
+                                        <div className={`relative transition-all duration-300 overflow-hidden ${!isExpandedDescription ? 'max-h-[100px] mb-2' : 'max-h-none'}`}>
+                                            <textarea
+                                                ref={descriptionRef}
+                                                className="w-full bg-white/[0.02] hover:bg-white/[0.04] text-gray-300 resize-none overflow-hidden focus:outline-none placeholder:text-gray-600/50 leading-relaxed text-sm font-light border border-white/5 focus:border-primary/20 rounded-xl p-4 transition-all focus:bg-white/[0.05] focus:shadow-[0_0_15px_-3px_rgba(99,102,241,0.1)]"
+                                                placeholder="Escreva, pressione a barra de espaço para usar a IA ou '/' para usar comandos"
+                                                value={description}
+                                                onChange={(e) => setDescription(e.target.value)}
+                                                onBlur={() => !description && setIsEditingDescription(false)}
+                                                autoFocus={isEditingDescription && !description}
+                                            />
+                                            {!isExpandedDescription && description.length > 50 && (
+                                                <div className="absolute bottom-0 left-0 right-0 h-10 bg-gradient-to-t from-[#0a0a1a] to-transparent pointer-events-none" />
+                                            )}
+                                        </div>
+                                    </>
+                                )}
                             </div>
 
                             {/* 3. Subtarefas (Estilo ClickUp) */}
@@ -1684,7 +1930,6 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose }: KanbanC
                                 <div className="flex items-center justify-between pb-2 mb-2">
                                     <div className="flex items-center gap-4">
                                         <div className="flex items-center gap-2 text-white">
-                                            <GitBranch size={16} />
                                             <h3 className="text-sm font-bold uppercase tracking-wide">Subtarefas</h3>
                                         </div>
 
@@ -1702,18 +1947,22 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose }: KanbanC
                                         </div>
                                     </div>
                                     <div className="flex gap-4">
-                                        <button className="text-xs font-medium text-gray-500 hover:text-white transition-colors flex items-center gap-1">
-                                            Classificar <ChevronDown size={10} />
-                                        </button>
-                                        <button className="text-xs font-medium text-gray-500 hover:text-white transition-colors flex items-center gap-1">
-                                            Expandir tudo <IconPlayerPlay size={10} className="rotate-90" />
+                                        <button
+                                            onClick={() => setIsSubtasksCollapsed(!isSubtasksCollapsed)}
+                                            className="text-xs font-medium text-gray-400 hover:text-white transition-colors flex items-center gap-1.5 px-2 py-1 rounded hover:bg-white/5"
+                                        >
+                                            {isSubtasksCollapsed ? (
+                                                <>Expandir tudo <ChevronDown size={12} /></>
+                                            ) : (
+                                                <>Recolher tudo <ChevronUp size={12} /></>
+                                            )}
                                         </button>
                                     </div>
                                 </div>
 
-                                <div className="rounded-xl border border-white/5 overflow-hidden">
+                                <div className="rounded-xl border border-white/5">
                                     {/* Tabela Header - ClickUp Style Minimal */}
-                                    <div className="grid grid-cols-[1fr_100px_100px_140px_40px] gap-4 px-4 py-2 text-[11px] font-medium text-gray-500 bg-[#0a0a1a]/40 border-b border-white/5">
+                                    <div className="grid grid-cols-[1fr_100px_100px_140px_40px] gap-4 px-4 py-2 text-[11px] font-medium text-gray-500 bg-[#0a0a1a]/40 border-b border-white/5 rounded-t-xl">
                                         <div className="pl-8">Nome</div> {/* pl-8 para alinhar com o texto da task, pulando o ícone de status */}
                                         <div className="text-left">Responsável</div>
                                         <div className="text-left">Prioridade</div>
@@ -1722,9 +1971,12 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose }: KanbanC
                                     </div>
 
                                     {/* Lista - ClickUp Style */}
-                                    <div className="divide-y divide-white/5">
+                                    <div className={`divide-y divide-white/5 ${isSubtasksCollapsed ? 'max-h-0 overflow-hidden text-transparent opacity-0 duration-300 transition-all' : 'overflow-visible'}`}>
                                         {subtasks.map(task => (
-                                            <div key={task.id} className="group grid grid-cols-[1fr_100px_100px_140px_40px] gap-4 items-center px-4 py-2 hover:bg-white/[0.02] transition-colors relative text-sm">
+                                            <div
+                                                key={task.id}
+                                                className={`group grid grid-cols-[1fr_100px_100px_140px_40px] gap-4 items-center px-4 py-2 hover:bg-white/[0.02] transition-colors relative text-sm ${(showSubtaskStatusSelect === task.id || showSubtaskMemberSelect === task.id || showSubtaskPrioritySelect === task.id || showSubtaskTagSelectId === task.id) ? 'z-[999]' : 'z-auto'}`}
+                                            >
                                                 {/* Nome e Status */}
                                                 <div className="flex items-center gap-3 min-w-0">
                                                     {/* Expand/Collapse Placeholder (futuro) */}
@@ -1773,9 +2025,75 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose }: KanbanC
                                                         )}
                                                     </div>
 
-                                                    <span className="text-gray-300 group-hover:text-white truncate transition-colors cursor-pointer font-normal">
-                                                        {task.title}
-                                                    </span>
+                                                    {editingSubtaskId === task.id ? (
+                                                        <input
+                                                            autoFocus
+                                                            className="bg-white/5 border border-primary/30 rounded px-1 py-0.5 text-sm text-white focus:outline-none w-full"
+                                                            value={editingSubtaskTitle}
+                                                            onChange={(e) => setEditingSubtaskTitle(e.target.value)}
+                                                            onBlur={() => {
+                                                                if (editingSubtaskTitle.trim() && editingSubtaskTitle !== task.title) {
+                                                                    handleUpdateSubtask(task.id, { title: editingSubtaskTitle });
+                                                                }
+                                                                setEditingSubtaskId(null);
+                                                            }}
+                                                            onKeyDown={(e) => {
+                                                                if (e.key === 'Enter') {
+                                                                    if (editingSubtaskTitle.trim() && editingSubtaskTitle !== task.title) {
+                                                                        handleUpdateSubtask(task.id, { title: editingSubtaskTitle });
+                                                                    }
+                                                                    setEditingSubtaskId(null);
+                                                                }
+                                                                if (e.key === 'Escape') setEditingSubtaskId(null);
+                                                            }}
+                                                        />
+                                                    ) : (
+                                                        <span className="text-gray-300 group-hover:text-white truncate transition-colors cursor-pointer font-normal flex-1">
+                                                            {task.title}
+                                                        </span>
+                                                    )}
+
+                                                    {/* Hover Actions: Pencil & Tag */}
+                                                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                setEditingSubtaskId(task.id);
+                                                                setEditingSubtaskTitle(task.title);
+                                                            }}
+                                                            className="p-1 rounded hover:bg-white/10 text-gray-500 hover:text-white transition-colors"
+                                                            title="Editar título"
+                                                        >
+                                                            <LucideCalendar size={12} className="hidden" /> {/* just to have reference if needed */}
+                                                            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+                                                        </button>
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                setShowSubtaskTagSelectId(showSubtaskTagSelectId === task.id ? null : task.id);
+                                                            }}
+                                                            className="p-1 rounded hover:bg-white/10 text-gray-500 hover:text-white transition-colors relative"
+                                                            title="Vincular etiqueta"
+                                                        >
+                                                            <LucideTag size={12} />
+                                                            {showSubtaskTagSelectId === task.id && (
+                                                                <div className="absolute top-full right-0 mt-2 w-48 bg-[#1a1a2e] border border-white/10 rounded-xl shadow-xl z-[60] p-2" onClick={(e) => e.stopPropagation()}>
+                                                                    <p className="text-[10px] text-gray-500 uppercase font-bold mb-2 px-1">Etiquetas</p>
+                                                                    <div className="max-h-40 overflow-y-auto custom-scrollbar space-y-1">
+                                                                        {tags.map(tag => (
+                                                                            <button
+                                                                                key={tag.id}
+                                                                                className="w-full flex items-center gap-2 px-2 py-1 rounded hover:bg-white/5 text-xs text-gray-300 transition-colors"
+                                                                            >
+                                                                                <div className="w-2 h-2 rounded-full" style={{ backgroundColor: tag.color }} />
+                                                                                <span className="truncate">{tag.name}</span>
+                                                                            </button>
+                                                                        ))}
+                                                                    </div>
+                                                                </div>
+                                                            )}
+                                                        </button>
+                                                    </div>
                                                 </div>
 
                                                 {/* Responsável - ClickUp Style (Icon + Plus) */}
@@ -1792,11 +2110,15 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose }: KanbanC
                                                         title={task.assigned_to ? members.find(m => m.id === task.assigned_to)?.name : 'Atribuir responsável'}
                                                     >
                                                         {task.assigned_to ? (
-                                                            <div className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center text-[10px] font-bold text-primary shrink-0 border border-primary/30 ring-2 ring-[#0a0a1a]">
-                                                                {members.find(m => m.id === task.assigned_to)?.name?.charAt(0) || 'U'}
+                                                            <div className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center text-[10px] font-bold text-primary shrink-0 border border-primary/30 ring-2 ring-[#0a0a1a] overflow-hidden">
+                                                                {members.find(m => m.id === task.assigned_to)?.avatar_url ? (
+                                                                    <img src={members.find(m => m.id === task.assigned_to).avatar_url} alt="" className="w-full h-full object-cover" />
+                                                                ) : (
+                                                                    members.find(m => m.id === task.assigned_to)?.name?.charAt(0) || 'U'
+                                                                )}
                                                             </div>
                                                         ) : (
-                                                            <div className="w-6 h-6 rounded-full border border-dashed border-gray-700 flex items-center justify-center text-gray-500 hover:text-gray-300 hover:border-gray-500 transition-colors">
+                                                            <div className="w-6 h-6 rounded-full flex items-center justify-center text-gray-500 hover:text-gray-300 hover:bg-white/10 transition-colors">
                                                                 <IconUser size={12} />
                                                             </div>
                                                         )}
@@ -1815,8 +2137,12 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose }: KanbanC
                                                                         }}
                                                                         className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs text-gray-300 hover:bg-white/5 hover:text-white transition-colors text-left ${task.assigned_to === m.id ? 'bg-primary/10 text-primary' : ''}`}
                                                                     >
-                                                                        <div className="w-5 h-5 rounded-full bg-white/10 flex items-center justify-center text-[9px] font-bold">
-                                                                            {m.name.charAt(0)}
+                                                                        <div className="w-5 h-5 rounded-full bg-white/10 flex items-center justify-center text-[9px] font-bold overflow-hidden">
+                                                                            {m.avatar_url ? (
+                                                                                <img src={m.avatar_url} alt="" className="w-full h-full object-cover" />
+                                                                            ) : (
+                                                                                m.name.charAt(0)
+                                                                            )}
                                                                         </div>
                                                                         <span className="truncate">{m.name}</span>
                                                                     </button>
@@ -1873,16 +2199,18 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose }: KanbanC
 
                                                 {/* Data - ClickUp Style (Text only) */}
                                                 <div className="text-left text-xs relative flex justify-start pl-2">
-                                                    <div className="relative min-w-[60px] h-6 flex items-center">
-                                                        <span
-                                                            className={`cursor-pointer hover:text-white transition-colors ${!task.due_date ? 'text-gray-600 hover:text-gray-400' : 'text-gray-300'}`}
-                                                        >
-                                                            {task.due_date ? new Date(task.due_date + 'T12:00:00').toLocaleDateString('pt-BR').slice(0, 5) : '-'}
-                                                        </span>
+                                                    <div className="relative min-w-[60px] h-6 flex items-center group/date">
+                                                        {task.due_date ? (
+                                                            <span className="cursor-pointer hover:text-white transition-colors text-gray-300">
+                                                                {new Date(task.due_date.substring(0, 10) + 'T12:00:00').toLocaleDateString('pt-BR').slice(0, 5)}
+                                                            </span>
+                                                        ) : (
+                                                            <IconCalendar size={16} className="text-gray-600 hover:text-gray-400 cursor-pointer" />
+                                                        )}
                                                         <input
                                                             type="date"
                                                             className="absolute inset-0 opacity-0 cursor-pointer w-full h-full z-10"
-                                                            value={task.due_date || ''}
+                                                            value={task.due_date ? task.due_date.substring(0, 10) : ''}
                                                             onChange={(e) => handleUpdateSubtask(task.id, { due_date: e.target.value })}
                                                             disabled={userRole === 'visualizador'}
                                                             onClick={(e) => (e.target as HTMLInputElement).showPicker && (e.target as HTMLInputElement).showPicker()}
@@ -1901,7 +2229,7 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose }: KanbanC
 
                                         {/* New Task Input Inline - ClickUp Style */}
                                         {userRole !== 'visualizador' && (
-                                            <div className="flex items-center gap-3 px-4 py-2 text-gray-500 hover:text-gray-300 transition-colors cursor-text group hover:bg-white/[0.02]" onClick={() => document.getElementById('new-subtask-input')?.focus()}>
+                                            <div className="flex items-center gap-3 px-4 py-2 text-gray-500 hover:text-gray-300 transition-colors cursor-text group hover:bg-white/[0.02] rounded-b-xl" onClick={() => document.getElementById('new-subtask-input')?.focus()}>
                                                 <div className="w-4 flex justify-center opacity-0"><div className="w-1 h-1 rounded-full bg-gray-600"></div></div> {/* Spacer */}
                                                 <Plus size={14} className="text-gray-600 group-hover:text-primary transition-colors shrink-0" />
                                                 <input
@@ -1944,140 +2272,202 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose }: KanbanC
                                         <button className="p-1.5 rounded hover:bg-white/10 text-gray-400 hover:text-white transition-colors">
                                             <IconPlayerPlay size={14} className="rotate-90" /> {/* Expand All Icon Placeholder */}
                                         </button>
-                                        <button className="p-1.5 rounded hover:bg-white/10 text-gray-400 hover:text-white transition-colors">
+                                        <button onClick={handleAddChecklistGroup} className="p-1.5 rounded hover:bg-white/10 text-gray-400 hover:text-white transition-colors">
                                             <Plus size={16} />
                                         </button>
                                     </div>
                                 </div>
 
-                                {/* Card do Checklist "Principal" (Simulando um bloco) */}
-                                <div className="border border-white/10 rounded-xl overflow-hidden shadow-sm">
+                                {checklistGroups.map(group => {
+                                    const groupItems = checklist.filter(i => i.group_id === group.id || (group.id === 'default' && !i.group_id));
+                                    const completedItems = groupItems.filter(i => i.is_completed);
 
-                                    {/* Header do Bloco */}
-                                    <div className="px-4 py-3 flex items-center justify-between group cursor-pointer hover:bg-white/[0.02] transition-colors">
-                                        <div className="flex items-center gap-3 flex-1">
-                                            <input
-                                                className="text-sm font-bold text-white bg-transparent border-none focus:outline-none w-full placeholder:text-gray-500 hover:text-gray-200 transition-colors"
-                                                value={checklistTitle}
-                                                onChange={(e) => setChecklistTitle(e.target.value)}
-                                                placeholder="Nome do Checklist"
-                                                disabled={userRole === 'visualizador'}
-                                            />
-                                            <span className="text-xs text-gray-500 font-medium shrink-0">
-                                                {checklist.filter(i => i.is_completed).length} de {checklist.length}
-                                            </span>
-                                        </div>
-                                    </div>
-
-                                    {/* Lista de Itens Pendentes */}
-                                    <div className="px-2 pb-2">
-                                        {checklist.filter(i => !i.is_completed).map(item => (
-                                            <div key={item.id} className="group flex items-start gap-3 px-3 py-2 hover:bg-white/[0.04] rounded-lg transition-colors relative text-sm group/item">
-                                                <button
-                                                    onClick={() => handleToggleChecklist(item.id, item.is_completed, item.needs_approval, item.approver_id)}
-                                                    disabled={item.needs_approval && (item.approver_id ? item.approver_id !== currentUserId : !currentUserApprover)}
-                                                    className="mt-0.5 w-4 h-4 rounded border border-gray-600 hover:border-gray-400 bg-transparent flex items-center justify-center transition-all shrink-0"
-                                                >
-                                                </button>
-
-                                                <span className="flex-1 text-gray-300 group-hover/item:text-white transition-colors font-normal leading-relaxed break-words">
-                                                    {item.description}
-                                                </span>
-
-                                                {/* Ações do Item */}
-                                                <div className="flex items-center gap-1">
-                                                    <button onClick={() => handleToggleApprovalReq(item.id, item.needs_approval)} className={`p-1.5 rounded hover:bg-white/10 ${item.needs_approval ? 'text-yellow-500' : 'text-gray-600 hover:text-yellow-400'}`} title="Aprovação">
-                                                        <Lock size={14} />
-                                                    </button>
-                                                    <button onClick={() => handleDeleteChecklist(item.id)} className="p-1.5 rounded hover:bg-white/10 text-gray-600 hover:text-red-400" title="Excluir">
+                                    return (
+                                        <div key={group.id} className="border border-white/10 rounded-xl overflow-hidden shadow-sm">
+                                            {/* Header do Bloco */}
+                                            <div className="px-4 py-3 flex items-center justify-between group cursor-pointer hover:bg-white/[0.02] transition-colors relative">
+                                                <div className="flex items-center gap-3 flex-1">
+                                                    <input
+                                                        className="text-sm font-bold text-white bg-transparent border-none focus:outline-none w-full placeholder:text-gray-500 hover:text-gray-200 transition-colors"
+                                                        value={group.title}
+                                                        onChange={(e) => handleUpdateChecklistGroup(group.id, e.target.value)}
+                                                        placeholder="Nome do Checklist"
+                                                        disabled={userRole === 'visualizador'}
+                                                    />
+                                                    <span className="text-xs text-gray-500 font-medium shrink-0">
+                                                        {completedItems.length} de {groupItems.length}
+                                                    </span>
+                                                </div>
+                                                <div className="opacity-0 group-hover:opacity-100 transition-opacity absolute right-4">
+                                                    <button onClick={() => handleDeleteChecklistGroup(group.id)} className="p-1.5 rounded hover:bg-white/10 text-gray-600 hover:text-red-400" title="Excluir Checklist">
                                                         <Trash2 size={14} />
                                                     </button>
                                                 </div>
                                             </div>
-                                        ))}
 
-                                        {/* Input de Adicionar Item (Estilo Botão Texto) */}
-                                        {userRole !== 'visualizador' && (
-                                            <div className="px-3 py-2 mt-1">
-                                                <div className="flex items-center gap-2 text-gray-500 hover:text-gray-300 transition-colors cursor-pointer group" onClick={() => document.getElementById('new-checklist-input')?.focus()}>
-                                                    <Plus size={14} className="group-hover:text-primary transition-colors" />
-                                                    <input
-                                                        id="new-checklist-input"
-                                                        value={newChecklistItem}
-                                                        onChange={(e) => setNewChecklistItem(e.target.value)}
-                                                        onKeyDown={(e) => e.key === 'Enter' && handleAddChecklistItem()}
-                                                        className="bg-transparent text-sm focus:outline-none w-full placeholder:text-gray-500 text-gray-300 h-6 font-medium"
-                                                        placeholder="Adicionar item"
-                                                    />
-                                                </div>
-                                            </div>
-                                        )}
-                                    </div>
+                                            {/* Lista de Itens Pendentes */}
+                                            <div className="px-2 pb-2">
+                                                {groupItems.filter(i => !i.is_completed).map(item => (
+                                                    <div key={item.id} className="group flex items-start gap-3 px-3 py-2 hover:bg-white/[0.04] rounded-lg transition-colors relative text-sm group/item">
+                                                        <button
+                                                            onClick={() => handleToggleChecklist(item.id, item.is_completed, item.needs_approval, item.approver_id)}
+                                                            disabled={item.needs_approval && (item.approver_id ? item.approver_id !== currentUserId : !currentUserApprover)}
+                                                            className="mt-0.5 w-4 h-4 rounded border border-gray-600 hover:border-gray-400 bg-transparent flex items-center justify-center transition-all shrink-0"
+                                                        >
+                                                        </button>
 
-                                    {/* Seção de Concluídos (Accordion) */}
-                                    {checklist.filter(i => i.is_completed).length > 0 && (
-                                        <div className="border-t border-white/5">
-                                            <details className="group/details">
-                                                <summary className="px-4 py-2 flex items-center gap-2 cursor-pointer hover:bg-white/[0.02] transition-colors list-none text-xs font-medium text-gray-500 select-none">
-                                                    <ChevronDown size={12} className="transition-transform group-open/details:rotate-180" />
-                                                    <span>Mostrar {checklist.filter(i => i.is_completed).length} concluído(s)</span>
-                                                </summary>
+                                                        <span className="flex-1 text-gray-300 group-hover/item:text-white transition-colors font-normal leading-relaxed break-words">
+                                                            {item.description}
+                                                        </span>
 
-                                                <div className="px-2 pb-2 pt-1 animate-in slide-in-from-top-2 duration-200">
-                                                    {checklist.filter(i => i.is_completed).map(item => (
-                                                        <div key={item.id} className="group flex items-start gap-3 px-3 py-2 hover:bg-white/[0.04] rounded-lg transition-colors relative text-sm opacity-60 hover:opacity-100">
-                                                            <button
-                                                                onClick={() => handleToggleChecklist(item.id, item.is_completed, item.needs_approval, item.approver_id)}
-                                                                className="mt-0.5 w-4 h-4 rounded border border-emerald-500 bg-emerald-500 text-white flex items-center justify-center transition-all shrink-0"
-                                                            >
-                                                                <CheckSquare size={10} strokeWidth={3} />
+                                                        {/* Ações do Item */}
+                                                        <div className="flex items-center gap-1">
+                                                            <button onClick={() => handleToggleApprovalReq(item.id, item.needs_approval)} className={`p-1.5 rounded hover:bg-white/10 ${item.needs_approval ? 'text-yellow-500' : 'text-gray-600 hover:text-yellow-400'}`} title="Aprovação">
+                                                                <Lock size={14} />
                                                             </button>
-
-                                                            <span className="flex-1 text-gray-500 line-through transition-colors font-normal leading-relaxed break-words">
-                                                                {item.description}
-                                                            </span>
-
-                                                            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                                <button onClick={() => handleDeleteChecklist(item.id)} className="p-1.5 rounded hover:bg-white/10 text-gray-600 hover:text-red-400" title="Excluir">
-                                                                    <Trash2 size={14} />
-                                                                </button>
-                                                            </div>
+                                                            <button onClick={() => handleDeleteChecklist(item.id)} className="p-1.5 rounded hover:bg-white/10 text-gray-600 hover:text-red-400" title="Excluir">
+                                                                <Trash2 size={14} />
+                                                            </button>
                                                         </div>
-                                                    ))}
+                                                    </div>
+                                                ))}
+
+                                                {/* Input de Adicionar Item (Estilo Botão Texto) */}
+                                                {userRole !== 'visualizador' && (
+                                                    <div className="px-3 py-2 mt-1">
+                                                        <div className="flex items-center gap-2 text-gray-500 hover:text-gray-300 transition-colors cursor-pointer group" onClick={() => document.getElementById(`new-checklist-input-${group.id}`)?.focus()}>
+                                                            <Plus size={14} className="group-hover:text-primary transition-colors" />
+                                                            <input
+                                                                id={`new-checklist-input-${group.id}`}
+                                                                value={newChecklistItems[group.id] || ''}
+                                                                onChange={(e) => setNewChecklistItems({ ...newChecklistItems, [group.id]: e.target.value })}
+                                                                onKeyDown={(e) => e.key === 'Enter' && handleAddChecklistItem(group.id)}
+                                                                className="bg-transparent text-sm focus:outline-none w-full placeholder:text-gray-500 text-gray-300 h-6 font-medium"
+                                                                placeholder="Adicionar item"
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            {/* Seção de Concluídos (Accordion) */}
+                                            {completedItems.length > 0 && (
+                                                <div className="border-t border-white/5">
+                                                    <details className="group/details">
+                                                        <summary className="px-4 py-2 flex items-center gap-2 cursor-pointer hover:bg-white/[0.02] transition-colors list-none text-xs font-medium text-gray-500 select-none">
+                                                            <ChevronDown size={12} className="transition-transform group-open/details:rotate-180" />
+                                                            <span>Mostrar {completedItems.length} concluído(s)</span>
+                                                        </summary>
+
+                                                        <div className="px-2 pb-2 pt-1 animate-in slide-in-from-top-2 duration-200">
+                                                            {completedItems.map(item => (
+                                                                <div key={item.id} className="group flex items-start gap-3 px-3 py-2 hover:bg-white/[0.04] rounded-lg transition-colors relative text-sm opacity-60 hover:opacity-100">
+                                                                    <button
+                                                                        onClick={() => handleToggleChecklist(item.id, item.is_completed, item.needs_approval, item.approver_id)}
+                                                                        className="mt-0.5 w-4 h-4 rounded border border-emerald-500 bg-emerald-500 text-white flex items-center justify-center transition-all shrink-0"
+                                                                    >
+                                                                        <CheckSquare size={10} strokeWidth={3} />
+                                                                    </button>
+
+                                                                    <span className="flex-1 text-gray-500 line-through transition-colors font-normal leading-relaxed break-words">
+                                                                        {item.description}
+                                                                    </span>
+
+                                                                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                                        <button onClick={() => handleDeleteChecklist(item.id)} className="p-1.5 rounded hover:bg-white/10 text-gray-600 hover:text-red-400" title="Excluir">
+                                                                            <Trash2 size={14} />
+                                                                        </button>
+                                                                    </div>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    </details>
                                                 </div>
-                                            </details>
+                                            )}
                                         </div>
-                                    )}
-                                </div>
+                                    );
+                                })}
                             </div>
 
                             {/* 5. Anexos */}
                             <div className="space-y-4">
                                 <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-2 text-gray-400">
-                                        <Paperclip size={16} />
-                                        <h3 className="text-sm font-bold uppercase tracking-wide">Anexos ({files.length})</h3>
+                                    <div className="flex items-center gap-2">
+                                        <h3 className="text-sm font-bold uppercase tracking-wide text-white">Anexos ({files.length})</h3>
                                     </div>
                                     <button onClick={handleAddFile} className="text-xs text-primary hover:text-white transition-colors">
                                         + Adicionar
                                     </button>
                                 </div>
 
-                                <div className="grid grid-cols-3 gap-3">
-                                    {files.map(file => (
-                                        <div key={file.id} className="bg-white/[0.02] border border-white/5 rounded-lg p-3 flex items-center gap-3 hover:bg-white/[0.05] transition-colors group relative">
-                                            <div className="w-8 h-8 rounded bg-white/5 flex items-center justify-center text-gray-400">
-                                                {getFileIcon(file.file_name)}
+                                <div className="flex flex-wrap gap-4">
+                                    {files.map(file => {
+                                        const fileExt = file.file_name.split('.').pop()?.toLowerCase() || '';
+                                        const isImage = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'].includes(fileExt);
+                                        const uploader = members.find(m => m.id === file.uploader_id);
+                                        const uploaderName = uploader?.name || 'Sistema';
+
+                                        let uploaderInitials = 'US';
+                                        if (uploader) {
+                                            const parts = uploader.name.trim().split(' ');
+                                            uploaderInitials = parts.length > 1 ? (parts[0][0] + parts[parts.length - 1][0]).toUpperCase() : parts[0].substring(0, 2).toUpperCase();
+                                        }
+
+                                        const formatAttachmentDate = (dateString: string) => {
+                                            const d = new Date(dateString);
+                                            const today = new Date();
+                                            const isToday = d.getDate() === today.getDate() && d.getMonth() === today.getMonth() && d.getFullYear() === today.getFullYear();
+
+                                            const yesterday = new Date(today);
+                                            yesterday.setDate(yesterday.getDate() - 1);
+                                            const isYesterday = d.getDate() === yesterday.getDate() && d.getMonth() === yesterday.getMonth() && d.getFullYear() === yesterday.getFullYear();
+
+                                            let timeStr = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }).toLowerCase();
+
+                                            if (isToday) return `Hoje às ${timeStr}`;
+                                            if (isYesterday) return `Ontem às ${timeStr}`;
+                                            return `${d.toLocaleDateString([], { month: 'short', day: 'numeric' })} às ${timeStr}`;
+                                        };
+
+                                        return (
+                                            <div key={file.id} className="w-[206px] h-[180px] shrink-0 bg-[#0a0a1a] border border-white/5 rounded-xl flex flex-col hover:border-white/20 transition-colors group relative overflow-hidden">
+
+                                                {/* Botão flutuante de Excluir */}
+                                                <button onClick={() => handleDeleteFile(file.id, file.file_url, file.file_name)} className="absolute top-2 right-2 p-1.5 rounded-lg bg-black/60 backdrop-blur-md text-gray-400 hover:text-white hover:bg-red-500/80 opacity-0 group-hover:opacity-100 transition-all transform translate-y-1 group-hover:translate-y-0 z-20 shadow-md">
+                                                    <Trash2 size={14} />
+                                                </button>
+
+                                                <a href={file.file_url} target="_blank" rel="noopener noreferrer" className="flex-1 flex flex-col min-h-0 relative">
+                                                    {/* Top Area - Preview */}
+                                                    <div className="flex-1 flex items-center justify-center bg-[#050510] relative overflow-hidden min-h-0">
+                                                        {isImage ? (
+                                                            <img src={file.file_url} alt={file.file_name} className="w-full h-full object-contain opacity-80 group-hover:opacity-100 transition-opacity p-2" />
+                                                        ) : (
+                                                            <div className="text-primary/70 transform group-hover:scale-110 transition-transform duration-300 scale-[2]">
+                                                                {getFileIcon(file.file_name)}
+                                                            </div>
+                                                        )}
+                                                    </div>
+
+                                                    {/* Bottom Strip */}
+                                                    <div className="h-16 shrink-0 bg-white/[0.02] border-t border-white/5 p-3 flex flex-row items-center justify-between relative z-10 w-full gap-2 text-left">
+                                                        <div className="flex flex-col min-w-0 pr-1 flex-1">
+                                                            <p className="text-xs font-semibold text-white truncate" title={file.file_name}>{file.file_name}</p>
+                                                            <p className="text-[10px] text-gray-500 mt-1 truncate">{formatAttachmentDate(file.created_at)}</p>
+                                                        </div>
+
+                                                        <div className="w-7 h-7 rounded-full bg-white/10 flex items-center justify-center text-[10px] font-bold text-gray-300 shrink-0 border border-white/5 overflow-hidden ring-2 ring-[#0a0a1a]" title={uploaderName}>
+                                                            {uploader?.avatar_url ? (
+                                                                <img src={uploader.avatar_url} alt={uploaderName} className="w-full h-full object-cover" />
+                                                            ) : (
+                                                                uploaderInitials
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                </a>
                                             </div>
-                                            <div className="min-w-0 flex-1">
-                                                <p className="text-xs text-gray-300 truncate" title={file.file_name}>{file.file_name}</p>
-                                                <p className="text-[10px] text-gray-600">{new Date(file.created_at).toLocaleDateString()}</p>
-                                            </div>
-                                            <button onClick={() => handleDeleteFile(file.id, file.file_url, file.file_name)} className="absolute top-1 right-1 p-1 text-gray-500 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                <X size={12} />
-                                            </button>
-                                        </div>
-                                    ))}
+                                        );
+                                    })}
                                 </div>
                                 <input type="file" ref={fileInputRef} className="hidden" onChange={handleFileUpload} />
                             </div>
@@ -2176,7 +2566,6 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose }: KanbanC
                             )}
                         </div>
                     </div>
-
                 </div>
             </div>
 
@@ -2223,8 +2612,258 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose }: KanbanC
                     </div>
                 </div>
             )}
-        </>
+        </>,
+        document.body
+    );
+};
+
+// --- Sub-componente Tempo Rastreado ---
+interface TimeTrackingPopoverProps {
+    cardId: string;
+    isRunning: boolean;
+    activeTimer: TimeEntry | null;
+    totalMinutes: number;
+    timerDisplay: string;
+    timeEntries: TimeEntry[];
+    onClose: () => void;
+    onRefresh: () => void;
+    members: any[];
+    formatDuration: (minutes: number) => string;
+}
+
+const TimeTrackingPopover = ({
+    cardId,
+    isRunning,
+    activeTimer,
+    totalMinutes,
+    timerDisplay,
+    timeEntries,
+    onClose,
+    onRefresh,
+    members,
+    formatDuration
+}: TimeTrackingPopoverProps) => {
+    const { toast, confirm } = useUI();
+    const [manualTime, setManualTime] = useState('');
+    const [isSaving, setIsSaving] = useState(false);
+
+    const parseTimeInput = (input: string): number => {
+        // Converte formatos como "1h 30m", "1h30", "90m" ou "1.5"
+        let total = 0;
+        const hMatch = input.match(/(\d+)\s*h/i);
+        const mMatch = input.match(/(\d+)\s*m/i);
+
+        if (hMatch) total += parseInt(hMatch[1]) * 60;
+        if (mMatch) total += parseInt(mMatch[1]);
+
+        // Se for só número (ex: "90") assume minutos
+        if (!hMatch && !mMatch && /^\d+$/.test(input.trim())) {
+            total = parseInt(input);
+        }
+
+        return total;
+    };
+
+    const handleDeleteTimeEntry = async (id: string) => {
+        const ok = await confirm('Excluir Registro', 'Deseja realmente excluir este registro de tempo?');
+        if (!ok) return;
+        try {
+            const { error } = await supabase
+                .from('time_entries')
+                .delete()
+                .eq('id', id);
+
+            if (error) throw error;
+            onRefresh();
+        } catch (error) {
+            console.error('Error deleting time entry:', error);
+            toast.error('Erro ao excluir registro.', 'Erro');
+        }
+    };
+
+    const handleStartTime = async () => {
+        setIsSaving(true);
+        try {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) return;
+
+            const { error } = await supabase
+                .from('time_entries')
+                .insert({
+                    card_id: cardId,
+                    user_id: user.id,
+                    is_running: true,
+                    start_time: new Date().toISOString()
+                });
+
+            if (error) throw error;
+            onRefresh();
+        } catch (error) {
+            console.error('Error starting timer:', error);
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    const handleStopTimer = async () => {
+        if (!activeTimer) return;
+        setIsSaving(true);
+        try {
+            const now = new Date();
+            const start = new Date(activeTimer.start_time);
+            const diffMs = now.getTime() - start.getTime();
+            const minutes = Math.floor(diffMs / 60000);
+
+            const { error } = await supabase
+                .from('time_entries')
+                .update({
+                    is_running: false,
+                    end_time: now.toISOString(),
+                    duration_minutes: Math.max(1, minutes) // Mínimo 1 minuto
+                })
+                .eq('id', activeTimer.id);
+
+            if (error) throw error;
+            onRefresh();
+        } catch (error) {
+            console.error('Error stopping timer:', error);
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    const handleSaveManual = async () => {
+        const minutes = parseTimeInput(manualTime);
+        if (minutes <= 0) return;
+
+        setIsSaving(true);
+        try {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) return;
+
+            const { error } = await supabase
+                .from('time_entries')
+                .insert({
+                    card_id: cardId,
+                    user_id: user.id,
+                    duration_minutes: minutes,
+                    date: new Date().toISOString().split('T')[0]
+                });
+
+            if (error) throw error;
+            setManualTime('');
+            onRefresh();
+        } catch (error) {
+            console.error('Error saving manual time:', error);
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    // Obter nome do usuário do timer ativo
+    const activeUserName = members.find(m => m.id === activeTimer?.user_id)?.name || 'Você';
+
+    return (
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-[340px] bg-[#0d0d1a]/98 backdrop-blur-3xl border border-white/10 rounded-[24px] shadow-2xl z-[100] animate-in zoom-in-95 duration-200 overflow-hidden flex flex-col">
+            {/* Header com Botão de Fechar discreto */}
+            <div className="flex justify-between items-center px-6 pt-6 mb-2">
+                <span className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">tempo rastreado</span>
+                <button onClick={onClose} className="text-gray-500 hover:text-white transition-colors p-1 hover:bg-white/5 rounded-full">
+                    <X size={16} />
+                </button>
+            </div>
+
+            <div className={`p-6 pt-2 pb-6 relative ${isRunning ? 'bg-primary/5' : ''}`}>
+                <div className="flex justify-between items-center mb-5">
+                    <h3 className="text-white text-lg font-bold">Total</h3>
+                    <div className="bg-white/5 px-3 py-1 rounded-full border border-white/5">
+                        <span className="text-xl font-black text-white tracking-tight">{formatDuration(totalMinutes)}</span>
+                    </div>
+                </div>
+
+                {/* Área do Cronômetro Ativo */}
+                <div className="relative bg-white/[0.03] border border-white/10 rounded-2xl p-4 mb-4 group ring-1 ring-white/5 shadow-inner">
+                    <div className="flex flex-col gap-3">
+                        <div className="flex items-center justify-between">
+                            <span className="text-[10px] text-primary font-black uppercase tracking-[0.1em]">{isRunning ? `Rodando: ${activeUserName}` : 'Entrar tempo ou iniciar'}</span>
+                            {isRunning && (
+                                <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-primary/10 border border-primary/20">
+                                    <div className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+                                    <span className="text-[10px] font-bold text-primary tracking-tighter">{timerDisplay}</span>
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="flex items-center gap-3">
+                            <input
+                                value={manualTime}
+                                onChange={e => setManualTime(e.target.value)}
+                                disabled={isRunning || isSaving}
+                                placeholder="ex: 1h 30m ou use o cronômetro"
+                                className="flex-1 bg-transparent border-none text-sm text-white focus:ring-0 outline-none placeholder-gray-600 font-light"
+                            />
+                            <button
+                                onClick={isRunning ? handleStopTimer : manualTime ? handleSaveManual : handleStartTime}
+                                disabled={isSaving}
+                                className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${isRunning ? 'bg-red-500 hover:bg-red-600 shadow-lg shadow-red-500/20' : 'bg-primary hover:bg-primary/80 shadow-lg shadow-primary/20'}`}
+                            >
+                                {isSaving ? (
+                                    <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+                                ) : isRunning ? (
+                                    <div className="w-3 h-3 bg-white rounded-sm" />
+                                ) : (
+                                    <IconPlayerPlay size={20} fill="currentColor" className="ml-0.5" />
+                                )}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* Lista Histórica */}
+            <div className="flex-1 bg-black/40 border-t border-white/5 flex flex-col min-h-0 max-h-[300px]">
+                <div className="p-4 py-3 bg-white/[0.01] flex justify-between items-center">
+                    <span className="text-[9px] text-gray-600 font-black uppercase tracking-widest">HISTÓRICO</span>
+                </div>
+                <div className="flex-1 overflow-y-auto custom-scrollbar px-2 pb-4">
+                    {timeEntries.length > 0 ? (
+                        timeEntries.map(entry => (
+                            <div key={entry.id} className="group flex items-center gap-3 p-3 rounded-2xl hover:bg-white/[0.03] transition-all border border-transparent hover:border-white/5">
+                                <div className="w-8 h-8 rounded-xl bg-white/5 flex items-center justify-center text-[10px] font-bold text-gray-400 group-hover:bg-primary/20 group-hover:text-primary transition-all shrink-0">
+                                    {(entry as any).profiles?.avatar_url ? (
+                                        <img src={(entry as any).profiles.avatar_url} alt="" className="w-full h-full object-cover rounded-xl" />
+                                    ) : (
+                                        (entry as any).profiles?.full_name?.charAt(0) || 'U'
+                                    )}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                    <div className="flex items-center justify-between gap-2">
+                                        <span className="text-xs text-white font-semibold truncate group-hover:text-primary transition-colors">{(entry as any).profiles?.full_name || 'Usuário'}</span>
+                                        <span className="text-sm text-white font-black tracking-tight shrink-0">{formatDuration(entry.duration_minutes || 0)}</span>
+                                    </div>
+                                    <div className="flex items-center justify-between mt-0.5">
+                                        <span className="text-[9px] text-gray-600 font-bold">{new Date(entry.created_at).toLocaleDateString('pt-BR')}</span>
+                                        <button
+                                            onClick={() => handleDeleteTimeEntry(entry.id)}
+                                            className="opacity-0 group-hover:opacity-100 p-1 text-gray-600 hover:text-red-500 transition-all hover:bg-red-500/10 rounded-md"
+                                        >
+                                            <Trash2 size={14} />
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        ))
+                    ) : (
+                        <div className="py-12 text-center">
+                            <IconCircleDotted className="mx-auto text-gray-800 mb-2 opacity-20" size={32} />
+                            <p className="text-[9px] text-gray-700 uppercase font-black tracking-widest">Sem registros ainda</p>
+                        </div>
+                    )}
+                </div>
+            </div>
+        </div>
     );
 };
 
 export default KanbanCardModal;
+

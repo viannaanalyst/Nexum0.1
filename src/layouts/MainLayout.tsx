@@ -400,7 +400,7 @@ const MainLayout = () => {
                       </button>
                       <button onClick={() => logout()} className="w-full flex items-center space-x-3 p-3 rounded-lg text-sm text-red-400 hover:bg-red-500/5 transition-colors mt-1">
                         <IconLogout size={18} />
-                        <span>Sair do Dashboard</span>
+                        <span>Sair</span>
                       </button>
                     </div>
                   </div>

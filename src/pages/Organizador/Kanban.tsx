@@ -64,14 +64,16 @@ interface Card {
   id: string;
   column_id: string;
   title: string;
-  priority: 'low' | 'medium' | 'high' | 'urgent';
-  due_date?: string;
-  created_at: string;
-  is_blocked: boolean;
-  assigned_to?: string;
-  client_id?: string;
-  parent_id?: string;
+  description: string;
   position: number;
+  priority: 'low' | 'medium' | 'high' | 'urgent';
+  assigned_to?: string;
+  due_date?: string;
+  delivery_date?: string;
+  start_date?: string;
+  client_id?: string;
+  is_blocked: boolean;
+  parent_id?: string;
   tags?: Tag[];
 }
 
@@ -1023,20 +1025,20 @@ const KanbanCard = ({
         {...listeners}
         onClick={onClick}
         className={`
-        bg-[#1a1a2e] rounded-xl border group hover:border-primary/50 transition-all cursor-grab active:cursor-grabbing shadow-lg 
-        ${card.is_blocked ? 'border-red-500/30 bg-red-500/5' : 'border-white/10'} 
+        bg-[#13132B]/80 backdrop-blur-md rounded-2xl border border-white/5 group hover:border-primary/40 hover:bg-[#1a1a3a]/90 transition-all duration-300 cursor-grab active:cursor-grabbing shadow-[0_4px_20px_rgba(0,0,0,0.15)] hover:shadow-[0_8px_30px_rgba(99,102,241,0.15)]
+        ${card.is_blocked ? 'border-red-500/30 bg-red-500/5' : ''} 
         ${userRole === 'visualizador' ? 'cursor-pointer hover:border-white/10' : ''}
-        ${isSubtask ? 'p-3 scale-[0.98] ml-4 border-l-2 border-l-white/20' : 'p-4'}
+        ${isSubtask ? 'p-3 scale-[0.98] ml-4 border-l-2 border-l-primary/40 rounded-l-md' : 'p-4'}
       `}
       >
         {/* Tags e Bloqueio */}
-        <div className="flex justify-between items-start mb-2">
+        <div className="flex justify-between items-start mb-3">
           <div className="flex items-center gap-2">
-            <span className={`text-[10px] px-2 py-0.5 rounded font-bold uppercase ${priorityInfo.color}`}>
+            <span className={`text-[9px] px-2 py-1 rounded-md font-bold uppercase tracking-wider shadow-sm ${priorityInfo.color}`}>
               {priorityInfo.label}
             </span>
             {clientName && (
-              <span className="text-[10px] px-2 py-0.5 rounded font-bold uppercase bg-white/10 text-gray-400 max-w-[100px] truncate">
+              <span className="text-[9px] px-2 py-1 rounded-md font-bold uppercase tracking-wider bg-white/5 text-gray-400 border border-white/5 max-w-[100px] truncate shadow-sm">
                 {clientName}
               </span>
             )}
@@ -1049,24 +1051,24 @@ const KanbanCard = ({
                   e.stopPropagation();
                   onDelete();
                 }}
-                className="text-gray-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity p-1"
+                className="text-gray-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded-md hover:bg-white/5"
                 title="Excluir Card"
               >
-                <Trash2 size={14} />
+                <Trash2 size={13} />
               </button>
             )}
           </div>
         </div>
 
-        <h4 className={`text-white font-medium mb-2 line-clamp-2 ${isSubtask ? 'text-xs' : 'text-sm'}`}>{card.title}</h4>
+        <h4 className={`text-white/90 font-medium mb-3 line-clamp-2 leading-relaxed tracking-wide ${isSubtask ? 'text-xs' : 'text-sm'}`}>{card.title}</h4>
 
         {card.tags && card.tags.length > 0 && (
-          <div className="flex flex-wrap gap-1 mb-2">
+          <div className="flex flex-wrap gap-1.5 mb-3">
             {card.tags.map(tag => (
               <span
                 key={tag.id}
-                className="text-[9px] px-1.5 py-0.5 rounded font-bold border border-white/10"
-                style={{ backgroundColor: tag.color + '40', color: tag.color }}
+                className="text-[9px] px-2 py-0.5 rounded-md font-bold tracking-wide"
+                style={{ backgroundColor: tag.color + '20', color: tag.color, border: `1px solid ${tag.color}40` }}
               >
                 {tag.name}
               </span>
@@ -1074,38 +1076,29 @@ const KanbanCard = ({
           </div>
         )}
 
-        <div className={`flex flex-col gap-2 pt-2 border-t border-white/5 ${isSubtask ? 'mt-1' : 'mt-2'}`}>
-          {!isSubtask && (
-            <div className="flex items-center justify-between text-xs text-gray-500">
-              <span className="flex items-center gap-1">
-                <Calendar size={12} />
-                {new Date(card.created_at).toLocaleDateString('pt-BR')}
-              </span>
-            </div>
-          )}
+        <div className={`flex items-center justify-between pt-4 border-t border-white/5 ${isSubtask ? 'mt-2' : 'mt-4'}`}>
+          <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-bold tracking-wide transition-colors ${card.due_date ? 'text-blue-400 bg-blue-400/10 border border-blue-400/20' : 'text-gray-500 bg-white/5 border border-white/5'}`}>
+            <Calendar size={12} strokeWidth={2.5} />
+            <span>{card.due_date ? new Date(card.due_date.split('T')[0] + 'T12:00:00').toLocaleDateString('pt-BR').slice(0, 5) : 'S/ Data'}</span>
+          </div>
 
-          <div className="flex items-center justify-between text-xs">
-            <span className={`flex items-center gap-1 ${card.due_date ? 'text-gray-300' : 'text-gray-600'}`}>
-              <AlertCircle size={12} />
-              {card.due_date ? new Date(card.due_date).toLocaleDateString('pt-BR') : 'S/ Data'}
-            </span>
-
-            {/* Avatar (Mock ou Real) */}
+          {/* Avatar */}
+          <div className="flex items-center">
             {member ? (
               <div className="flex items-center gap-1" title={member.name}>
                 {member.avatar_url ? (
-                  <div className="w-6 h-6 rounded-full overflow-hidden border border-white/10">
+                  <div className="w-7 h-7 rounded-full overflow-hidden border-2 border-[#13132B] shadow-sm transform hover:scale-110 transition-transform">
                     <img src={member.avatar_url} alt={member.name} className="w-full h-full object-cover" />
                   </div>
                 ) : (
-                  <div className="w-6 h-6 rounded-full bg-indigo-500 flex items-center justify-center text-white font-bold text-[10px]">
+                  <div className="w-7 h-7 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center text-white font-bold text-[10px] border-2 border-[#13132B] shadow-sm transform hover:scale-110 transition-transform">
                     {member.name.charAt(0).toUpperCase()}
                   </div>
                 )}
               </div>
             ) : (
-              <div className="w-6 h-6 rounded-full bg-white/5 flex items-center justify-center text-gray-500 border border-white/10" title="Sem responsável">
-                <User size={12} />
+              <div className="w-7 h-7 rounded-full bg-white/5 flex items-center justify-center text-gray-400 border border-white/10 border-dashed" title="Sem responsável">
+                <User size={13} strokeWidth={2} />
               </div>
             )}
           </div>
