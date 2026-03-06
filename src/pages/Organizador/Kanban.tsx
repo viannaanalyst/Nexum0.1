@@ -871,89 +871,101 @@ const KanbanColumn = ({
     [cards]);
 
   return (
-    <div ref={setNodeRef} style={style} className="min-w-[320px] w-[320px] flex flex-col h-full">
-      {/* Header da Coluna */}
-      <div
-        {...attributes}
-        {...listeners}
-        className={`flex justify-between items-center mb-4 p-3 rounded-xl bg-white/5 border border-white/10 cursor-grab active:cursor-grabbing ${column.is_done_column ? 'border-emerald-500/30 bg-emerald-500/5' : ''}`}
-      >
-        <div className="flex items-center gap-2">
-          <div className="w-3 h-3 rounded-full" style={{ backgroundColor: column.color || '#3b82f6' }} />
-          <h3 className="font-bold text-white">{column.title}</h3>
-          <span className="bg-white/10 px-2 py-0.5 rounded text-xs text-gray-400">{cards.length}</span>
+    <div ref={setNodeRef} style={style} className={`min-w-[320px] w-[320px] flex flex-col transition-all ${isDragging ? 'opacity-50' : ''}`}>
+      <div className={`
+        flex flex-col rounded-2xl backdrop-blur-sm border border-white/5 overflow-hidden transition-all hover:brightness-110
+      `} style={{
+          backgroundColor: column.color ? `${column.color}0D` : '#16163366',
+        }}>
+        {/* Integrated Header */}
+        <div
+          {...attributes}
+          {...listeners}
+          className="flex justify-between items-center p-4 cursor-grab active:cursor-grabbing group/header"
+        >
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-[11px] font-black uppercase tracking-wider shadow-sm" style={{ backgroundColor: column.color + '20', color: column.color || '#3b82f6', border: `1px solid ${column.color}30` }}>
+              <div className="w-2 h-2 rounded-full animate-pulse" style={{ backgroundColor: column.color || '#3b82f6' }} />
+              {column.title}
+            </div>
+            <span className="text-[10px] text-gray-500 font-bold bg-white/5 px-2 py-0.5 rounded-full">{cards.length}</span>
+          </div>
+
+          <div className="flex items-center gap-1 opacity-0 group-hover/header:opacity-100 transition-opacity">
+            {userRole !== 'visualizador' && (
+              <div className="relative group">
+                <button className="text-gray-500 hover:text-white p-1 rounded-lg hover:bg-white/5 transition-colors">
+                  <MoreHorizontal size={16} />
+                </button>
+                {/* Menu de Ações da Coluna */}
+                <div className="absolute right-0 top-full mt-2 w-48 bg-[#1a1a2e]/95 backdrop-blur-md border border-white/10 rounded-xl shadow-2xl overflow-hidden z-20 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all">
+                  <div className="p-1">
+                    <button
+                      className="w-full text-left px-3 py-2 text-sm text-gray-300 hover:bg-white/5 rounded-lg flex items-center gap-2"
+                      onClick={() => onEditColumn(column)}
+                    >
+                      <Pencil size={14} /> Editar
+                    </button>
+                    {columnIndex > 0 && (
+                      <button
+                        className="w-full text-left px-3 py-2 text-sm text-gray-300 hover:bg-white/5 rounded-lg flex items-center gap-2"
+                        onClick={() => onMoveColumn(column.id, 'left')}
+                      >
+                        <ChevronLeft size={14} /> Mover para esquerda
+                      </button>
+                    )}
+                    {columnIndex < totalColumns - 1 && (
+                      <button
+                        className="w-full text-left px-3 py-2 text-sm text-gray-300 hover:bg-white/5 rounded-lg flex items-center gap-2"
+                        onClick={() => onMoveColumn(column.id, 'right')}
+                      >
+                        <ChevronRight size={14} /> Mover para direita
+                      </button>
+                    )}
+                    <div className="h-px bg-white/5 my-1" />
+                    <button
+                      className="w-full text-left px-3 py-2 text-sm text-red-400 hover:bg-red-500/10 rounded-lg flex items-center gap-2"
+                      onClick={() => onDeleteColumn(column.id)}
+                    >
+                      <Trash2 size={14} /> Excluir
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
-        <div className="flex items-center gap-1">
+
+        {/* Card List Area with Dynamic Height */}
+        <div className="px-3 pb-3 space-y-3 max-h-[calc(100vh-250px)] overflow-y-auto custom-scrollbar">
+          <SortableContext items={topLevelCards.map(c => c.id)} strategy={verticalListSortingStrategy}>
+            {topLevelCards.map(card => (
+              <KanbanCard
+                key={card.id}
+                card={card}
+                subtasks={allSubtasksMap[card.id] || []}
+                isExpanded={expandedCards[card.id] || false}
+                onToggleExpanded={() => onToggleExpanded(card.id)}
+                onClick={() => onCardClick(card)}
+                onDelete={() => onDeleteCard(card.id)}
+                clientName={card.client_id ? clientsMap[card.client_id] : undefined}
+                member={card.assigned_to ? membersMap[card.assigned_to] : undefined}
+                userRole={userRole}
+              />
+            ))}
+          </SortableContext>
+
+          {/* Add Task Button at the Bottom */}
           {userRole !== 'visualizador' && (
             <button
               onClick={() => onAddCard(column.id)}
-              className="text-gray-500 hover:text-white p-1 rounded hover:bg-white/5"
-              title="Adicionar tarefa nesta coluna"
+              className="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl border border-dashed border-white/5 text-gray-500 hover:text-primary hover:border-primary/30 hover:bg-primary/5 transition-all duration-300 text-xs mt-2 group"
             >
-              <Plus size={18} />
+              <Plus size={14} className="group-hover:rotate-90 transition-transform duration-300" />
+              <span>Adicionar Tarefa</span>
             </button>
           )}
-          {userRole !== 'visualizador' && (
-            <div className="relative group">
-              <button className="text-gray-500 hover:text-white p-1">
-                <MoreHorizontal size={18} />
-              </button>
-              {/* Menu de Ações da Coluna */}
-              <div className="absolute right-0 top-full mt-2 w-48 bg-[#1a1a2e] border border-white/10 rounded-xl shadow-xl overflow-hidden z-20 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all">
-                <div className="p-1">
-                  <button
-                    className="w-full text-left px-3 py-2 text-sm text-gray-300 hover:bg-white/5 rounded-lg flex items-center gap-2"
-                    onClick={() => onEditColumn(column)}
-                  >
-                    <Pencil size={14} /> Editar
-                  </button>
-                  {columnIndex > 0 && (
-                    <button
-                      className="w-full text-left px-3 py-2 text-sm text-gray-300 hover:bg-white/5 rounded-lg flex items-center gap-2"
-                      onClick={() => onMoveColumn(column.id, 'left')}
-                    >
-                      <ChevronLeft size={14} /> Mover para esquerda
-                    </button>
-                  )}
-                  {columnIndex < totalColumns - 1 && (
-                    <button
-                      className="w-full text-left px-3 py-2 text-sm text-gray-300 hover:bg-white/5 rounded-lg flex items-center gap-2"
-                      onClick={() => onMoveColumn(column.id, 'right')}
-                    >
-                      <ChevronRight size={14} /> Mover para direita
-                    </button>
-                  )}
-                  <button
-                    className="w-full text-left px-3 py-2 text-sm text-red-400 hover:bg-red-500/10 rounded-lg flex items-center gap-2"
-                    onClick={() => onDeleteColumn(column.id)}
-                  >
-                    <Trash2 size={14} /> Excluir
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
         </div>
-      </div>
-
-      {/* Área de Drop */}
-      <div className="flex-1 bg-white/5 rounded-2xl p-3 border border-white/5 overflow-y-auto custom-scrollbar space-y-3">
-        <SortableContext items={topLevelCards.map(c => c.id)} strategy={verticalListSortingStrategy}>
-          {topLevelCards.map(card => (
-            <KanbanCard
-              key={card.id}
-              card={card}
-              subtasks={allSubtasksMap[card.id] || []}
-              isExpanded={expandedCards[card.id] || false}
-              onToggleExpanded={() => onToggleExpanded(card.id)}
-              onClick={() => onCardClick(card)}
-              onDelete={() => onDeleteCard(card.id)}
-              clientName={card.client_id ? clientsMap[card.client_id] : undefined}
-              member={card.assigned_to ? membersMap[card.assigned_to] : undefined}
-              userRole={userRole}
-            />
-          ))}
-        </SortableContext>
       </div>
     </div>
   );
@@ -1100,34 +1112,6 @@ const KanbanCard = ({
         </div>
 
         {/* Menu de Ações do Card (Hover) */}
-        {userRole !== 'visualizador' && (
-          <div
-            className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
-            onPointerDown={(e) => e.stopPropagation()} // Impede que o clique inicie o drag
-          >
-            <div className="relative group/menu">
-              <button className="text-gray-400 hover:text-white p-1 bg-[#1a1a2e] rounded-full shadow-sm border border-white/5">
-                <MoreHorizontal size={16} />
-              </button>
-              <div className="absolute right-0 top-full mt-1 w-32 bg-[#1a1a2e] border border-white/10 rounded-lg shadow-xl overflow-hidden z-20 opacity-0 invisible group-hover/menu:opacity-100 group-hover/menu:visible transition-all">
-                <div className="p-1">
-                  <button className="w-full text-left px-3 py-2 text-xs text-gray-300 hover:bg-white/5 rounded flex items-center gap-2" onClick={onClick}>
-                    <Filter size={12} /> Editar
-                  </button>
-                  <button
-                    className="w-full text-left px-3 py-2 text-xs text-red-400 hover:bg-red-500/10 rounded flex items-center gap-2"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onDelete();
-                    }}
-                  >
-                    <Trash2 size={12} /> Excluir
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
 
         {/* Botão de Subtarefas (ClickUp Style) */}
         {!isSubtask && subtasks.length > 0 && (

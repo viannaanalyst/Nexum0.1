@@ -32,7 +32,8 @@ import {
   IconLayoutGrid,
   IconColumns,
   IconUser,
-  IconLayoutKanban
+  IconLayoutKanban,
+  IconHelpCircle
 } from '@tabler/icons-react';
 import { useAuth } from '../context/AuthContext';
 import { useCompany } from '../context/CompanyContext';
@@ -40,10 +41,12 @@ import { supabase } from '../lib/supabase';
 import UserSettingsModal from '../components/UserSettingsModal';
 import type { UserSettingsTab } from '../components/UserSettingsModal';
 import NotificationsHistoryModal from '../components/NotificationsHistoryModal';
+import { useUI } from '../context/UIContext';
 
 const MainLayout = () => {
   const { user, logout, refreshUser } = useAuth();
   const { selectedCompany, selectCompany } = useCompany();
+  const { toast } = useUI();
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -59,15 +62,10 @@ const MainLayout = () => {
   const [notificationsHistoryOpen, setNotificationsHistoryOpen] = useState(false);
   const [layoutMode, setLayoutMode] = useState<'normal' | 'no-header' | 'zen'>('normal');
   const [flyoutMenu, setFlyoutMenu] = useState<string | null>(null);
+  const [flyoutY, setFlyoutY] = useState(0);
 
   // Real notifications from database
   const [notifications, setNotifications] = useState<any[]>([]);
-
-  useEffect(() => {
-    if (user) {
-      fetchNotifications();
-    }
-  }, [user]);
 
   const fetchNotifications = async () => {
     try {
@@ -84,7 +82,42 @@ const MainLayout = () => {
     }
   };
 
-  const hasUnread = notifications.some(n => n.unread);
+  useEffect(() => {
+    if (user) {
+      fetchNotifications();
+
+      // Realtime subscription for new notifications
+      const channel = supabase
+        .channel(`user-notifications-${user.id}`)
+        .on(
+          'postgres_changes',
+          {
+            event: '*', // Listen to inserts, updates, deletes
+            schema: 'public',
+            table: 'notifications',
+            filter: `user_id=eq.${user.id}`,
+          },
+          (payload) => {
+            // If it's a new notification, show a toast
+            if (payload.eventType === 'INSERT') {
+              const newNotif = payload.new as any;
+              toast.info(newNotif.description, newNotif.title);
+            }
+
+            // Refresh notifications when anything changes
+            fetchNotifications();
+          }
+        )
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
+    }
+  }, [user]);
+
+  const unreadCount = notifications.filter(n => n.unread).length;
+  const hasUnread = unreadCount > 0;
 
   const markAsRead = async (id: string) => {
     try {
@@ -154,7 +187,7 @@ const MainLayout = () => {
   };
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[#0a0a1a] text-white font-sans">
+    <div className="flex flex-col h-screen overflow-hidden bg-[#0a0a1a] text-white font-sans">
       {/* Background Layer */}
       <div
         className="fixed inset-0 z-0 opacity-20 pointer-events-none"
@@ -165,316 +198,167 @@ const MainLayout = () => {
         }}
       ></div>
 
-      {/* Sidebar */}
-      {layoutMode !== 'zen' && (
-        <aside
-          className={`relative z-20 flex flex-col transition-all duration-300 ${sidebarOpen ? 'w-64' : 'w-20'
-            } glass-card border-r border-white/10 bg-[#0a0a1a]/80 backdrop-blur-md`}
-        >
-          {/* Logo Area */}
-          <div className="flex items-center justify-center h-20 border-b border-white/10 relative">
-            <h1 className={`text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-primary to-accent transition-all duration-300 ${!sidebarOpen && 'scale-0 w-0'
-              }`}>
-              Nexum
-            </h1>
-            {!sidebarOpen && <span className="text-2xl font-bold text-primary">N</span>}
-
-            {user?.role === 'SUPER ADMIN' && sidebarOpen && (
-              <button
-                onClick={handleBackToSuperAdmin}
-                className="absolute left-2 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-white"
-                title="Voltar para Super Admin"
-              >
-                <IconArrowLeft size={20} />
-              </button>
-            )}
-          </div>
-
-          {/* Navigation */}
-          <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-2 scrollbar-thin scrollbar-thumb-white/10">
-            <NavItem to="/atividades" icon={<IconLayoutDashboard />} label="Atividades" expanded={sidebarOpen} />
-
-            {/* Organizador with Submenu */}
-            <div className="relative">
-              <button
-                onClick={() => {
-                  if (sidebarOpen) { toggleOrganizador(); }
-                  else { setFlyoutMenu(flyoutMenu === 'organizador' ? null : 'organizador'); }
-                }}
-                className={`w-full flex items-center ${sidebarOpen ? 'justify-between' : 'justify-center'} p-3 rounded-lg transition-colors hover:bg-white/5 ${location.pathname.includes('/organizador') ? 'text-primary bg-white/5' : 'text-gray-400'
-                  }`}
-              >
-                <div className={`flex items-center ${sidebarOpen ? 'space-x-3' : ''}`}>
-                  <IconSubtask className={`w-5 h-5 ${location.pathname.includes('/organizador') ? 'text-primary glow-icon' : ''}`} />
-                  {sidebarOpen && <span>Organizador</span>}
-                </div>
-                {sidebarOpen && (
-                  organizadorOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />
-                )}
-              </button>
-
-              {/* Submenu - expanded sidebar */}
-              <div className={`overflow-hidden transition-all duration-300 ${organizadorOpen && sidebarOpen ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'
-                }`}>
-                <div className="ml-4 mt-2 space-y-1 border-l border-white/10 pl-2">
-                  <SubNavItem to="/organizador/kanban" icon={<IconLayoutKanban size={16} />} label="Kanban" />
-                  <SubNavItem to="/organizador/lista" icon={<IconList size={16} />} label="Lista" />
-                  <SubNavItem to="/organizador/historico" icon={<IconChecks size={16} />} label="Histórico" />
-                  <SubNavItem to="/organizador/cronograma" icon={<IconClock size={16} />} label="Cronograma" />
-                </div>
-              </div>
-
-              {/* Flyout - collapsed sidebar */}
-              {!sidebarOpen && flyoutMenu === 'organizador' && (
-                <>
-                  <div className="fixed inset-0 z-30" onClick={() => setFlyoutMenu(null)}></div>
-                  <div className="absolute left-full top-0 ml-2 w-52 bg-[#161635]/95 backdrop-blur-md border border-white/10 rounded-xl shadow-[0_10px_40px_rgba(0,0,0,0.7)] z-40 p-2 animate-in fade-in slide-in-from-left-2 duration-200">
-                    <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider px-3 py-2">Organizador</p>
-                    <SubNavItem to="/organizador/kanban" icon={<IconLayoutKanban size={16} />} label="Kanban" />
-                    <SubNavItem to="/organizador/lista" icon={<IconList size={16} />} label="Lista" />
-                    <SubNavItem to="/organizador/historico" icon={<IconChecks size={16} />} label="Histórico" />
-                    <SubNavItem to="/organizador/cronograma" icon={<IconClock size={16} />} label="Cronograma" />
-                  </div>
-                </>
-              )}
-            </div>
-
-            <NavItem to="/relatorios" icon={<IconRobot />} label="Relatórios IA e Agente" expanded={sidebarOpen} />
-            <NavItem to="/calendario" icon={<IconCalendar />} label="Calendário" expanded={sidebarOpen} />
-
-            {/* Financeiro with Submenu */}
-            <div className="relative">
-              <button
-                onClick={() => {
-                  if (sidebarOpen) { toggleFinanceiro(); }
-                  else { setFlyoutMenu(flyoutMenu === 'financeiro' ? null : 'financeiro'); }
-                }}
-                className={`w-full flex items-center ${sidebarOpen ? 'justify-between' : 'justify-center'} p-3 rounded-lg transition-colors hover:bg-white/5 ${location.pathname.includes('/financeiro') ? 'text-primary bg-white/5' : 'text-gray-400'
-                  }`}
-              >
-                <div className={`flex items-center ${sidebarOpen ? 'space-x-3' : ''}`}>
-                  <IconCurrencyDollar className={`w-5 h-5 ${location.pathname.includes('/financeiro') ? 'text-primary glow-icon' : ''}`} />
-                  {sidebarOpen && <span>Financeiro</span>}
-                </div>
-                {sidebarOpen && (
-                  financeiroOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />
-                )}
-              </button>
-
-              {/* Submenu - expanded sidebar */}
-              <div className={`overflow-hidden transition-all duration-300 ${financeiroOpen && sidebarOpen ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'
-                }`}>
-                <div className="ml-4 mt-2 space-y-1 border-l border-white/10 pl-2">
-                  <SubNavItem to="/financeiro/visao-geral" icon={<IconChartPie size={16} />} label="Visão Geral" />
-                  <SubNavItem to="/financeiro/lancamentos" icon={<IconReceipt size={16} />} label="Lançamentos" />
-                  <SubNavItem to="/financeiro/comissoes" icon={<IconUsers size={16} />} label="Comissões e Sócios" />
-                  <SubNavItem to="/financeiro/cobranca" icon={<IconSettings size={16} />} label="Cobrança" />
-                </div>
-              </div>
-
-              {/* Flyout - collapsed sidebar */}
-              {!sidebarOpen && flyoutMenu === 'financeiro' && (
-                <>
-                  <div className="fixed inset-0 z-30" onClick={() => setFlyoutMenu(null)}></div>
-                  <div className="absolute left-full top-0 ml-2 w-52 bg-[#161635]/95 backdrop-blur-md border border-white/10 rounded-xl shadow-[0_10px_40px_rgba(0,0,0,0.7)] z-40 p-2 animate-in fade-in slide-in-from-left-2 duration-200">
-                    <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider px-3 py-2">Financeiro</p>
-                    <SubNavItem to="/financeiro/visao-geral" icon={<IconChartPie size={16} />} label="Visão Geral" />
-                    <SubNavItem to="/financeiro/lancamentos" icon={<IconReceipt size={16} />} label="Lançamentos" />
-                    <SubNavItem to="/financeiro/comissoes" icon={<IconUsers size={16} />} label="Comissões e Sócios" />
-                    <SubNavItem to="/financeiro/cobranca" icon={<IconSettings size={16} />} label="Cobrança" />
-                  </div>
-                </>
-              )}
-            </div>
-
-            {/* Configuração with Submenu */}
-            <div className="relative">
-              <button
-                onClick={() => {
-                  if (sidebarOpen) { toggleConfig(); }
-                  else { setFlyoutMenu(flyoutMenu === 'config' ? null : 'config'); }
-                }}
-                className={`w-full flex items-center ${sidebarOpen ? 'justify-between' : 'justify-center'} p-3 rounded-lg transition-colors hover:bg-white/5 ${location.pathname.includes('/configuracao') ? 'text-primary bg-white/5' : 'text-gray-400'
-                  }`}
-              >
-                <div className={`flex items-center ${sidebarOpen ? 'space-x-3' : ''}`}>
-                  <IconSettings className={`w-5 h-5 ${location.pathname.includes('/configuracao') ? 'text-primary glow-icon' : ''}`} />
-                  {sidebarOpen && <span>Configuração</span>}
-                </div>
-                {sidebarOpen && (
-                  configOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />
-                )}
-              </button>
-
-              {/* Submenu - expanded sidebar */}
-              <div className={`overflow-hidden transition-all duration-300 ${configOpen && sidebarOpen ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'
-                }`}>
-                <div className="ml-4 mt-2 space-y-1 border-l border-white/10 pl-2">
-                  <SubNavItem to="/configuracao/empresa" icon={<IconBuilding size={16} />} label="Empresa" />
-                  <SubNavItem to="/configuracao/regras-financeiras" icon={<IconFileDescription size={16} />} label="Regras Financeiras" />
-                  <SubNavItem to="/configuracao/clientes" icon={<IconUsers size={16} />} label="Gestão de Clientes" />
-                  <SubNavItem to="/configuracao/ia-automacao" icon={<IconCpu size={16} />} label="IA e Automação" />
-                  <SubNavItem to="/configuracao/equipe" icon={<IconUserCheck size={16} />} label="Equipe" />
-                  <SubNavItem to="/configuracao/kanban" icon={<IconColumns size={16} />} label="Kanban" />
-                </div>
-              </div>
-
-              {/* Flyout - collapsed sidebar */}
-              {!sidebarOpen && flyoutMenu === 'config' && (
-                <>
-                  <div className="fixed inset-0 z-30" onClick={() => setFlyoutMenu(null)}></div>
-                  <div className="absolute left-full top-0 ml-2 w-52 bg-[#161635]/95 backdrop-blur-md border border-white/10 rounded-xl shadow-[0_10px_40px_rgba(0,0,0,0.7)] z-40 p-2 animate-in fade-in slide-in-from-left-2 duration-200">
-                    <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider px-3 py-2">Configuração</p>
-                    <SubNavItem to="/configuracao/empresa" icon={<IconBuilding size={16} />} label="Empresa" />
-                    <SubNavItem to="/configuracao/regras-financeiras" icon={<IconFileDescription size={16} />} label="Regras Financeiras" />
-                    <SubNavItem to="/configuracao/clientes" icon={<IconUsers size={16} />} label="Gestão de Clientes" />
-                    <SubNavItem to="/configuracao/ia-automacao" icon={<IconCpu size={16} />} label="IA e Automação" />
-                    <SubNavItem to="/configuracao/equipe" icon={<IconUserCheck size={16} />} label="Equipe" />
-                    <SubNavItem to="/configuracao/kanban" icon={<IconColumns size={16} />} label="Kanban" />
-                  </div>
-                </>
-              )}
-            </div>
-          </nav>
-        </aside>
-      )}
-
-      {/* Main Content */}
-      <div className="flex-1 flex flex-col relative z-10 overflow-hidden">
-        {/* Header */}
-        {layoutMode === 'normal' && (
-          <header className="h-20 glass-card border-b border-white/10 flex items-center justify-between px-8 bg-[#0a0a1a]/50 backdrop-blur-md relative z-50">
-            <div className="flex items-center space-x-4">
-              <button onClick={toggleSidebar} className="text-gray-400 hover:text-white transition-colors">
+      {/* Full-width Header */}
+      {layoutMode === 'normal' && (
+        <header className="h-[52px] glass-card border-b border-white/10 flex items-center justify-between px-6 bg-[#0a0a1a]/80 backdrop-blur-md relative z-50 shrink-0">
+          <div className="flex items-center space-x-6">
+            {/* Logo Area */}
+            <div className="flex items-center space-x-3">
+              <h1 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-primary to-accent">
+                Nexum
+              </h1>
+              <button onClick={toggleSidebar} className="text-gray-400 hover:text-white transition-colors ml-2">
                 <IconMenu2 size={24} />
               </button>
-              <div className="relative hidden md:block">
-                <IconSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 w-4 h-4" />
-                <input
-                  type="text"
-                  placeholder="Pesquisar..."
-                  className="bg-white/5 border border-white/10 rounded-full py-2 pl-10 pr-4 text-sm text-white focus:outline-none focus:ring-1 focus:ring-primary w-64 placeholder-gray-500"
-                />
+            </div>
+          </div>
+
+          <div className="flex items-center space-x-4">
+            {/* Search Bar - Moved to the right */}
+            <div className="relative hidden md:block">
+              <IconSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 w-3.5 h-3.5" />
+              <input
+                type="text"
+                placeholder="Pesquisar..."
+                className="bg-white/[0.03] border border-white/10 rounded-full py-1.5 pl-9 pr-14 text-[11px] text-white focus:outline-none focus:ring-1 focus:ring-primary/50 w-36 placeholder-gray-600 transition-all focus:w-48 hover:bg-white/5"
+              />
+              <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center space-x-1 px-1.5 py-0.5 rounded border border-white/20 bg-white/10 pointer-events-none">
+                <span className="text-[8px] font-black text-gray-400 uppercase tracking-tight">Ctrl</span>
+                <span className="text-[9px] font-black text-white">K</span>
               </div>
             </div>
 
-            <div className="flex items-center space-x-6 relative">
-              <div className="relative">
-                <button
-                  onClick={() => setNotificationsOpen(!notificationsOpen)}
-                  className="relative text-gray-400 hover:text-white transition-colors p-2 rounded-lg hover:bg-white/5"
-                >
-                  <IconBell size={20} />
-                  {hasUnread && (
-                    <span className="absolute top-2 right-2 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-[#0a0a1a] animate-pulse"></span>
-                  )}
-                </button>
+            {/* Notifications Button */}
+            <div className="relative">
+              <button
+                onClick={() => setNotificationsOpen(!notificationsOpen)}
+                className="relative text-gray-400 hover:text-white transition-all p-2 rounded-full border border-white/5 hover:bg-white/10 hover:border-white/20 w-[34px] h-[34px] flex items-center justify-center"
+              >
+                <IconBell size={18} stroke={1.5} />
+                {hasUnread && (
+                  <span className="absolute top-0 right-0 min-w-[16px] h-[16px] px-1 bg-red-500 rounded-full border border-[#0a0a1a] flex items-center justify-center text-[9px] font-bold text-white shadow-lg shadow-red-500/40 animate-pulse">
+                    {unreadCount > 9 ? '+9' : unreadCount}
+                  </span>
+                )}
+              </button>
 
-                {/* Notifications Dropdown */}
-                {notificationsOpen && (
-                  <>
-                    <div className="fixed inset-0 z-[60]" onClick={() => setNotificationsOpen(false)}></div>
-                    <div className="absolute right-0 top-full mt-2 w-80 border border-white/10 bg-[#161635]/95 backdrop-blur-md shadow-[0_10px_40px_rgba(0,0,0,0.7)] z-[70] rounded-xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
-                      <div className="p-4 border-b border-white/10 flex items-center justify-between bg-white/[0.02]">
-                        <h3 className="text-sm font-bold text-white">Notificações</h3>
-                        {hasUnread && (
-                          <button
-                            onClick={markAllAsRead}
-                            className="text-[10px] font-bold text-primary hover:text-primary-hover transition-colors uppercase tracking-wider"
-                          >
-                            Ler todas
-                          </button>
-                        )}
+              {/* Notifications Dropdown */}
+              {notificationsOpen && (
+                <>
+                  <div className="fixed inset-0 z-[60]" onClick={() => setNotificationsOpen(false)}></div>
+                  <div className="absolute right-0 top-full mt-2 w-[380px] border border-white/10 bg-[#0a0a1a]/90 backdrop-blur-xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] z-[70] rounded-2xl overflow-hidden animate-in fade-in slide-in-from-top-4 duration-300">
+
+                    {/* Gradient Header */}
+                    <div className="p-5 border-b border-white/10 flex items-center justify-between bg-gradient-to-r from-primary/10 to-transparent">
+                      <div>
+                        <h3 className="text-sm font-bold text-white mb-0.5">Notificações</h3>
+                        <p className="text-[10px] text-gray-500 font-medium">Você tem {unreadCount} mensagens não lidas</p>
                       </div>
+                      {hasUnread && (
+                        <button
+                          onClick={markAllAsRead}
+                          className="px-3 py-1.5 rounded-lg bg-primary/10 hover:bg-primary/20 text-[10px] font-bold text-primary transition-all uppercase tracking-wider border border-primary/20"
+                        >
+                          Ler todas
+                        </button>
+                      )}
+                    </div>
 
-                      <div className="max-h-[400px] overflow-y-auto scrollbar-thin scrollbar-thumb-white/10">
-                        {notifications.length > 0 ? (
-                          <div className="divide-y divide-white/5">
-                            {notifications.map((notification) => (
-                              <div
-                                key={notification.id}
-                                onClick={() => markAsRead(notification.id)}
-                                className={`p-4 hover:bg-white/5 transition-colors cursor-pointer group relative ${notification.unread ? 'bg-primary/5' : ''}`}
-                              >
-                                {notification.unread && (
-                                  <div className="absolute left-0 top-0 bottom-0 w-1 bg-primary"></div>
-                                )}
-                                <div className="flex justify-between items-start mb-1">
-                                  <p className={`text-xs font-bold ${notification.unread ? 'text-white' : 'text-gray-300'}`}>
+                    <div className="max-h-[450px] overflow-y-auto scrollbar-thin scrollbar-thumb-white/10">
+                      {notifications.length > 0 ? (
+                        <div className="divide-y divide-white/5">
+                          {notifications.map((notification) => (
+                            <div
+                              key={notification.id}
+                              onClick={() => markAsRead(notification.id)}
+                              className={`p-5 hover:bg-white/[0.03] transition-all cursor-pointer group relative ${notification.unread ? 'bg-primary/5' : ''}`}
+                            >
+                              {notification.unread && (
+                                <div className="absolute left-0 top-0 bottom-0 w-1 bg-primary"></div>
+                              )}
+                              <div className="flex justify-between items-start mb-2">
+                                <div className="flex items-center space-x-2">
+                                  <div className={`p-1.5 rounded-lg ${notification.unread ? 'bg-primary/20 text-primary' : 'bg-white/5 text-gray-500'}`}>
+                                    <IconBell size={14} />
+                                  </div>
+                                  <p className={`text-xs font-bold transition-colors ${notification.unread ? 'text-white' : 'text-gray-400'}`}>
                                     {notification.title}
                                   </p>
-                                  <span className="text-[10px] text-gray-500 whitespace-nowrap ml-2">
-                                    {new Date(notification.created_at).toLocaleDateString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-                                  </span>
                                 </div>
-                                <p className="text-[11px] text-gray-400 leading-relaxed line-clamp-2 group-hover:text-gray-300 transition-colors">
-                                  {notification.description}
-                                </p>
+                                <span className="text-[10px] text-gray-500 font-medium bg-white/5 px-2 py-0.5 rounded-full">
+                                  {new Date(notification.created_at).toLocaleDateString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                                </span>
                               </div>
-                            ))}
-                          </div>
-                        ) : (
-                          <div className="p-8 text-center">
-                            <div className="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center mx-auto mb-3">
-                              <IconBell size={20} className="text-gray-600" />
+                              <p className="text-[11px] text-gray-400 leading-relaxed pl-8 group-hover:text-gray-300 transition-colors">
+                                {notification.description}
+                              </p>
                             </div>
-                            <p className="text-xs text-gray-500">Nenhuma notificação por aqui.</p>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="p-10 text-center">
+                          <div className="w-16 h-16 rounded-2xl bg-white/[0.02] border border-white/5 flex items-center justify-center mx-auto mb-4 text-gray-700">
+                            <IconBell size={28} />
                           </div>
-                        )}
-                      </div>
-
-                      <div className="p-3 border-t border-white/10 bg-white/[0.02] text-center">
-                        <button
-                          onClick={() => {
-                            setNotificationsHistoryOpen(true);
-                            setNotificationsOpen(false);
-                          }}
-                          className="text-[10px] font-bold text-gray-400 hover:text-white transition-colors uppercase tracking-widest w-full py-1"
-                        >
-                          Ver todo o histórico
-                        </button>
-                      </div>
+                          <h4 className="text-sm font-medium text-gray-400 mb-1">Tudo limpo por aqui!</h4>
+                          <p className="text-[11px] text-gray-500 max-w-[200px] mx-auto">Você não tem novas notificações no momento.</p>
+                        </div>
+                      )}
                     </div>
-                  </>
-                )}
-              </div>
 
-              {/* User Trigger */}
-              <div className="flex items-center space-x-3">
-                <button
-                  onClick={() => setUserMenuOpen(!userMenuOpen)}
-                  className="w-10 h-10 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center text-white font-bold shadow-lg shadow-primary/30 shrink-0 hover:scale-105 transition-transform overflow-hidden"
-                >
-                  {user?.avatar_url ? (
-                    <img src={user.avatar_url} alt="Profile" className="w-full h-full object-cover" />
-                  ) : (
-                    user?.name.charAt(0) || 'A'
-                  )}
-                </button>
-              </div>
+                    <div className="p-4 border-t border-white/10 bg-white/[0.01]">
+                      <button
+                        onClick={() => {
+                          setNotificationsHistoryOpen(true);
+                          setNotificationsOpen(false);
+                        }}
+                        className="w-full flex items-center justify-center space-x-2 py-2.5 rounded-xl border border-white/5 bg-white/5 hover:bg-white/10 text-[10px] font-bold text-gray-300 hover:text-white transition-all uppercase tracking-widest"
+                      >
+                        <span>Ver histórico completo</span>
+                        <ChevronRight size={14} />
+                      </button>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Help Icon */}
+            <button
+              className="text-gray-400 hover:text-white transition-all p-2 rounded-full border border-white/5 hover:bg-white/10 hover:border-white/20 w-[34px] h-[34px] flex items-center justify-center shrink-0"
+              title="Ajuda e Suporte"
+            >
+              <IconHelpCircle size={18} stroke={1.5} />
+            </button>
+
+            {/* User Avatar & Menu */}
+            <div className="relative">
+              <button
+                onClick={() => setUserMenuOpen(!userMenuOpen)}
+                className="w-[38px] h-[38px] rounded-full ring-1 ring-white/10 bg-gradient-to-br from-primary to-accent flex items-center justify-center text-[10px] text-white font-bold shadow-[0_4px_12px_rgba(0,0,0,0.3)] shrink-0 hover:scale-105 transition-transform overflow-hidden"
+              >
+                {user?.avatar_url ? (
+                  <img
+                    src={user.avatar_url}
+                    alt="Profile"
+                    className="w-full h-full object-cover select-none"
+                    style={{ imageRendering: '-webkit-optimize-contrast' }}
+                  />
+                ) : (
+                  user?.name.charAt(0) || 'A'
+                )}
+              </button>
 
               {/* User Dropdown Menu */}
               {userMenuOpen && (
                 <>
-                  {/* Backdrop to close menu */}
-                  <div
-                    className="fixed inset-0 z-[60]"
-                    onClick={() => setUserMenuOpen(false)}
-                  ></div>
-
+                  <div className="fixed inset-0 z-[60]" onClick={() => setUserMenuOpen(false)}></div>
                   <div className="absolute right-0 top-full mt-2 w-72 border border-white/10 bg-[#161635]/95 backdrop-blur-md shadow-[0_10px_40px_rgba(0,0,0,0.7)] z-[70] rounded-xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
-                    {/* User Info Section */}
                     <div className="p-4 border-b border-white/10">
                       <p className="text-sm font-bold text-white truncate">{user?.name}</p>
                       <p className="text-xs text-gray-400 truncate mb-1">{user?.email}</p>
                       {selectedCompany && (
                         <p className="text-[10px] text-gray-500 uppercase tracking-wider font-bold">{selectedCompany.name}</p>
-                      )}
-                      {user?.role === 'SUPER ADMIN' && selectedCompany && (
-                        <div className="mt-2 p-2 rounded bg-primary/10 border border-primary/20">
-                          <p className="text-[10px] text-primary uppercase font-bold">Gerenciando</p>
-                          <p className="text-xs text-white truncate">{selectedCompany.name}</p>
-                        </div>
                       )}
                     </div>
 
@@ -505,57 +389,214 @@ const MainLayout = () => {
                       </div>
                     </div>
 
-                    {/* Action Menu */}
                     <div className="p-2">
-                      <button
-                        onClick={() => openUserSettings('profile')}
-                        className="w-full flex items-center space-x-3 p-3 rounded-lg text-sm text-gray-300 hover:bg-white/5 hover:text-white transition-colors"
-                      >
+                      <button onClick={() => openUserSettings('profile')} className="w-full flex items-center space-x-3 p-3 rounded-lg text-sm text-gray-300 hover:bg-white/5 hover:text-white transition-colors">
                         <IconUser size={18} className="text-gray-500" />
                         <span>Meu Perfil</span>
                       </button>
-
-                      <button
-                        onClick={() => openUserSettings('settings')}
-                        className="w-full flex items-center space-x-3 p-3 rounded-lg text-sm text-gray-300 hover:bg-white/5 hover:text-white transition-colors"
-                      >
+                      <button onClick={() => openUserSettings('settings')} className="w-full flex items-center space-x-3 p-3 rounded-lg text-sm text-gray-300 hover:bg-white/5 hover:text-white transition-colors">
                         <IconSettings size={18} className="text-gray-500" />
                         <span>Configurações</span>
                       </button>
-
-                      <button
-                        onClick={() => openUserSettings('preferences')}
-                        className="w-full flex items-center justify-between p-3 rounded-lg text-sm text-gray-300 hover:bg-white/5 hover:text-white transition-colors"
-                      >
-                        <div className="flex items-center space-x-3">
-                          <IconBell size={18} className="text-gray-500" />
-                          <div className="text-left">
-                            <span>Preferências</span>
-                            <p className="text-[10px] text-gray-500">Notificações</p>
-                          </div>
-                        </div>
-                      </button>
-
-                      <div className="my-1 border-t border-white/5"></div>
-
-                      <button
-                        onClick={logout}
-                        className="w-full flex items-center space-x-3 p-3 rounded-lg text-sm text-red-400 hover:bg-red-400/10 transition-colors"
-                      >
+                      <button onClick={() => logout()} className="w-full flex items-center space-x-3 p-3 rounded-lg text-sm text-red-400 hover:bg-red-500/5 transition-colors mt-1">
                         <IconLogout size={18} />
-                        <span>Sair</span>
+                        <span>Sair do Dashboard</span>
                       </button>
                     </div>
                   </div>
                 </>
               )}
             </div>
-          </header>
+          </div>
+        </header>
+      )}
+
+      {/* Main Body (Sidebar + Content) */}
+      <div className="flex flex-1 overflow-hidden relative z-10">
+        {/* Sidebar */}
+        {layoutMode !== 'zen' && (
+          <aside
+            className={`relative z-20 flex flex-col transition-all duration-300 ${sidebarOpen ? 'w-56' : 'w-14'
+              } glass-card border-r border-white/10 bg-[#0a0a1a]/80 backdrop-blur-md`}
+          >
+            {/* Navigation */}
+            <nav className={`flex-1 overflow-y-auto py-4 ${sidebarOpen ? 'px-3' : 'px-2'} space-y-2 scrollbar-thin scrollbar-thumb-white/10`}>
+              <NavItem to="/atividades" icon={<IconLayoutDashboard />} label="Atividades" expanded={sidebarOpen} />
+
+              {/* Organizador with Submenu */}
+              <div className="relative">
+                <button
+                  onClick={(e) => {
+                    if (sidebarOpen) { toggleOrganizador(); }
+                    else {
+                      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                      setFlyoutY(rect.top);
+                      setFlyoutMenu(flyoutMenu === 'organizador' ? null : 'organizador');
+                    }
+                  }}
+                  className={`w-full flex items-center ${sidebarOpen ? 'justify-between' : 'justify-center'} p-3 rounded-2xl transition-all duration-300 group ${location.pathname.includes('/organizador')
+                    ? 'text-primary bg-primary/5 shadow-[0_4px_12px_rgba(0,0,0,0.1)]'
+                    : 'text-gray-400 hover:bg-white/5 hover:text-white'
+                    }`}
+                >
+                  <div className={`flex items-center ${sidebarOpen ? 'space-x-3' : 'justify-center'}`}>
+                    <IconSubtask className={`w-5 h-5 transition-transform duration-300 group-hover:scale-110 ${location.pathname.includes('/organizador') ? 'text-primary' : ''}`} />
+                    {sidebarOpen && <span className="font-medium">Organizador</span>}
+                  </div>
+                  {sidebarOpen && (
+                    <div className="transition-transform duration-300">
+                      {organizadorOpen ? <ChevronDown size={14} className="opacity-50" /> : <ChevronRight size={14} className="opacity-50" />}
+                    </div>
+                  )}
+                </button>
+
+                {/* Submenu - expanded sidebar */}
+                <div className={`overflow-hidden transition-all duration-300 ${organizadorOpen && sidebarOpen ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'
+                  }`}>
+                  <div className="ml-4 mt-2 space-y-1 border-l border-white/10 pl-2">
+                    <SubNavItem to="/organizador/kanban" icon={<IconLayoutKanban size={16} />} label="Kanban" />
+                    <SubNavItem to="/organizador/lista" icon={<IconList size={16} />} label="Lista" />
+                    <SubNavItem to="/organizador/historico" icon={<IconChecks size={16} />} label="Histórico" />
+                    <SubNavItem to="/organizador/cronograma" icon={<IconClock size={16} />} label="Cronograma" />
+                  </div>
+                </div>
+
+                {/* Flyout - collapsed sidebar */}
+                {!sidebarOpen && flyoutMenu === 'organizador' && (
+                  <>
+                    <div className="fixed inset-0 z-[80]" onClick={() => setFlyoutMenu(null)}></div>
+                    <div style={{ top: flyoutY - 44, left: '4.5rem' }} className="fixed w-52 bg-[#161635]/95 backdrop-blur-md border border-white/10 rounded-2xl shadow-[0_10px_40px_rgba(0,0,0,0.7)] z-[90] p-2 animate-in fade-in slide-in-from-left-2 duration-200">
+                      <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider px-3 py-2">Organizador</p>
+                      <SubNavItem to="/organizador/kanban" icon={<IconLayoutKanban size={16} />} label="Kanban" />
+                      <SubNavItem to="/organizador/lista" icon={<IconList size={16} />} label="Lista" />
+                      <SubNavItem to="/organizador/historico" icon={<IconChecks size={16} />} label="Histórico" />
+                      <SubNavItem to="/organizador/cronograma" icon={<IconClock size={16} />} label="Cronograma" />
+                    </div>
+                  </>
+                )}
+              </div>
+
+              <NavItem to="/relatorios" icon={<IconRobot />} label="Relatórios IA e Agente" expanded={sidebarOpen} />
+              <NavItem to="/calendario" icon={<IconCalendar />} label="Calendário" expanded={sidebarOpen} />
+
+              {/* Financeiro with Submenu */}
+              <div className="relative">
+                <button
+                  onClick={(e) => {
+                    if (sidebarOpen) { toggleFinanceiro(); }
+                    else {
+                      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                      setFlyoutY(rect.top);
+                      setFlyoutMenu(flyoutMenu === 'financeiro' ? null : 'financeiro');
+                    }
+                  }}
+                  className={`w-full flex items-center ${sidebarOpen ? 'justify-between' : 'justify-center'} p-3 rounded-2xl transition-all duration-300 group ${location.pathname.includes('/financeiro')
+                    ? 'text-primary bg-primary/5 shadow-[0_4px_12px_rgba(0,0,0,0.1)]'
+                    : 'text-gray-400 hover:bg-white/5 hover:text-white'
+                    }`}
+                >
+                  <div className={`flex items-center ${sidebarOpen ? 'space-x-3' : 'justify-center'}`}>
+                    <IconCurrencyDollar className={`w-5 h-5 transition-transform duration-300 group-hover:scale-110 ${location.pathname.includes('/financeiro') ? 'text-primary' : ''}`} />
+                    {sidebarOpen && <span className="font-medium">Financeiro</span>}
+                  </div>
+                  {sidebarOpen && (
+                    <div className="transition-transform duration-300">
+                      {financeiroOpen ? <ChevronDown size={14} className="opacity-50" /> : <ChevronRight size={14} className="opacity-50" />}
+                    </div>
+                  )}
+                </button>
+
+                {/* Submenu - expanded sidebar */}
+                <div className={`overflow-hidden transition-all duration-300 ${financeiroOpen && sidebarOpen ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'
+                  }`}>
+                  <div className="ml-4 mt-2 space-y-1 border-l border-white/10 pl-2">
+                    <SubNavItem to="/financeiro/visao-geral" icon={<IconChartPie size={16} />} label="Visão Geral" />
+                    <SubNavItem to="/financeiro/lancamentos" icon={<IconReceipt size={16} />} label="Lançamentos" />
+                    <SubNavItem to="/financeiro/comissoes" icon={<IconUsers size={16} />} label="Comissões e Sócios" />
+                    <SubNavItem to="/financeiro/cobranca" icon={<IconSettings size={16} />} label="Cobrança" />
+                  </div>
+                </div>
+
+                {/* Flyout - collapsed sidebar */}
+                {!sidebarOpen && flyoutMenu === 'financeiro' && (
+                  <>
+                    <div className="fixed inset-0 z-[80]" onClick={() => setFlyoutMenu(null)}></div>
+                    <div style={{ top: flyoutY - 44, left: '4.5rem' }} className="fixed w-52 bg-[#161635]/95 backdrop-blur-md border border-white/10 rounded-2xl shadow-[0_10px_40px_rgba(0,0,0,0.7)] z-[90] p-2 animate-in fade-in slide-in-from-left-2 duration-200">
+                      <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider px-3 py-2">Financeiro</p>
+                      <SubNavItem to="/financeiro/visao-geral" icon={<IconChartPie size={16} />} label="Visão Geral" />
+                      <SubNavItem to="/financeiro/lancamentos" icon={<IconReceipt size={16} />} label="Lançamentos" />
+                      <SubNavItem to="/financeiro/comissoes" icon={<IconUsers size={16} />} label="Comissões e Sócios" />
+                      <SubNavItem to="/financeiro/cobranca" icon={<IconSettings size={16} />} label="Cobrança" />
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {/* Configuração with Submenu */}
+              <div className="relative">
+                <button
+                  onClick={(e) => {
+                    if (sidebarOpen) { toggleConfig(); }
+                    else {
+                      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                      setFlyoutY(rect.top);
+                      setFlyoutMenu(flyoutMenu === 'config' ? null : 'config');
+                    }
+                  }}
+                  className={`w-full flex items-center ${sidebarOpen ? 'justify-between' : 'justify-center'} p-3 rounded-2xl transition-all duration-300 group ${location.pathname.includes('/configuracao')
+                    ? 'text-primary bg-primary/5 shadow-[0_4px_12px_rgba(0,0,0,0.1)]'
+                    : 'text-gray-400 hover:bg-white/5 hover:text-white'
+                    }`}
+                >
+                  <div className={`flex items-center ${sidebarOpen ? 'space-x-3' : 'justify-center'}`}>
+                    <IconSettings className={`w-5 h-5 transition-transform duration-300 group-hover:scale-110 ${location.pathname.includes('/configuracao') ? 'text-primary' : ''}`} />
+                    {sidebarOpen && <span className="font-medium">Configuração</span>}
+                  </div>
+                  {sidebarOpen && (
+                    <div className="transition-transform duration-300">
+                      {configOpen ? <ChevronDown size={14} className="opacity-50" /> : <ChevronRight size={14} className="opacity-50" />}
+                    </div>
+                  )}
+                </button>
+
+                {/* Submenu - expanded sidebar */}
+                <div className={`overflow-hidden transition-all duration-300 ${configOpen && sidebarOpen ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'
+                  }`}>
+                  <div className="ml-4 mt-2 space-y-1 border-l border-white/10 pl-2">
+                    <SubNavItem to="/configuracao/empresa" icon={<IconBuilding size={16} />} label="Empresa" />
+                    <SubNavItem to="/configuracao/regras-financeiras" icon={<IconFileDescription size={16} />} label="Regras Financeiras" />
+                    <SubNavItem to="/configuracao/clientes" icon={<IconUsers size={16} />} label="Gestão de Clientes" />
+                    <SubNavItem to="/configuracao/ia-automacao" icon={<IconCpu size={16} />} label="IA e Automação" />
+                    <SubNavItem to="/configuracao/equipe" icon={<IconUserCheck size={16} />} label="Equipe" />
+                    <SubNavItem to="/configuracao/kanban" icon={<IconColumns size={16} />} label="Kanban" />
+                  </div>
+                </div>
+
+                {/* Flyout - collapsed sidebar */}
+                {!sidebarOpen && flyoutMenu === 'config' && (
+                  <>
+                    <div className="fixed inset-0 z-[80]" onClick={() => setFlyoutMenu(null)}></div>
+                    <div style={{ top: flyoutY - 44, left: '4.5rem' }} className="fixed w-52 bg-[#161635]/95 backdrop-blur-md border border-white/10 rounded-2xl shadow-[0_10px_40px_rgba(0,0,0,0.7)] z-[90] p-2 animate-in fade-in slide-in-from-left-2 duration-200">
+                      <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider px-3 py-2">Configuração</p>
+                      <SubNavItem to="/configuracao/empresa" icon={<IconBuilding size={16} />} label="Empresa" />
+                      <SubNavItem to="/configuracao/regras-financeiras" icon={<IconFileDescription size={16} />} label="Regras Financeiras" />
+                      <SubNavItem to="/configuracao/clientes" icon={<IconUsers size={16} />} label="Gestão de Clientes" />
+                      <SubNavItem to="/configuracao/ia-automacao" icon={<IconCpu size={16} />} label="IA e Automação" />
+                      <SubNavItem to="/configuracao/equipe" icon={<IconUserCheck size={16} />} label="Equipe" />
+                      <SubNavItem to="/configuracao/kanban" icon={<IconColumns size={16} />} label="Kanban" />
+                    </div>
+                  </>
+                )}
+              </div>
+            </nav>
+          </aside>
         )}
 
-        {/* Content Scrollable Area */}
-        <main className="flex-1 overflow-y-auto p-8 scrollbar-thin scrollbar-thumb-white/10">
-          <Outlet />
+        {/* Main Content Area */}
+        <main className="flex-1 overflow-hidden relative flex flex-col">
+          <div className="flex-1 overflow-y-auto p-4 md:p-8 scrollbar-thin scrollbar-thumb-white/10">
+            <Outlet />
+          </div>
         </main>
       </div>
 
@@ -595,18 +636,22 @@ const NavItem = ({ to, icon, label, expanded }: { to: string, icon: React.ReactN
     <NavLink
       to={to}
       className={({ isActive }) =>
-        `flex items-center space-x-3 p-3 rounded-lg transition-all duration-200 ${isActive
-          ? 'bg-primary/10 text-primary border-l-2 border-primary shadow-[0_0_15px_rgba(99,102,241,0.3)]'
-          : 'text-gray-400 hover:bg-white/5 hover:text-white'
+        `flex items-center p-3 rounded-2xl transition-all duration-300 group relative ${expanded ? 'space-x-3' : 'justify-center'} ${isActive
+          ? 'bg-primary/5 text-primary shadow-[0_4px_12px_rgba(0,0,0,0.1)]'
+          : 'text-gray-400 hover:bg-white/5 hover:text-white hover:translate-x-1'
         }`
       }
     >
-      <span className={expanded ? "" : "mx-auto"}>
-        {React.cloneElement(icon as any, {
-          className: `w-5 h-5 ${expanded ? '' : ''}` // Could add classes if active
-        })}
-      </span>
-      {expanded && <span>{label}</span>}
+      {({ isActive }) => (
+        <>
+          <div className={`transition-transform duration-300 group-hover:scale-110 ${isActive ? 'text-primary' : ''}`}>
+            {React.cloneElement(icon as any, {
+              className: `w-5 h-5`
+            })}
+          </div>
+          {expanded && <span className="font-medium">{label}</span>}
+        </>
+      )}
     </NavLink>
   );
 };

@@ -34,6 +34,9 @@ interface DashboardContextType {
   upcomingDeadlines: PriorityTask[];
   completedTasksToday: string[];
   loading: boolean;
+  filterRange: number;
+  setFilterRange: (days: number) => void;
+  userProfile: { full_name: string | null } | null;
   refreshDashboard: () => Promise<void>;
   lastUpdated: Date | null;
 }
@@ -54,22 +57,37 @@ export const DashboardProvider = ({ children }: { children: ReactNode }) => {
   const [productivityData, setProductivityData] = useState<ProductivityData[]>([]);
   const [upcomingDeadlines, setUpcomingDeadlines] = useState<PriorityTask[]>([]);
   const [completedTasksToday, setCompletedTasksToday] = useState<string[]>([]);
-  
+
   const [loading, setLoading] = useState(false); // Initial load
+  const [userProfile, setUserProfile] = useState<{ full_name: string | null } | null>(null);
+  const [filterRange, setFilterRange] = useState(7);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const lastCompanyIdRef = React.useRef<string | null>(null);
+  const lastRangeRef = React.useRef<number>(7);
 
   const fetchDashboardData = async (force = false) => {
     if (!selectedCompany || !user) return;
-    
-    // Cache strategy: If data exists and is less than 5 minutes old, don't fetch unless forced
-    if (!force && lastUpdated && (new Date().getTime() - lastUpdated.getTime() < 5 * 60 * 1000)) {
-        return; 
+
+    // Cache strategy: If data exists and is less than 5 minutes old, don't fetch unless forced or range changed
+    const rangeChanged = filterRange !== lastRangeRef.current;
+    if (!force && !rangeChanged && lastUpdated && (new Date().getTime() - lastUpdated.getTime() < 5 * 60 * 1000)) {
+      return;
     }
+
+    lastRangeRef.current = filterRange;
 
     setLoading(true);
 
     try {
+      // 0. Fetch User Profile for name
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('full_name')
+        .eq('id', user.id)
+        .single();
+
+      setUserProfile(profile);
+
       // 1. Efficiency Metrics
       const { data: allCards, error: cardsError } = await supabase
         .from('kanban_cards')
@@ -88,20 +106,20 @@ export const DashboardProvider = ({ children }: { children: ReactNode }) => {
       if (cardsError) throw cardsError;
 
       const totalAssigned = allCards?.length || 0;
-      
-      const doneCards = allCards?.filter((c: any) => 
-          c.column?.is_done_column === true || 
-          c.column?.title?.toLowerCase().includes('conclu') || 
-          c.column?.title?.toLowerCase().includes('done')
+
+      const doneCards = allCards?.filter((c: any) =>
+        c.column?.is_done_column === true ||
+        c.column?.title?.toLowerCase().includes('conclu') ||
+        c.column?.title?.toLowerCase().includes('done')
       ) || [];
-      
+
       const totalCompleted = doneCards.length;
       const efficiency = totalAssigned > 0 ? Math.round((totalCompleted / totalAssigned) * 100) : 0;
 
       // Completed Today
       const today = new Date();
       const completedTodayList = doneCards.filter((c: any) => isSameDay(parseISO(c.updated_at), today));
-      
+
       setMetrics({
         totalAssigned,
         totalCompleted,
@@ -111,41 +129,41 @@ export const DashboardProvider = ({ children }: { children: ReactNode }) => {
       setCompletedTasksToday(completedTodayList.map((c: any) => c.title));
 
       // 2. Priority Tasks (Pending)
-      const pendingPriority = allCards?.filter((c: any) => 
-        (c.priority === 'high' || c.priority === 'urgent') && 
+      const pendingPriority = allCards?.filter((c: any) =>
+        (c.priority === 'high' || c.priority === 'urgent') &&
         !doneCards.includes(c)
       ) || [];
       setPriorityTasks(pendingPriority.slice(0, 5) as any);
 
       // 3. Productivity Chart (Audit Logs)
-      const sevenDaysAgo = new Date();
-      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
-      
+      const rangeDate = new Date();
+      rangeDate.setDate(rangeDate.getDate() - (filterRange - 1));
+
       const { data: logs } = await supabase
         .from('audit_logs')
         .select('created_at')
         .eq('company_id', selectedCompany.id)
         .eq('user_id', user.id)
-        .gte('created_at', sevenDaysAgo.toISOString());
+        .gte('created_at', rangeDate.toISOString());
 
       const chartDataMap: Record<string, number> = {};
-      for (let i = 0; i < 7; i++) {
-          const d = new Date();
-          d.setDate(d.getDate() - i);
-          const dateKey = format(d, 'yyyy-MM-dd');
-          chartDataMap[dateKey] = 0;
+      for (let i = 0; i < filterRange; i++) {
+        const d = new Date();
+        d.setDate(d.getDate() - i);
+        const dateKey = format(d, 'yyyy-MM-dd');
+        chartDataMap[dateKey] = 0;
       }
 
       logs?.forEach((log: any) => {
-          const dateKey = format(parseISO(log.created_at), 'yyyy-MM-dd');
-          if (chartDataMap[dateKey] !== undefined) {
-              chartDataMap[dateKey]++;
-          }
+        const dateKey = format(parseISO(log.created_at), 'yyyy-MM-dd');
+        if (chartDataMap[dateKey] !== undefined) {
+          chartDataMap[dateKey]++;
+        }
       });
 
       const chartData = Object.keys(chartDataMap).sort().map(date => ({
-          date: format(parseISO(date), 'dd/MM'),
-          count: chartDataMap[date]
+        date: format(parseISO(date), 'dd/MM'),
+        count: chartDataMap[date]
       }));
       setProductivityData(chartData);
 
@@ -164,19 +182,20 @@ export const DashboardProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  // Fetch when context mounts or company changes
+  // Fetch when context mounts, company changes, or filter range changes
   useEffect(() => {
-      if (selectedCompany && user) {
-          const isNewCompany = selectedCompany.id !== lastCompanyIdRef.current;
-          
-          if (isNewCompany) {
-              lastCompanyIdRef.current = selectedCompany.id;
-              fetchDashboardData(true); // Force fetch on company change
-          } else {
-              fetchDashboardData(false); // Use cache if available
-          }
+    if (selectedCompany && user) {
+      const isNewCompany = selectedCompany.id !== lastCompanyIdRef.current;
+      const isNewRange = filterRange !== lastRangeRef.current;
+
+      if (isNewCompany || isNewRange) {
+        if (isNewCompany) lastCompanyIdRef.current = selectedCompany.id;
+        fetchDashboardData(true); // Force fetch on major changes
+      } else {
+        fetchDashboardData(false); // Use cache if available
       }
-  }, [selectedCompany, user]);
+    }
+  }, [selectedCompany, user, filterRange]);
 
   return (
     <DashboardContext.Provider value={{
@@ -186,6 +205,9 @@ export const DashboardProvider = ({ children }: { children: ReactNode }) => {
       upcomingDeadlines,
       completedTasksToday,
       loading,
+      filterRange,
+      setFilterRange,
+      userProfile,
       refreshDashboard: () => fetchDashboardData(true),
       lastUpdated
     }}>

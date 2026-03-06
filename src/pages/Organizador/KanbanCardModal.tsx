@@ -20,6 +20,7 @@ import {
 import { useCompany } from '../../context/CompanyContext';
 import { supabase } from '../../lib/supabase';
 import { useUI } from '../../context/UIContext';
+import { createTaskNotification } from '../../lib/notificationService';
 
 // Tipos
 interface KanbanCardModalProps {
@@ -600,6 +601,17 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose }: KanbanC
                         from: oldUser,
                         to: newUser
                     });
+
+                    // Send Notification for assignment
+                    if (assignedTo) {
+                        await createTaskNotification(
+                            assignedTo,
+                            'Nova Tarefa Atribuída',
+                            `Você foi atribuído à tarefa: ${title}`,
+                            finalCardId,
+                            'assignment'
+                        );
+                    }
                 }
 
                 if (dueDate !== originalDueDate) {
@@ -912,16 +924,18 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose }: KanbanC
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) return;
 
-        // Check for mentions and trigger notifications (Logic only)
+        // Check for mentions and trigger notifications
         const mentions = members.filter(m => newComment.includes(`@${m.name}`));
         if (mentions.length > 0) {
-            console.log('Notifying users:', mentions.map(m => m.name));
-            // Here we would call a backend function or insert into a notifications table
-            // await supabase.rpc('notify_users', { user_ids: mentions.map(m => m.id), card_id: cardId });
-            mentions.forEach(m => {
-                // Simulated notification
-                // alert(`[SIMULAÇÃO] Notificação enviada para: ${m.name}`);
-            });
+            for (const mention of mentions) {
+                await createTaskNotification(
+                    mention.id,
+                    'Você foi mencionado',
+                    `${user.email?.split('@')[0]} mencionou você em: ${title}`,
+                    cardId,
+                    'mention'
+                );
+            }
         }
 
         // If new card, add to local state

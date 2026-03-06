@@ -1,15 +1,31 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Lock, Mail } from 'lucide-react';
+import {
+  IconLock,
+  IconMail,
+  IconEye,
+  IconEyeOff
+} from '@tabler/icons-react';
 
 const Login = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const { login, user, isAuthenticated } = useAuth();
   const navigate = useNavigate();
+
+  // Load remembered email
+  useEffect(() => {
+    const savedEmail = localStorage.getItem('remembered_email');
+    if (savedEmail) {
+      setEmail(savedEmail);
+      setRememberMe(true);
+    }
+  }, []);
 
   useEffect(() => {
     if (isAuthenticated && user) {
@@ -27,10 +43,16 @@ const Login = () => {
     e.preventDefault();
     setError('');
     setLoading(true);
-    
+
     try {
       const success = await login(email, password);
-      if (!success) {
+      if (success) {
+        if (rememberMe) {
+          localStorage.setItem('remembered_email', email);
+        } else {
+          localStorage.removeItem('remembered_email');
+        }
+      } else {
         setError('Credenciais inválidas. Tente novamente.');
       }
       // If success, useEffect will handle navigation
@@ -44,7 +66,7 @@ const Login = () => {
   return (
     <div className="min-h-screen relative overflow-hidden bg-[#0a0a1a] flex items-center justify-center">
       {/* Camada 1: Imagem */}
-      <div 
+      <div
         className="fixed inset-0 z-0 opacity-60"
         style={{
           backgroundImage: "url('https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=1920&q=80')",
@@ -52,7 +74,7 @@ const Login = () => {
           backgroundPosition: 'center',
         }}
       ></div>
-      
+
       {/* Camada 2: Gradiente de Profundidade */}
       <div className="fixed inset-0 z-0 bg-gradient-to-br from-[#0a0a1a]/95 via-[#0a0a1a]/80 to-[#6366f1]/20"></div>
 
@@ -69,7 +91,7 @@ const Login = () => {
               <label className="block text-sm font-medium text-gray-300 mb-2">Email</label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Mail className="h-5 w-5 text-gray-500" />
+                  <IconMail className="h-5 w-5 text-gray-500" />
                 </div>
                 <input
                   type="email"
@@ -86,20 +108,45 @@ const Login = () => {
               <label className="block text-sm font-medium text-gray-300 mb-2">Senha</label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Lock className="h-5 w-5 text-gray-500" />
+                  <IconLock className="h-5 w-5 text-gray-500" />
                 </div>
                 <input
-                  type="password"
+                  type={showPassword ? "text" : "password"}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="block w-full pl-10 pr-3 py-3 border border-white/10 rounded-lg bg-white/5 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
+                  className="block w-full pl-10 pr-10 py-3 border border-white/10 rounded-lg bg-white/5 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
                   placeholder="••••••••"
                   required
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-500 hover:text-white transition-colors"
+                >
+                  {showPassword ? (
+                    <IconEyeOff className="h-5 w-5" />
+                  ) : (
+                    <IconEye className="h-5 w-5" />
+                  )}
+                </button>
               </div>
             </div>
 
             <div className="flex items-center justify-between">
+              <div className="flex items-center">
+                <input
+                  id="remember-me"
+                  name="remember-me"
+                  type="checkbox"
+                  className="h-4 w-4 text-primary focus:ring-primary border-white/10 rounded bg-white/5"
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
+                />
+                <label htmlFor="remember-me" className="ml-2 block text-sm text-gray-300 cursor-pointer">
+                  Lembrar de mim
+                </label>
+              </div>
+
               <div className="text-sm">
                 <a href="#" className="font-medium text-primary hover:text-secondary transition-colors">
                   Esqueceu a senha?
