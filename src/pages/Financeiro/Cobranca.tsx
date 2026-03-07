@@ -164,12 +164,7 @@ const FinanceiroCobranca = () => {
     <div className="p-8 space-y-8 animate-in fade-in duration-500 max-w-7xl mx-auto">
       {/* Header & Filtros */}
       <div className="flex flex-col md:flex-row justify-between items-center gap-6">
-        <div>
-          <h1 className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-white to-gray-400">
-            CRM de Cobrança
-          </h1>
-          <p className="text-gray-400 mt-1">Gestão de inadimplência e régua de relacionamento.</p>
-        </div>
+        <div className="flex-1"></div>
 
         <div className="flex items-center gap-4 bg-white/5 p-1 rounded-2xl border border-white/10">
           <button

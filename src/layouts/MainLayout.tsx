@@ -8,7 +8,7 @@ import {
 import {
   IconLayoutDashboard,
   IconSubtask,
-  IconRobot,
+  IconBrandOpenai,
   IconCalendar,
   IconCurrencyDollar,
   IconSettings,
@@ -42,6 +42,7 @@ import UserSettingsModal from '../components/UserSettingsModal';
 import type { UserSettingsTab } from '../components/UserSettingsModal';
 import NotificationsHistoryModal from '../components/NotificationsHistoryModal';
 import { useUI } from '../context/UIContext';
+import GlobalFAB from '../components/GlobalFAB';
 
 const MainLayout = () => {
   const { user, logout, refreshUser } = useAuth();
@@ -63,6 +64,7 @@ const MainLayout = () => {
   const [layoutMode, setLayoutMode] = useState<'normal' | 'no-header' | 'zen'>('normal');
   const [flyoutMenu, setFlyoutMenu] = useState<string | null>(null);
   const [flyoutY, setFlyoutY] = useState(0);
+  const [helpPopoverOpen, setHelpPopoverOpen] = useState(false);
 
   // Real notifications from database
   const [notifications, setNotifications] = useState<any[]>([]);
@@ -246,13 +248,15 @@ const MainLayout = () => {
               {notificationsOpen && (
                 <>
                   <div className="fixed inset-0 z-[60]" onClick={() => setNotificationsOpen(false)}></div>
-                  <div className="absolute right-0 top-full mt-2 w-[380px] border border-white/10 bg-[#0a0a1a]/90 backdrop-blur-xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] z-[70] rounded-2xl overflow-hidden animate-in fade-in slide-in-from-top-4 duration-300">
+                  <div className="absolute right-0 top-full mt-2 w-[380px] border border-white/10 bg-[#0a0a1a]/95 backdrop-blur-xl shadow-[0_32px_64px_-12px_rgba(0,0,0,0.6)] z-[70] rounded-2xl overflow-hidden animate-in fade-in slide-in-from-top-4 duration-300 ring-1 ring-white/10 ring-inset">
+                    {/* Grain Texture Overlay */}
+                    <div className="absolute inset-0 opacity-[0.03] pointer-events-none bg-[url('https://grainy-gradients.vercel.app/noise.svg')] z-0 rounded-2xl"></div>
 
                     {/* Gradient Header */}
                     <div className="p-5 border-b border-white/10 flex items-center justify-between bg-gradient-to-r from-primary/10 to-transparent">
                       <div>
-                        <h3 className="text-sm font-bold text-white mb-0.5">Notificações</h3>
-                        <p className="text-[10px] text-gray-500 font-medium">Você tem {unreadCount} mensagens não lidas</p>
+                        <h3 className="text-sm font-bold text-[#EEEEEE] mb-0.5">Notificações</h3>
+                        <p className="text-[10px] text-[#6e6e6e] font-medium">Você tem {unreadCount} mensagens não lidas</p>
                       </div>
                       {hasUnread && (
                         <button
@@ -301,7 +305,7 @@ const MainLayout = () => {
                             <IconBell size={28} />
                           </div>
                           <h4 className="text-sm font-medium text-gray-400 mb-1">Tudo limpo por aqui!</h4>
-                          <p className="text-[11px] text-gray-500 max-w-[200px] mx-auto">Você não tem novas notificações no momento.</p>
+                          <p className="text-[11px] text-[#6e6e6e] max-w-[200px] mx-auto">Você não tem novas notificações no momento.</p>
                         </div>
                       )}
                     </div>
@@ -323,13 +327,65 @@ const MainLayout = () => {
               )}
             </div>
 
-            {/* Help Icon */}
-            <button
-              className="text-gray-400 hover:text-white transition-all p-2 rounded-full border border-white/5 hover:bg-white/10 hover:border-white/20 w-[34px] h-[34px] flex items-center justify-center shrink-0"
-              title="Ajuda e Suporte"
-            >
-              <IconHelpCircle size={18} stroke={1.5} />
-            </button>
+            <div className="relative">
+              <button
+                onClick={() => setHelpPopoverOpen(!helpPopoverOpen)}
+                className={`text-gray-400 hover:text-white transition-all p-2 rounded-full border border-white/5 hover:bg-white/10 hover:border-white/20 w-[34px] h-[34px] flex items-center justify-center shrink-0 ${helpPopoverOpen ? 'bg-white/10 border-white/20 text-white' : ''}`}
+                title="Ajuda e Suporte"
+              >
+                <IconHelpCircle size={18} stroke={1.5} />
+              </button>
+
+              {helpPopoverOpen && (
+                <>
+                  <div className="fixed inset-0 z-[60]" onClick={() => setHelpPopoverOpen(false)}></div>
+                  <div className="absolute right-0 top-full mt-2 w-80 border border-white/10 bg-[#0a0a1a]/95 backdrop-blur-xl shadow-[0_32px_64px_-12px_rgba(0,0,0,0.6)] z-[70] rounded-2xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200 ring-1 ring-white/10 ring-inset">
+                    {/* Grain Texture Overlay */}
+                    <div className="absolute inset-0 opacity-[0.03] pointer-events-none bg-[url('https://grainy-gradients.vercel.app/noise.svg')] z-0"></div>
+
+                    <div className="p-4 border-b border-white/10 relative z-10 bg-white/[0.02]">
+                      <p className="text-[11px] font-medium text-[#6e6e6e] tracking-tight">Dúvidas Frequentes</p>
+                    </div>
+
+                    <div className="relative z-10 max-h-[450px] overflow-y-auto custom-scrollbar">
+                      {[
+                        {
+                          q: "Como criar um novo card?",
+                          a: "Vá em Organizador e clique no ícone de \"+\" em qualquer coluna."
+                        },
+                        {
+                          q: "Como anexar documentos?",
+                          a: "Nas configurações do cliente, use a seção de arquivos padrão."
+                        },
+                        {
+                          q: "Onde vejo meu desempenho?",
+                          a: "Acesse o menu Nexum Intelligence para métricas detalhadas."
+                        },
+                        {
+                          q: "Como configurar IA?",
+                          a: "Vá em IA e Automação para treinar seu assistente personalizado."
+                        },
+                        {
+                          q: "Como alterar meu plano?",
+                          a: "Entre em contato com o suporte através do chat oficial."
+                        }
+                      ].map((faq, i) => (
+                        <div key={i} className={`p-5 space-y-2 border-b border-white/5 last:border-0 hover:bg-white/[0.02] transition-colors`}>
+                          <h4 className="text-sm font-semibold text-[#EEEEEE] leading-tight">{faq.q}</h4>
+                          <p className="text-xs text-[#6e6e6e] font-light leading-relaxed">{faq.a}</p>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="p-4 border-t border-white/10 bg-white/[0.01] relative z-10">
+                      <button className="w-full py-2.5 rounded-xl bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 text-xs font-medium transition-all">
+                        Falar com Suporte
+                      </button>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
 
             {/* User Avatar & Menu */}
             <div className="relative">
@@ -353,17 +409,19 @@ const MainLayout = () => {
               {userMenuOpen && (
                 <>
                   <div className="fixed inset-0 z-[60]" onClick={() => setUserMenuOpen(false)}></div>
-                  <div className="absolute right-0 top-full mt-2 w-72 border border-white/10 bg-[#161635]/95 backdrop-blur-md shadow-[0_10px_40px_rgba(0,0,0,0.7)] z-[70] rounded-xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
-                    <div className="p-4 border-b border-white/10">
-                      <p className="text-sm font-bold text-white truncate">{user?.name}</p>
-                      <p className="text-xs text-gray-400 truncate mb-1">{user?.email}</p>
+                  <div className="absolute right-0 top-full mt-2 w-72 border border-white/10 bg-[#0a0a1a]/95 backdrop-blur-xl shadow-[0_32px_64px_-12px_rgba(0,0,0,0.6)] z-[70] rounded-xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200 ring-1 ring-white/10 ring-inset">
+                    {/* Grain Texture Overlay */}
+                    <div className="absolute inset-0 opacity-[0.03] pointer-events-none bg-[url('https://grainy-gradients.vercel.app/noise.svg')] z-0"></div>
+                    <div className="p-4 border-b border-white/10 relative z-10">
+                      <p className="text-sm font-bold text-[#EEEEEE] truncate">{user?.name}</p>
+                      <p className="text-xs text-[#6e6e6e] truncate mb-1">{user?.email}</p>
                       {selectedCompany && (
-                        <p className="text-[10px] text-gray-500 uppercase tracking-wider font-bold">{selectedCompany.name}</p>
+                        <p className="text-[11px] font-medium text-[#6e6e6e] tracking-tight mt-0.5">{selectedCompany.name}</p>
                       )}
                     </div>
 
-                    <div className="p-4 border-b border-white/10">
-                      <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-3">Layout</p>
+                    <div className="p-4 border-b border-white/10 relative z-10">
+                      <p className="text-[11px] font-medium text-[#6e6e6e] tracking-tight mb-3">Layout</p>
                       <div className="grid grid-cols-3 gap-2">
                         <button
                           onClick={() => { setLayoutMode('normal'); setSidebarOpen(true); }}
@@ -392,7 +450,7 @@ const MainLayout = () => {
                     <div className="p-2">
                       <button onClick={() => openUserSettings('profile')} className="w-full flex items-center space-x-3 p-3 rounded-lg text-sm text-gray-300 hover:bg-white/5 hover:text-white transition-colors">
                         <IconUser size={18} className="text-gray-500" />
-                        <span>Meu Perfil</span>
+                        <span>Meu perfil</span>
                       </button>
                       <button onClick={() => openUserSettings('settings')} className="w-full flex items-center space-x-3 p-3 rounded-lg text-sm text-gray-300 hover:bg-white/5 hover:text-white transition-colors">
                         <IconSettings size={18} className="text-gray-500" />
@@ -441,7 +499,7 @@ const MainLayout = () => {
                 >
                   <div className={`flex items-center ${sidebarOpen ? 'space-x-3' : 'justify-center'}`}>
                     <IconSubtask className={`w-5 h-5 transition-transform duration-300 group-hover:scale-110 ${location.pathname.includes('/organizador') ? 'text-primary' : ''}`} />
-                    {sidebarOpen && <span className="font-medium">Organizador</span>}
+                    {sidebarOpen && <span className="text-sm font-medium">Organizador</span>}
                   </div>
                   {sidebarOpen && (
                     <div className="transition-transform duration-300">
@@ -466,8 +524,8 @@ const MainLayout = () => {
                   <>
                     <div className="fixed inset-0 z-[80]" onClick={() => setFlyoutMenu(null)}></div>
                     <div style={{ top: flyoutY - 44, left: '4.5rem' }} className="fixed w-52 bg-[#161635]/95 backdrop-blur-md border border-white/10 rounded-2xl shadow-[0_10px_40px_rgba(0,0,0,0.7)] z-[90] p-2 animate-in fade-in slide-in-from-left-2 duration-200">
-                      <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider px-3 py-2">Organizador</p>
-                      <SubNavItem to="/organizador/kanban" icon={<IconLayoutKanban size={16} />} label="Kanban" />
+                      <p className="text-[11px] font-medium text-[#6e6e6e] tracking-tight px-3 py-2">Organizador</p>
+                      <SubNavItem to="/organizador/kanban" icon={<IconLayoutKanban size={16} />} label="Quadro kanban" />
                       <SubNavItem to="/organizador/lista" icon={<IconList size={16} />} label="Lista" />
                       <SubNavItem to="/organizador/historico" icon={<IconChecks size={16} />} label="Histórico" />
                       <SubNavItem to="/organizador/cronograma" icon={<IconClock size={16} />} label="Cronograma" />
@@ -476,7 +534,7 @@ const MainLayout = () => {
                 )}
               </div>
 
-              <NavItem to="/relatorios" icon={<IconRobot />} label="Relatórios IA e Agente" expanded={sidebarOpen} />
+              <NavItem to="/relatorios" icon={<IconBrandOpenai />} label="Nexum intelligence" expanded={sidebarOpen} />
               <NavItem to="/calendario" icon={<IconCalendar />} label="Calendário" expanded={sidebarOpen} />
 
               {/* Financeiro with Submenu */}
@@ -497,7 +555,7 @@ const MainLayout = () => {
                 >
                   <div className={`flex items-center ${sidebarOpen ? 'space-x-3' : 'justify-center'}`}>
                     <IconCurrencyDollar className={`w-5 h-5 transition-transform duration-300 group-hover:scale-110 ${location.pathname.includes('/financeiro') ? 'text-primary' : ''}`} />
-                    {sidebarOpen && <span className="font-medium">Financeiro</span>}
+                    {sidebarOpen && <span className="text-sm font-medium">Financeiro</span>}
                   </div>
                   {sidebarOpen && (
                     <div className="transition-transform duration-300">
@@ -522,10 +580,10 @@ const MainLayout = () => {
                   <>
                     <div className="fixed inset-0 z-[80]" onClick={() => setFlyoutMenu(null)}></div>
                     <div style={{ top: flyoutY - 44, left: '4.5rem' }} className="fixed w-52 bg-[#161635]/95 backdrop-blur-md border border-white/10 rounded-2xl shadow-[0_10px_40px_rgba(0,0,0,0.7)] z-[90] p-2 animate-in fade-in slide-in-from-left-2 duration-200">
-                      <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider px-3 py-2">Financeiro</p>
-                      <SubNavItem to="/financeiro/visao-geral" icon={<IconChartPie size={16} />} label="Visão Geral" />
+                      <p className="text-[11px] font-medium text-[#6e6e6e] tracking-tight px-3 py-2">Financeiro</p>
+                      <SubNavItem to="/financeiro/visao-geral" icon={<IconChartPie size={16} />} label="Visão geral" />
                       <SubNavItem to="/financeiro/lancamentos" icon={<IconReceipt size={16} />} label="Lançamentos" />
-                      <SubNavItem to="/financeiro/comissoes" icon={<IconUsers size={16} />} label="Comissões e Sócios" />
+                      <SubNavItem to="/financeiro/comissoes" icon={<IconUsers size={16} />} label="Comissões e sócios" />
                       <SubNavItem to="/financeiro/cobranca" icon={<IconSettings size={16} />} label="Cobrança" />
                     </div>
                   </>
@@ -550,7 +608,7 @@ const MainLayout = () => {
                 >
                   <div className={`flex items-center ${sidebarOpen ? 'space-x-3' : 'justify-center'}`}>
                     <IconSettings className={`w-5 h-5 transition-transform duration-300 group-hover:scale-110 ${location.pathname.includes('/configuracao') ? 'text-primary' : ''}`} />
-                    {sidebarOpen && <span className="font-medium">Configuração</span>}
+                    {sidebarOpen && <span className="text-sm font-medium">Configuração</span>}
                   </div>
                   {sidebarOpen && (
                     <div className="transition-transform duration-300">
@@ -577,13 +635,13 @@ const MainLayout = () => {
                   <>
                     <div className="fixed inset-0 z-[80]" onClick={() => setFlyoutMenu(null)}></div>
                     <div style={{ top: flyoutY - 44, left: '4.5rem' }} className="fixed w-52 bg-[#161635]/95 backdrop-blur-md border border-white/10 rounded-2xl shadow-[0_10px_40px_rgba(0,0,0,0.7)] z-[90] p-2 animate-in fade-in slide-in-from-left-2 duration-200">
-                      <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider px-3 py-2">Configuração</p>
+                      <p className="text-[11px] font-medium text-[#6e6e6e] tracking-tight px-3 py-2">Configuração</p>
                       <SubNavItem to="/configuracao/empresa" icon={<IconBuilding size={16} />} label="Empresa" />
-                      <SubNavItem to="/configuracao/regras-financeiras" icon={<IconFileDescription size={16} />} label="Regras Financeiras" />
-                      <SubNavItem to="/configuracao/clientes" icon={<IconUsers size={16} />} label="Gestão de Clientes" />
-                      <SubNavItem to="/configuracao/ia-automacao" icon={<IconCpu size={16} />} label="IA e Automação" />
+                      <SubNavItem to="/configuracao/regras-financeiras" icon={<IconFileDescription size={16} />} label="Regras financeiras" />
+                      <SubNavItem to="/configuracao/clientes" icon={<IconUsers size={16} />} label="Gestão de clientes" />
+                      <SubNavItem to="/configuracao/ia-automacao" icon={<IconCpu size={16} />} label="IA e automação" />
                       <SubNavItem to="/configuracao/equipe" icon={<IconUserCheck size={16} />} label="Equipe" />
-                      <SubNavItem to="/configuracao/kanban" icon={<IconColumns size={16} />} label="Kanban" />
+                      <SubNavItem to="/configuracao/kanban" icon={<IconColumns size={16} />} label="Configuração de kanban" />
                     </div>
                   </>
                 )}
@@ -627,6 +685,8 @@ const MainLayout = () => {
           <span className="absolute right-full mr-3 bg-[#161635]/95 text-white text-xs px-3 py-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap border border-white/10">Restaurar layout</span>
         </button>
       )}
+      {/* Floating Action Button */}
+      <GlobalFAB />
     </div>
   );
 };
@@ -636,7 +696,7 @@ const NavItem = ({ to, icon, label, expanded }: { to: string, icon: React.ReactN
     <NavLink
       to={to}
       className={({ isActive }) =>
-        `flex items-center p-3 rounded-2xl transition-all duration-300 group relative ${expanded ? 'space-x-3' : 'justify-center'} ${isActive
+        `flex items-center p-3 rounded-2xl transition-all duration-300 group relative text-sm ${expanded ? 'space-x-3' : 'justify-center'} ${isActive
           ? 'bg-primary/5 text-primary shadow-[0_4px_12px_rgba(0,0,0,0.1)]'
           : 'text-gray-400 hover:bg-white/5 hover:text-white hover:translate-x-1'
         }`

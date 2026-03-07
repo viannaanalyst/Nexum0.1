@@ -44,6 +44,8 @@ import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import KanbanCardModal from './KanbanCardModal';
 import { useUI } from '../../context/UIContext';
+import { Select } from '../../components/ui/Select';
+
 
 // --- Tipos ---
 interface Column {
@@ -181,32 +183,72 @@ const OrganizadorKanban = () => {
     }
   };
 
+  useEffect(() => {
+    const handleGlobalNewTask = () => {
+      if (columns.length > 0) {
+        handleAddCard(columns[0].id);
+      }
+    };
+
+    const handleGlobalNewColumn = () => {
+      setIsNewColumnModalOpen(true);
+    };
+
+    window.addEventListener('open-new-task', handleGlobalNewTask);
+    window.addEventListener('open-new-column', handleGlobalNewColumn);
+    return () => {
+      window.removeEventListener('open-new-task', handleGlobalNewTask);
+      window.removeEventListener('open-new-column', handleGlobalNewColumn);
+    };
+  }, [columns]);
+
   const fetchKanbanData = async () => {
     if (!selectedCompany) return;
     setLoading(true);
     try {
-      // 1. Fetch Columns
+      // 1. Fetch Auxiliary Data (Clients and Members) - MOVE TO TOP
+      const { data: clientsData } = await supabase
+        .from('clients')
+        .select('id, name')
+        .eq('company_id', selectedCompany.id)
+        .eq('status', 'active')
+        .order('name');
+
+      let currentClient = selectedClient;
+
+      if (clientsData) {
+        setClients(clientsData);
+        if (!selectedClient && clientsData.length > 0) {
+          currentClient = clientsData[0].id;
+          setSelectedClient(currentClient);
+          localStorage.setItem('kanban_selected_client', currentClient);
+        }
+        const clientMap = clientsData.reduce((acc, client) => ({ ...acc, [client.id]: client.name }), {});
+        setClientsMap(clientMap);
+      }
+
+      // 2. Fetch Columns using currentClient
       let colQuery = supabase
         .from('kanban_columns')
         .select('*')
         .eq('company_id', selectedCompany.id);
 
-      if (selectedClient) {
-        colQuery = colQuery.eq('client_id', selectedClient);
+      if (currentClient) {
+        colQuery = colQuery.eq('client_id', currentClient);
       } else {
         colQuery = colQuery.is('client_id', null);
       }
 
       const { data: cols } = await colQuery.order('position');
 
-      // 2. Fetch Cards
+      // 3. Fetch Cards using currentClient
       let cardQuery = supabase
         .from('kanban_cards')
         .select('*')
         .eq('company_id', selectedCompany.id);
 
-      if (selectedClient) {
-        cardQuery = cardQuery.eq('client_id', selectedClient);
+      if (currentClient) {
+        cardQuery = cardQuery.eq('client_id', currentClient);
       }
 
       const { data: crds } = await cardQuery.order('position');
@@ -219,7 +261,7 @@ const OrganizadorKanban = () => {
 
       setCards(crds || []);
 
-      // 3. Fetch Tags for Cards
+      // 4. Fetch Tags for Cards
       const { data: tagsData } = await supabase
         .from('kanban_card_tags')
         .select('card_id, kanban_tags(id, name, color)')
@@ -231,20 +273,6 @@ const OrganizadorKanban = () => {
           .map((t: any) => t.kanban_tags);
         return { ...card, tags: cardTags };
       }));
-
-      // 4. Fetch Auxiliary Data (Clients and Members)
-      const { data: clientsData } = await supabase
-        .from('clients')
-        .select('id, name')
-        .eq('company_id', selectedCompany.id)
-        .eq('status', 'active')
-        .order('name');
-
-      if (clientsData) {
-        setClients(clientsData);
-        const clientMap = clientsData.reduce((acc, client) => ({ ...acc, [client.id]: client.name }), {});
-        setClientsMap(clientMap);
-      }
 
       const { data: membersData } = await supabase
         .from('organization_members')
@@ -597,39 +625,33 @@ const OrganizadorKanban = () => {
   return (
     <div className="p-8 h-full flex flex-col">
       <div className="flex justify-between items-center mb-6">
-        <div>
-          <h1 className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-white to-gray-400">Quadro Kanban</h1>
-          <p className="text-gray-400 mt-2">Gerencie tarefas com fluxo de aprovação.</p>
-        </div>
+        <div className="flex-1"></div>
         <div className="flex gap-3 items-center">
-          {/* Client Filter Dropdown */}
-          <div className="relative group">
-            <div className="flex items-center bg-[#1a1a2e] border border-white/10 rounded-lg px-3 py-2 gap-2 min-w-[200px]">
-              <Filter size={16} className="text-gray-400" />
-              <select
+          <div className="flex items-center gap-2 bg-white/5 p-2 rounded-xl border border-white/10">
+            <div className="flex items-center gap-2">
+              <Filter size={16} className="text-primary ml-1 flex-shrink-0" />
+              <Select
                 value={selectedClient}
-                onChange={(e) => handleClientChange(e.target.value)}
-                className="bg-transparent border-none text-sm text-white focus:outline-none w-full appearance-none cursor-pointer"
-              >
-                <option value="">Todos os Clientes</option>
-                {clients.map(client => (
-                  <option key={client.id} value={client.id} className="bg-[#1a1a2e] text-white">
-                    {client.name}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown size={14} className="text-gray-500 pointer-events-none absolute right-3" />
+                onChange={(v) => handleClientChange(v as string)}
+                options={clients.map(client => ({
+                  value: client.id,
+                  label: client.name
+                }))}
+              />
             </div>
-          </div>
 
-          {userRole !== 'visualizador' && (
-            <button
-              onClick={() => setIsNewColumnModalOpen(true)}
-              className="flex items-center gap-2 bg-primary text-white px-4 py-2 rounded-lg hover:bg-secondary transition-all shadow-lg shadow-primary/20"
-            >
-              <Plus size={18} /> Nova Coluna
-            </button>
-          )}
+            {userRole !== 'visualizador' && (
+              <>
+                <div className="w-px h-5 bg-white/10 mx-1" />
+                <button
+                  onClick={() => setIsNewColumnModalOpen(true)}
+                  className="flex items-center gap-2 bg-primary text-white px-3 py-2 rounded-lg hover:bg-secondary transition-all shadow-lg shadow-primary/20 text-sm"
+                >
+                  <Plus size={16} /> Nova Coluna
+                </button>
+              </>
+            )}
+          </div>
         </div>
       </div>
 
@@ -690,7 +712,10 @@ const OrganizadorKanban = () => {
           </div>
 
           {/* 2. Container Glass Premium */}
-          <div className="relative z-10 w-full max-w-md rounded-[22px] overflow-hidden shadow-2xl animate-in zoom-in-95 duration-300 border border-white/10 bg-[#0a0a1a]/80 backdrop-blur-xl">
+          <div className="relative z-10 w-full max-w-md rounded-[22px] overflow-hidden shadow-[0_32px_64px_-12px_rgba(0,0,0,0.6)] animate-in zoom-in-95 duration-300 border border-white/10 bg-[#0a0a1a]/10 backdrop-blur-xl ring-1 ring-white/10 ring-inset">
+
+            {/* Grain Texture Overlay */}
+            <div className="absolute inset-0 opacity-[0.03] pointer-events-none bg-[url('https://grainy-gradients.vercel.app/noise.svg')] z-0"></div>
 
             {/* Glow Effects */}
             <div className="absolute inset-0 rounded-[22px] border border-white/5 pointer-events-none"></div>
@@ -698,13 +723,13 @@ const OrganizadorKanban = () => {
             <div className="absolute top-0 left-1/2 -translate-x-1/2 w-1/3 h-[1px] bg-gradient-to-r from-transparent via-primary/50 to-transparent"></div>
 
             <div className="p-8 pb-4 relative z-20">
-              <h2 className="text-xl font-bold text-white/90 mb-1">Nova coluna</h2>
-              <p className="text-xs text-gray-500 font-light">Adicione uma nova etapa ao seu fluxo de trabalho.</p>
+              <h2 className="text-xl font-bold text-[#EEEEEE] mb-1">Nova coluna</h2>
+              <p className="text-xs text-[#6e6e6e] font-light">Adicione uma nova etapa ao seu fluxo de trabalho.</p>
             </div>
 
             <div className="p-8 pt-2 relative z-20">
               <div className="space-y-1.5 mb-6">
-                <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wide ml-1">Nome da Coluna</label>
+                <label className="block text-[10px] font-bold text-[#6e6e6e] uppercase tracking-wide ml-1">Nome da Coluna</label>
                 <input
                   autoFocus
                   className="w-full bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.08] rounded-xl px-4 py-3 text-white/90 focus:bg-white/[0.08] focus:border-primary/30 focus:ring-0 outline-none transition-all duration-300 text-sm font-light placeholder-gray-600"
@@ -747,7 +772,7 @@ const OrganizadorKanban = () => {
           </div>
 
           {/* 2. Container Glass Premium */}
-          <div className="relative z-10 w-full max-w-md rounded-[22px] overflow-hidden shadow-2xl animate-in zoom-in-95 duration-300 border border-white/10 bg-[#0a0a1a]/80 backdrop-blur-xl">
+          <div className="relative z-10 w-full max-w-md rounded-[22px] overflow-hidden shadow-[0_32px_64px_-12px_rgba(0,0,0,0.6)] animate-in zoom-in-95 duration-300 border border-white/10 bg-[#0a0a1a]/10 backdrop-blur-xl ring-1 ring-white/10 ring-inset">
 
             {/* Glow Effects */}
             <div className="absolute inset-0 rounded-[22px] border border-white/5 pointer-events-none"></div>
@@ -755,50 +780,52 @@ const OrganizadorKanban = () => {
             <div className="absolute top-0 left-1/2 -translate-x-1/2 w-1/3 h-[1px] bg-gradient-to-r from-transparent via-primary/50 to-transparent"></div>
 
             <div className="p-8 pb-4 relative z-20">
-              <h2 className="text-xl font-bold text-white/90 mb-1">Editar Coluna</h2>
-              <p className="text-xs text-gray-500 font-light">Renomeie e personalize esta etapa do fluxo.</p>
+              <h2 className="text-xl font-bold text-[#EEEEEE] mb-1">Editar coluna</h2>
+              <p className="text-xs text-[#6e6e6e] font-light">Personalize as configurações desta etapa.</p>
             </div>
 
             <div className="p-8 pt-2 relative z-20">
-              <div className="space-y-1.5 mb-5">
-                <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wide ml-1">Nome da Coluna</label>
-                <input
-                  autoFocus
-                  className="w-full bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.08] rounded-xl px-4 py-3 text-white/90 focus:bg-white/[0.08] focus:border-primary/30 focus:ring-0 outline-none transition-all duration-300 text-sm font-light placeholder-gray-600"
-                  placeholder="Nome da coluna"
-                  value={editColumnTitle}
-                  onChange={e => setEditColumnTitle(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && handleUpdateColumn()}
-                />
-              </div>
-
-              <div className="space-y-1.5 mb-6">
-                <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wide ml-1">Cor da Coluna</label>
-                <div className="flex items-center gap-3">
+              <div className="space-y-4">
+                <div className="space-y-1.5">
+                  <label className="block text-[10px] font-bold text-[#6e6e6e] uppercase tracking-wide ml-1">Nome da Coluna</label>
                   <input
-                    type="color"
-                    value={editColumnColor}
-                    onChange={e => setEditColumnColor(e.target.value)}
-                    className="w-10 h-10 rounded-lg cursor-pointer border-2 border-white/10 bg-transparent [&::-webkit-color-swatch-wrapper]:p-0 [&::-webkit-color-swatch]:rounded-lg [&::-webkit-color-swatch]:border-none"
+                    autoFocus
+                    className="w-full bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.08] rounded-xl px-4 py-3 text-white/90 focus:bg-white/[0.08] focus:border-primary/30 focus:ring-0 outline-none transition-all duration-300 text-sm font-light placeholder-gray-600"
+                    placeholder="Nome da coluna"
+                    value={editColumnTitle}
+                    onChange={e => setEditColumnTitle(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && handleUpdateColumn()}
                   />
-                  <span className="text-xs text-gray-400 font-mono">{editColumnColor}</span>
                 </div>
-              </div>
 
-              <div className="flex justify-end gap-3 pt-4 border-t border-white/5">
-                <button
-                  onClick={() => setIsEditColumnModalOpen(false)}
-                  className="px-5 py-2.5 text-sm text-gray-500 hover:text-white transition-colors hover:bg-white/5 rounded-xl font-light"
-                >
-                  Cancelar
-                </button>
-                <button
-                  onClick={handleUpdateColumn}
-                  className="px-6 py-2.5 bg-white/[0.05] hover:bg-white/[0.1] text-white rounded-xl border border-white/5 hover:border-white/20 transition-all duration-300 font-medium text-sm flex items-center gap-2 group shadow-lg"
-                >
-                  <span>Salvar</span>
-                  <span className="text-primary group-hover:translate-x-1 transition-transform">→</span>
-                </button>
+                <div className="space-y-1.5">
+                  <label className="block text-[10px] font-bold text-[#6e6e6e] uppercase tracking-wide ml-1">Cor da Coluna</label>
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="color"
+                      value={editColumnColor}
+                      onChange={e => setEditColumnColor(e.target.value)}
+                      className="w-10 h-10 rounded-lg cursor-pointer border-2 border-white/10 bg-transparent [&::-webkit-color-swatch-wrapper]:p-0 [&::-webkit-color-swatch]:rounded-lg [&::-webkit-color-swatch]:border-none"
+                    />
+                    <span className="text-xs text-gray-400 font-mono">{editColumnColor}</span>
+                  </div>
+                </div>
+
+                <div className="flex justify-end gap-3 pt-4 border-t border-white/5">
+                  <button
+                    onClick={() => setIsEditColumnModalOpen(false)}
+                    className="px-5 py-2.5 text-sm text-gray-500 hover:text-white transition-colors hover:bg-white/5 rounded-xl font-light"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={handleUpdateColumn}
+                    className="px-6 py-2.5 bg-white/[0.05] hover:bg-white/[0.1] text-white rounded-xl border border-white/5 hover:border-white/20 transition-all duration-300 font-medium text-sm flex items-center gap-2 group shadow-lg"
+                  >
+                    <span>Salvar</span>
+                    <span className="text-primary group-hover:translate-x-1 transition-transform">→</span>
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -886,7 +913,7 @@ const KanbanColumn = ({
           className="flex justify-between items-center p-4 cursor-grab active:cursor-grabbing group/header"
         >
           <div className="flex items-center gap-2">
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-[11px] font-black uppercase tracking-wider shadow-sm" style={{ backgroundColor: column.color + '20', color: column.color || '#3b82f6', border: `1px solid ${column.color}30` }}>
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-[12px] font-semibold tracking-tight shadow-sm" style={{ backgroundColor: column.color + '20', color: column.color || '#3b82f6', border: `1px solid ${column.color}30` }}>
               <div className="w-2 h-2 rounded-full animate-pulse" style={{ backgroundColor: column.color || '#3b82f6' }} />
               {column.title}
             </div>
@@ -1034,7 +1061,7 @@ const KanbanCard = ({
         {/* Tags e Bloqueio */}
         <div className="flex justify-between items-start mb-3">
           <div className="flex items-center gap-2">
-            <span className={`text-[9px] px-2 py-1 rounded-md font-bold uppercase tracking-wider shadow-sm ${priorityInfo.color}`}>
+            <span className="text-[10px] px-2 py-1 rounded-md font-medium tracking-tight bg-white/5 text-gray-400 border border-white/5 max-w-[100px] truncate shadow-sm">
               {priorityInfo.label}
             </span>
             {clientName && (

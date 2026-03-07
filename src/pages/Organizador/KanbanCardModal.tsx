@@ -16,7 +16,8 @@ import {
     IconUser,
     IconBriefcase,
     IconPlayerPlay,
-    IconCircleDotted
+    IconCircleDotted,
+    IconTarget
 } from '@tabler/icons-react';
 import { useCompany } from '../../context/CompanyContext';
 import { supabase } from '../../lib/supabase';
@@ -48,9 +49,10 @@ interface KanbanCardModalProps {
     columnId?: string; // If cardId is 'new', this is required
     defaultClientId?: string; // Pre-fill client from board filter
     onClose: () => void;
+    mode?: 'task' | 'event';
 }
 
-const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose }: KanbanCardModalProps) => {
+const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, mode = 'task' }: KanbanCardModalProps) => {
     const { selectedCompany } = useCompany();
     const { toast, confirm } = useUI();
     const [activeTab, setActiveTab] = useState<'details' | 'checklist' | 'comments' | 'files' | 'tags'>('details');
@@ -108,6 +110,9 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose }: KanbanC
     const [isEditingDescription, setIsEditingDescription] = useState(false);
     const [isExpandedDescription, setIsExpandedDescription] = useState(true);
     const descriptionRef = useRef<HTMLTextAreaElement>(null);
+    const startDatePickerRef = useRef<HTMLInputElement>(null);
+    const dueDatePickerRef = useRef<HTMLInputElement>(null);
+    const deliveryDatePickerRef = useRef<HTMLInputElement>(null);
 
     // Subtask Interaction State
     const [activeSubtaskId, setActiveSubtaskId] = useState<string | null>(null);
@@ -180,9 +185,14 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose }: KanbanC
             fetchSubtasks();
         } else {
             setLoading(false);
-            setTitle('Nova tarefa');
+            setTitle(mode === 'event' ? 'Novo Evento' : 'Nova tarefa');
             if (columnId) setCurrentColumnId(columnId);
             if (defaultClientId) setClientId(defaultClientId);
+
+            // If mode is event, we could pre-set a category or tag if they exist
+            if (mode === 'event') {
+                setCategory('Evento'); // Assuming there's a category/type field used for this
+            }
         }
     }, [cardId, selectedCompany]);
 
@@ -1352,7 +1362,10 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose }: KanbanC
                 </div>
 
                 {/* 2. Container Glass Premium */}
-                <div className="relative z-10 w-full max-w-[1600px] h-[90vh] flex rounded-[22px] overflow-hidden shadow-2xl animate-in zoom-in-95 duration-300 border border-white/10 bg-[#0a0a1a]/90 backdrop-blur-xl">
+                <div className="relative z-10 w-full max-w-[1600px] h-[90vh] flex rounded-[22px] overflow-hidden shadow-[0_32px_64px_-12px_rgba(0,0,0,0.6)] animate-in zoom-in-95 duration-300 border border-white/10 bg-[#0a0a1a]/10 backdrop-blur-xl ring-1 ring-white/10 ring-inset">
+
+                    {/* Grain Texture Overlay */}
+                    <div className="absolute inset-0 opacity-[0.03] pointer-events-none bg-[url('https://grainy-gradients.vercel.app/noise.svg')] z-0"></div>
 
                     {/* Glow Effects */}
                     <div className="absolute inset-0 rounded-[22px] border border-white/5 pointer-events-none"></div>
@@ -1393,7 +1406,7 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose }: KanbanC
                                     {/* Status/Coluna Badge */}
                                     <div className="flex items-center gap-2">
                                         <div className={`w-2 h-2 rounded-full ${currentColumnId || columnId ? 'bg-blue-500' : 'bg-gray-500'}`} />
-                                        <span className="text-xs text-gray-400 uppercase tracking-wide font-bold">
+                                        <span className="text-[13px] text-[#6e6e6e] tracking-wide font-medium">
                                             {columnsMap[currentColumnId || columnId || ''] || 'Sem Status'}
                                         </span>
                                     </div>
@@ -1417,11 +1430,14 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose }: KanbanC
 
                                     {/* 1. Status */}
                                     <div className="flex items-center justify-between group h-8">
-                                        <div className="flex items-center gap-2 text-gray-400 min-w-[140px]">
+                                        <div
+                                            className="flex items-center gap-2 text-[#EEEEEE] min-w-[140px] cursor-pointer"
+                                            onClick={() => userRole !== 'visualizador' && setShowStatusSelect(!showStatusSelect)}
+                                        >
                                             <div className="p-1 rounded hover:bg-white/5 transition-colors">
-                                                <IconFlag size={16} stroke={1.5} style={{ color: columns.find(c => c.id === currentColumnId)?.color || '#3b82f6' }} fill="currentColor" />
+                                                <IconTarget size={16} stroke={2} color="#6e6e6e" />
                                             </div>
-                                            <span className="text-sm font-medium text-gray-400 group-hover:text-gray-300 transition-colors">Status</span>
+                                            <span className="text-sm font-medium text-[#EEEEEE] group-hover:text-white transition-colors">Status</span>
                                         </div>
 
                                         <div className="relative flex-1 flex justify-start">
@@ -1430,7 +1446,7 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose }: KanbanC
                                                 className="flex items-center"
                                             >
                                                 <div
-                                                    className="flex items-center gap-2 px-2 py-1 rounded text-xs font-bold uppercase tracking-wide text-white transition-all hover:opacity-90"
+                                                    className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-medium tracking-wide text-white transition-all hover:opacity-90 shadow-sm"
                                                     style={{ backgroundColor: columns.find(c => c.id === currentColumnId)?.color || '#3b82f6' }}
                                                 >
                                                     <span className="truncate max-w-[100px]">{columnsMap[currentColumnId] || 'PENDENTE'}</span>
@@ -1464,20 +1480,24 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose }: KanbanC
 
                                     {/* 2. Datas */}
                                     <div className="flex items-center justify-between group h-8">
-                                        <div className="flex items-center gap-2 text-gray-400 min-w-[140px]">
+                                        <div
+                                            className="flex items-center gap-2 text-[#EEEEEE] min-w-[140px] cursor-pointer"
+                                            onClick={() => userRole !== 'visualizador' && dueDatePickerRef.current?.showPicker()}
+                                        >
                                             <div className="p-1 rounded hover:bg-white/5 transition-colors">
-                                                <IconCalendar size={16} stroke={1.5} />
+                                                <IconCalendar size={16} stroke={1.5} color="#6e6e6e" />
                                             </div>
-                                            <span className="text-sm font-medium text-gray-400 group-hover:text-gray-300 transition-colors">Datas</span>
+                                            <span className="text-sm font-medium text-[#EEEEEE] group-hover:text-white transition-colors">Datas</span>
                                         </div>
 
                                         <div className="relative flex-1 flex items-center gap-2 justify-start">
                                             {/* Data Início */}
                                             <div className="relative flex items-center gap-1 hover:bg-white/5 px-1.5 py-1 rounded cursor-pointer transition-colors group/start">
-                                                <span className={`text-sm ${startDate ? 'text-gray-300' : 'text-gray-500'}`}>
+                                                <span className={`text-sm ${startDate ? 'text-gray-300' : 'text-[#6e6e6e]'}`}>
                                                     {startDate ? new Date(startDate + 'T12:00:00').toLocaleDateString('pt-BR').slice(0, 5) : 'Início'}
                                                 </span>
                                                 <input
+                                                    ref={startDatePickerRef}
                                                     type="date"
                                                     className="absolute inset-0 opacity-0 cursor-pointer w-full h-full z-10"
                                                     value={startDate}
@@ -1491,10 +1511,11 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose }: KanbanC
 
                                             {/* Data Prevista */}
                                             <div className="relative flex items-center gap-1 hover:bg-white/5 px-1.5 py-1 rounded cursor-pointer transition-colors group/due">
-                                                <span className={`text-sm ${dueDate ? 'text-gray-300' : 'text-gray-500'}`}>
+                                                <span className={`text-sm ${dueDate ? 'text-gray-300' : 'text-[#6e6e6e]'}`}>
                                                     {dueDate ? new Date(dueDate + 'T12:00:00').toLocaleDateString('pt-BR').slice(0, 5) : 'Prevista'}
                                                 </span>
                                                 <input
+                                                    ref={dueDatePickerRef}
                                                     type="date"
                                                     className="absolute inset-0 opacity-0 cursor-pointer w-full h-full z-10"
                                                     value={dueDate}
@@ -1526,19 +1547,23 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose }: KanbanC
 
                                     {/* 3. Data da entrega */}
                                     <div className="flex items-center justify-between group h-8">
-                                        <div className="flex items-center gap-2 text-gray-400 min-w-[140px]">
+                                        <div
+                                            className="flex items-center gap-2 text-[#EEEEEE] min-w-[140px] cursor-pointer"
+                                            onClick={() => userRole !== 'visualizador' && deliveryDatePickerRef.current?.showPicker()}
+                                        >
                                             <div className="p-1 rounded hover:bg-white/5 transition-colors">
-                                                <IconCalendar size={16} stroke={1.5} />
+                                                <IconCalendar size={16} stroke={1.5} color="#6e6e6e" />
                                             </div>
-                                            <span className="text-sm font-medium text-gray-400 group-hover:text-gray-300 transition-colors">Data da entrega</span>
+                                            <span className="text-sm font-medium text-[#EEEEEE] group-hover:text-white transition-colors">Data da entrega</span>
                                         </div>
 
                                         <div className="relative flex-1 flex justify-start">
                                             <div className="relative flex items-center gap-1 hover:bg-white/5 px-1.5 py-1 rounded cursor-pointer transition-colors group/delivery">
-                                                <span className={`text-sm ${deliveryDate ? 'text-gray-300' : 'text-gray-600'}`}>
+                                                <span className={`text-sm ${deliveryDate ? 'text-gray-300' : 'text-[#6e6e6e]'}`}>
                                                     {deliveryDate ? new Date(deliveryDate + 'T12:00:00').toLocaleDateString('pt-BR').slice(0, 5) : 'Vazio'}
                                                 </span>
                                                 <input
+                                                    ref={deliveryDatePickerRef}
                                                     type="date"
                                                     className="absolute inset-0 opacity-0 cursor-pointer w-full h-full z-10"
                                                     value={deliveryDate}
@@ -1563,11 +1588,14 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose }: KanbanC
 
                                     {/* 4. Etiquetas */}
                                     <div className="flex items-center justify-between group h-8">
-                                        <div className="flex items-center gap-2 text-gray-400 min-w-[140px]">
+                                        <div
+                                            className="flex items-center gap-2 text-[#EEEEEE] min-w-[140px] cursor-pointer"
+                                            onClick={() => userRole !== 'visualizador' && setShowTagInput(!showTagInput)}
+                                        >
                                             <div className="p-1 rounded hover:bg-white/5 transition-colors">
-                                                <IconTag size={16} stroke={1.5} />
+                                                <IconTag size={16} stroke={1.5} color="#6e6e6e" />
                                             </div>
-                                            <span className="text-sm font-medium text-gray-400 group-hover:text-gray-300 transition-colors">Etiquetas</span>
+                                            <span className="text-sm font-medium text-[#EEEEEE] group-hover:text-white transition-colors">Etiquetas</span>
                                         </div>
 
                                         <div className="relative flex-1 flex justify-start">
@@ -1593,7 +1621,7 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose }: KanbanC
                                             ) : (
                                                 <button
                                                     onClick={() => setShowTagInput(!showTagInput)}
-                                                    className="text-sm text-gray-600 hover:text-gray-400 cursor-pointer transition-colors"
+                                                    className="text-sm text-[#6e6e6e] hover:text-gray-400 cursor-pointer transition-colors"
                                                 >
                                                     Vazio
                                                 </button>
@@ -1643,11 +1671,14 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose }: KanbanC
 
                                     {/* 1. Responsáveis */}
                                     <div className="flex items-center justify-between group h-8">
-                                        <div className="flex items-center gap-2 text-gray-400 min-w-[140px]">
+                                        <div
+                                            className="flex items-center gap-2 text-[#EEEEEE] min-w-[140px] cursor-pointer"
+                                            onClick={() => userRole !== 'visualizador' && setShowMemberSelect(!showMemberSelect)}
+                                        >
                                             <div className="p-1 rounded hover:bg-white/5 transition-colors">
-                                                <IconUser size={16} stroke={1.5} />
+                                                <IconUser size={16} stroke={1.5} color="#6e6e6e" />
                                             </div>
-                                            <span className="text-sm font-medium text-gray-400 group-hover:text-gray-300 transition-colors">Responsáveis</span>
+                                            <span className="text-sm font-medium text-[#EEEEEE] group-hover:text-white transition-colors">Responsáveis</span>
                                         </div>
 
                                         <div className="relative flex-1 flex justify-start">
@@ -1677,7 +1708,7 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose }: KanbanC
                                                         />
                                                     </div>
                                                 ) : (
-                                                    <span className="text-sm text-gray-600 hover:text-gray-400 transition-colors">Vazio</span>
+                                                    <span className="text-sm text-[#6e6e6e] hover:text-gray-400 transition-colors">Vazio</span>
                                                 )}
                                             </button>
 
@@ -1721,11 +1752,14 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose }: KanbanC
 
                                     {/* 2. Prioridade */}
                                     <div className="flex items-center justify-between group h-8">
-                                        <div className="flex items-center gap-2 text-gray-400 min-w-[140px]">
+                                        <div
+                                            className="flex items-center gap-2 text-[#EEEEEE] min-w-[140px] cursor-pointer"
+                                            onClick={() => userRole !== 'visualizador' && setShowPrioritySelect(!showPrioritySelect)}
+                                        >
                                             <div className="p-1 rounded hover:bg-white/5 transition-colors">
-                                                <IconFlag size={16} stroke={1.5} />
+                                                <IconFlag size={16} stroke={1.5} color="#6e6e6e" />
                                             </div>
-                                            <span className="text-sm font-medium text-gray-400 group-hover:text-gray-300 transition-colors">Prioridade</span>
+                                            <span className="text-sm font-medium text-[#EEEEEE] group-hover:text-white transition-colors">Prioridade</span>
                                         </div>
 
                                         <div className="relative flex-1 flex justify-start">
@@ -1745,7 +1779,7 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose }: KanbanC
                                                         </span>
                                                     </div>
                                                 ) : (
-                                                    <span className="text-sm text-gray-600 hover:text-gray-400 transition-colors">Vazio</span>
+                                                    <span className="text-sm text-[#6e6e6e] hover:text-gray-400 transition-colors">Vazio</span>
                                                 )}
                                             </button>
 
@@ -1777,11 +1811,14 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose }: KanbanC
 
                                     {/* 3. Tempo Rastreado (Visual) */}
                                     <div className="flex items-center justify-between group h-8">
-                                        <div className="flex items-center gap-2 text-gray-400 min-w-[140px]">
+                                        <div
+                                            className="flex items-center gap-2 text-[#EEEEEE] min-w-[140px] cursor-pointer"
+                                            onClick={() => setShowTimePopover(!showTimePopover)}
+                                        >
                                             <div className="p-1 rounded hover:bg-white/5 transition-colors">
-                                                <IconPlayerPlay size={16} stroke={1.5} />
+                                                <IconPlayerPlay size={16} stroke={1.5} color="#6e6e6e" />
                                             </div>
-                                            <span className="text-sm font-medium text-gray-400 group-hover:text-gray-300 transition-colors">Tempo rastreado</span>
+                                            <span className="text-sm font-medium text-[#EEEEEE] group-hover:text-white transition-colors">Tempo rastreado</span>
                                         </div>
                                         <div className="flex-1 flex justify-start">
                                             <button
@@ -1796,7 +1833,7 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose }: KanbanC
                                                     )}
                                                 </div>
                                                 <span className="text-xs font-bold">
-                                                    {isRunning ? timerDisplay : totalMinutes > 0 ? formatDuration(totalMinutes) : 'Adicionar hora'}
+                                                    {isRunning ? timerDisplay : totalMinutes > 0 ? formatDuration(totalMinutes) : <span className="text-[#6e6e6e]">Adicionar hora</span>}
                                                 </span>
                                             </button>
                                         </div>
@@ -1804,11 +1841,14 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose }: KanbanC
 
                                     {/* 4. Cliente (Relacionamentos) */}
                                     <div className="flex items-center justify-between group h-8">
-                                        <div className="flex items-center gap-2 text-gray-400 min-w-[140px]">
+                                        <div
+                                            className="flex items-center gap-2 text-[#EEEEEE] min-w-[140px] cursor-pointer"
+                                            onClick={() => userRole !== 'visualizador' && setShowClientSelect(!showClientSelect)}
+                                        >
                                             <div className="p-1 rounded hover:bg-white/5 transition-colors">
-                                                <IconBriefcase size={16} stroke={1.5} />
+                                                <IconBriefcase size={16} stroke={1.5} color="#6e6e6e" />
                                             </div>
-                                            <span className="text-sm font-medium text-gray-400 group-hover:text-gray-300 transition-colors">Cliente</span>
+                                            <span className="text-sm font-medium text-[#EEEEEE] group-hover:text-white transition-colors">Cliente</span>
                                         </div>
 
                                         <div className="relative flex-1 flex justify-start">
@@ -1834,7 +1874,7 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose }: KanbanC
                                                         />
                                                     </div>
                                                 ) : (
-                                                    <span className="text-sm text-gray-600 hover:text-gray-400 transition-colors">Vazio</span>
+                                                    <span className="text-sm text-[#6e6e6e] hover:text-gray-400 transition-colors">Vazio</span>
                                                 )}
                                             </button>
 
@@ -1891,7 +1931,7 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose }: KanbanC
                                     <>
                                         <div className="flex items-center justify-between text-white pr-2">
                                             <div className="flex items-center gap-2">
-                                                <h3 className="text-sm font-bold uppercase tracking-wide">Descrição</h3>
+                                                <h3 className="text-base font-semibold tracking-tight text-[#EEEEEE]">Descrição</h3>
                                             </div>
                                             {description && (
                                                 <button
@@ -1930,7 +1970,7 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose }: KanbanC
                                 <div className="flex items-center justify-between pb-2 mb-2">
                                     <div className="flex items-center gap-4">
                                         <div className="flex items-center gap-2 text-white">
-                                            <h3 className="text-sm font-bold uppercase tracking-wide">Subtarefas</h3>
+                                            <h3 className="text-base font-semibold tracking-tight text-[#EEEEEE]">Subtarefas</h3>
                                         </div>
 
                                         {/* Barra de Progresso Subtarefas (Igual Checklist) */}
@@ -1975,7 +2015,7 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose }: KanbanC
                                         {subtasks.map(task => (
                                             <div
                                                 key={task.id}
-                                                className={`group grid grid-cols-[1fr_100px_100px_140px_40px] gap-4 items-center px-4 py-2 hover:bg-white/[0.02] transition-colors relative text-sm ${(showSubtaskStatusSelect === task.id || showSubtaskMemberSelect === task.id || showSubtaskPrioritySelect === task.id || showSubtaskTagSelectId === task.id) ? 'z-[999]' : 'z-auto'}`}
+                                                className={`group grid grid-cols-[1fr_100px_100px_140px_40px] gap-4 items-center px-4 py-2 hover:bg-gradient-to-r hover:from-white/[0.03] hover:to-transparent transition-all relative text-sm ${(showSubtaskStatusSelect === task.id || showSubtaskMemberSelect === task.id || showSubtaskPrioritySelect === task.id || showSubtaskTagSelectId === task.id) ? 'z-[999]' : 'z-auto'}`}
                                             >
                                                 {/* Nome e Status */}
                                                 <div className="flex items-center gap-3 min-w-0">
@@ -2254,7 +2294,7 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose }: KanbanC
                                 {/* Header Geral da Seção */}
                                 <div className="flex items-center justify-between">
                                     <div className="flex items-center gap-4">
-                                        <h3 className="text-sm font-bold uppercase tracking-wide text-white">Checklists</h3>
+                                        <h3 className="text-base font-semibold tracking-tight text-[#EEEEEE]">Checklists</h3>
                                         {/* Barra de Progresso Global (Pill Style) */}
                                         <div className="flex items-center gap-2">
                                             <div className="h-1.5 w-16 bg-white/10 rounded-full overflow-hidden">
@@ -2308,7 +2348,7 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose }: KanbanC
                                             {/* Lista de Itens Pendentes */}
                                             <div className="px-2 pb-2">
                                                 {groupItems.filter(i => !i.is_completed).map(item => (
-                                                    <div key={item.id} className="group flex items-start gap-3 px-3 py-2 hover:bg-white/[0.04] rounded-lg transition-colors relative text-sm group/item">
+                                                    <div key={item.id} className="group flex items-start gap-3 px-3 py-2 hover:bg-gradient-to-r hover:from-primary/5 hover:to-transparent rounded-lg transition-all relative text-sm group/item">
                                                         <button
                                                             onClick={() => handleToggleChecklist(item.id, item.is_completed, item.needs_approval, item.approver_id)}
                                                             disabled={item.needs_approval && (item.approver_id ? item.approver_id !== currentUserId : !currentUserApprover)}
@@ -2393,7 +2433,7 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose }: KanbanC
                             <div className="space-y-4">
                                 <div className="flex items-center justify-between">
                                     <div className="flex items-center gap-2">
-                                        <h3 className="text-sm font-bold uppercase tracking-wide text-white">Anexos ({files.length})</h3>
+                                        <h3 className="text-base font-semibold tracking-tight text-[#EEEEEE]">Anexos ({files.length})</h3>
                                     </div>
                                     <button onClick={handleAddFile} className="text-xs text-primary hover:text-white transition-colors">
                                         + Adicionar
@@ -2480,7 +2520,7 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose }: KanbanC
                         {/* Header Lateral */}
                         <div className="p-4 border-b border-white/5 flex items-center gap-2">
                             <MessageSquare size={16} className="text-primary" />
-                            <h3 className="text-sm font-bold text-white uppercase tracking-wide">Atividade</h3>
+                            <h3 className="text-base font-semibold text-[#EEEEEE] tracking-tight">Atividade</h3>
                         </div>
 
                         {/* Feed Scrollável */}
@@ -2767,7 +2807,7 @@ const TimeTrackingPopover = ({
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-[340px] bg-[#0d0d1a]/98 backdrop-blur-3xl border border-white/10 rounded-[24px] shadow-2xl z-[100] animate-in zoom-in-95 duration-200 overflow-hidden flex flex-col">
             {/* Header com Botão de Fechar discreto */}
             <div className="flex justify-between items-center px-6 pt-6 mb-2">
-                <span className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">tempo rastreado</span>
+                <span className="text-[11px] text-[#6e6e6e] font-medium tracking-wide">Tempo rastreado</span>
                 <button onClick={onClose} className="text-gray-500 hover:text-white transition-colors p-1 hover:bg-white/5 rounded-full">
                     <X size={16} />
                 </button>
@@ -2823,7 +2863,7 @@ const TimeTrackingPopover = ({
             {/* Lista Histórica */}
             <div className="flex-1 bg-black/40 border-t border-white/5 flex flex-col min-h-0 max-h-[300px]">
                 <div className="p-4 py-3 bg-white/[0.01] flex justify-between items-center">
-                    <span className="text-[9px] text-gray-600 font-black uppercase tracking-widest">HISTÓRICO</span>
+                    <span className="text-[10px] text-[#6e6e6e] font-semibold tracking-wider">Histórico</span>
                 </div>
                 <div className="flex-1 overflow-y-auto custom-scrollbar px-2 pb-4">
                     {timeEntries.length > 0 ? (

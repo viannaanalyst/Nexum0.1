@@ -100,6 +100,15 @@ const OrganizadorCronograma = () => {
         }
     }, [selectedCompany]);
 
+    useEffect(() => {
+        const handleGlobalNewSchedule = () => {
+            setIsNewModalOpen(true);
+        };
+
+        window.addEventListener('open-new-schedule', handleGlobalNewSchedule);
+        return () => window.removeEventListener('open-new-schedule', handleGlobalNewSchedule);
+    }, []);
+
     const fetchSchedules = async () => {
         if (!selectedCompany) return;
         setLoading(true);
@@ -355,10 +364,7 @@ const OrganizadorCronograma = () => {
         return (
             <div className="p-8 h-full max-w-7xl mx-auto">
                 <div className="flex justify-between items-center mb-8">
-                    <div>
-                        <h1 className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-white to-gray-400">Cronogramas</h1>
-                        <p className="text-gray-400 mt-2">Planejamento estratégico mensal de conteúdo.</p>
-                    </div>
+                    <div className="flex-1"></div>
                     <button
                         onClick={() => setIsNewModalOpen(true)}
                         className="flex items-center gap-2 bg-primary text-white px-4 py-2 rounded-lg hover:bg-secondary transition-all shadow-lg shadow-primary/20"
@@ -425,7 +431,10 @@ const OrganizadorCronograma = () => {
                         </div>
 
                         {/* 2. Container Glass Premium */}
-                        <div className="relative z-10 w-full max-w-md rounded-[22px] overflow-hidden shadow-2xl animate-in zoom-in-95 duration-300 border border-white/10 bg-[#0a0a1a]/80 backdrop-blur-xl">
+                        <div className="relative z-10 w-full max-w-md rounded-[22px] overflow-hidden shadow-[0_32px_64px_-12px_rgba(0,0,0,0.6)] animate-in zoom-in-95 duration-300 border border-white/10 bg-[#0a0a1a]/10 backdrop-blur-xl ring-1 ring-white/10 ring-inset">
+
+                            {/* Grain Texture Overlay */}
+                            <div className="absolute inset-0 opacity-[0.03] pointer-events-none bg-[url('https://grainy-gradients.vercel.app/noise.svg')] z-0"></div>
 
                             {/* Glow Effects */}
                             <div className="absolute inset-0 rounded-[22px] border border-white/5 pointer-events-none"></div>
@@ -433,8 +442,8 @@ const OrganizadorCronograma = () => {
                             <div className="absolute top-0 left-1/2 -translate-x-1/2 w-1/3 h-[1px] bg-gradient-to-r from-transparent via-primary/50 to-transparent"></div>
 
                             <div className="p-8 pb-4 relative z-20">
-                                <h2 className="text-xl font-bold text-white/90 mb-1">Novo cronograma</h2>
-                                <p className="text-xs text-gray-500 font-light">Crie um novo planejamento mensal de conteúdo.</p>
+                                <h2 className="text-xl font-bold text-[#EEEEEE] mb-1">Novo cronograma</h2>
+                                <p className="text-xs text-[#6e6e6e] font-light">Crie um novo planejamento mensal de conteúdo.</p>
                             </div>
 
                             <div className="p-8 pt-2 space-y-5 relative z-20">
@@ -473,7 +482,7 @@ const OrganizadorCronograma = () => {
                                         <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wide ml-1">Ano</label>
                                         <input
                                             type="number"
-                                            className="w-full bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.08] rounded-xl px-4 py-3 text-white/90 focus:bg-white/[0.08] focus:border-primary/30 focus:ring-0 outline-none transition-all duration-300 text-sm font-light placeholder-gray-600"
+                                            className="w-full bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.08] rounded-xl px-4 py-3 text-white/90 focus:bg-white/[0.08] focus:border-primary/30 focus:ring-0 outline-none transition-all duration-300 text-sm font-light placeholder-[#6e6e6e]"
                                             value={newYear}
                                             onChange={e => setNewYear(Number(e.target.value))}
                                         />
@@ -732,7 +741,7 @@ const OrganizadorCronograma = () => {
                             {/* Cover / Header */}
                             <div className="text-center mb-12 border-b border-white/10 pb-8">
                                 <h1 className="text-5xl font-bold mb-4">{currentSchedule.client?.name}</h1>
-                                <p className="text-2xl text-gray-400 uppercase tracking-widest">Planejamento Estratégico • {MONTHS[(currentSchedule?.month || 1) - 1]} {currentSchedule.year}</p>
+                                <p className="text-2xl text-gray-400 tracking-widest font-light">Planejamento Estratégico • {MONTHS[(currentSchedule?.month || 1) - 1]} {currentSchedule.year}</p>
                             </div>
 
                             {/* Strategy Content */}
@@ -777,7 +786,7 @@ const OrganizadorCronograma = () => {
                                 >
                                     {/* Header da Semana */}
                                     <div className="text-center mb-8 pb-4 border-b border-white/10 relative z-10">
-                                        <h2 className="text-3xl font-bold text-white uppercase tracking-widest">Semana {week}</h2>
+                                        <h2 className="text-3xl font-bold text-white tracking-widest">Semana {week}</h2>
                                     </div>
 
                                     {/* Posts Grid */}
@@ -785,7 +794,7 @@ const OrganizadorCronograma = () => {
                                         {weekPosts.map(post => (
                                             <div key={post.id} className="bg-[#0a0a1a] p-6 rounded-2xl border border-white/10 relative h-full flex flex-col">
                                                 <div className="absolute top-0 right-0 left-0 flex justify-center -translate-y-1/2">
-                                                    <span className={`px-6 py-1.5 rounded-full font-bold uppercase text-xs tracking-wider shadow-lg bg-[#0f0f1a] border ${post.format === 'reels' ? 'border-pink-500 text-pink-400' :
+                                                    <span className={`px-6 py-1.5 rounded-full font-medium text-xs tracking-wider shadow-lg bg-[#0f0f1a] border ${post.format === 'reels' ? 'border-pink-500 text-pink-400' :
                                                         post.format === 'static' ? 'border-blue-500 text-blue-400' :
                                                             post.format === 'carousel' ? 'border-purple-500 text-purple-400' :
                                                                 'border-yellow-500 text-yellow-400'
@@ -799,7 +808,7 @@ const OrganizadorCronograma = () => {
                                                     <p className="text-base text-gray-400 mb-6 italic text-center flex-1">"{post.hook}"</p>
 
                                                     <div className="bg-white/5 p-4 rounded-xl text-sm text-gray-300 mt-auto">
-                                                        <strong className="text-gray-500 uppercase block mb-1 text-[10px] tracking-wider">Gatilho (Dor/Desejo)</strong>
+                                                        <strong className="text-[#6e6e6e] block mb-1 text-[11px] font-medium tracking-tight">Gatilho (Dor/Desejo)</strong>
                                                         {post.pain_desire || '-'}
                                                     </div>
                                                 </div>

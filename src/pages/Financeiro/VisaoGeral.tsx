@@ -300,12 +300,7 @@ const FinanceiroVisaoGeral = () => {
     <div className="p-8 space-y-8 animate-in fade-in duration-500 max-w-7xl mx-auto">
       {/* Header com Filtros */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
-        <div>
-          <h1 className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-white to-gray-400">
-            Visão Geral Financeira
-          </h1>
-          <p className="text-gray-400 mt-2">Acompanhe a saúde do seu caixa em tempo real.</p>
-        </div>
+        <div className="flex-1"></div>
 
         <div className="flex items-center gap-2 bg-white/5 p-2 rounded-xl border border-white/10 flex-wrap">
           <Filter size={16} className="text-primary ml-1 flex-shrink-0" />

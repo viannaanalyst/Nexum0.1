@@ -118,7 +118,7 @@ function App() {
                 <Route path="organizador/cronograma" element={<OrganizadorCronograma />} />
 
                 {/* Other Sidebar Routes */}
-                <Route path="relatorios" element={<div className="text-white p-8">Relatórios IA e Agente (Em construção)</div>} />
+                <Route path="relatorios" element={<div className="text-white p-8">Nexum Intelligence (Em construção)</div>} />
                 <Route path="calendario" element={<Calendario />} />
 
                 {/* Financeiro Sub-routes */}

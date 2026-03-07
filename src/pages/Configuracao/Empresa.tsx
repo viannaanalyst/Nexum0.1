@@ -72,12 +72,7 @@ const Empresa = () => {
   return (
     <div className="max-w-4xl mx-auto space-y-8">
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-white to-gray-400">
-            Configuração da Empresa
-          </h1>
-          <p className="text-gray-400 mt-2">Gerencie as informações principais da sua organização.</p>
-        </div>
+        <div className="flex-1"></div>
         <button
           onClick={handleSubmit}
           className="flex items-center space-x-2 bg-primary hover:bg-secondary text-white px-6 py-3 rounded-lg shadow-lg shadow-primary/20 transition-all duration-300 transform hover:scale-105"

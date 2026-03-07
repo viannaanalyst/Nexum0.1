@@ -125,12 +125,7 @@ const RegrasFinanceiras = () => {
   return (
     <div className="max-w-4xl mx-auto space-y-8">
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-white to-gray-400">
-            Regras Financeiras
-          </h1>
-          <p className="text-gray-400 mt-2">Defina a estrutura societária e regras de distribuição.</p>
-        </div>
+        <div className="flex-1"></div>
         <button
           onClick={handleSave}
           disabled={loading}

@@ -95,6 +95,21 @@ const FinanceiroLancamentos = () => {
 
   useEffect(() => { fetchData(); }, [selectedCompany, year]);
 
+  useEffect(() => {
+    const handleGlobalNewTransaction = () => {
+      setEditingId(null);
+      setNewTransaction({
+        type: 'expense',
+        status: 'pending',
+        due_date: new Date().toISOString().split('T')[0]
+      });
+      setIsModalOpen(true);
+    };
+
+    window.addEventListener('open-new-transaction', handleGlobalNewTransaction);
+    return () => window.removeEventListener('open-new-transaction', handleGlobalNewTransaction);
+  }, []);
+
   // Logic: Merge Real Transactions + Virtual MRR
   const displayData = useMemo(() => {
     const isAllMonths = selectedMonths.includes('all' as any) || selectedMonths.length === 0;
@@ -306,12 +321,7 @@ const FinanceiroLancamentos = () => {
     <div className="p-8 space-y-8 animate-in fade-in duration-500 max-w-7xl mx-auto">
       {/* Header & Filtros */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div>
-          <h1 className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-white to-gray-400">
-            Fluxo de Caixa
-          </h1>
-          <p className="text-gray-400 mt-1">Gerencie suas entradas e saídas.</p>
-        </div>
+        <div className="flex-1"></div>
 
         <div className="flex flex-wrap items-center gap-2 bg-white/5 p-2 rounded-xl border border-white/10">
           <Select
@@ -469,7 +479,10 @@ const FinanceiroLancamentos = () => {
           </div>
 
           {/* 2. Container Glass Premium */}
-          <div className="relative z-10 w-full max-w-lg rounded-[22px] overflow-hidden shadow-2xl animate-in zoom-in-95 duration-300 border border-white/10 bg-[#0a0a1a]/80 backdrop-blur-xl">
+          <div className="relative z-10 w-full max-w-lg rounded-[22px] overflow-hidden shadow-[0_32px_64px_-12px_rgba(0,0,0,0.6)] animate-in zoom-in-95 duration-300 border border-white/10 bg-[#0a0a1a]/10 backdrop-blur-xl ring-1 ring-white/10 ring-inset">
+
+            {/* Grain Texture Overlay */}
+            <div className="absolute inset-0 opacity-[0.03] pointer-events-none bg-[url('https://grainy-gradients.vercel.app/noise.svg')] z-0"></div>
 
             {/* Glow Effects */}
             <div className="absolute inset-0 rounded-[22px] border border-white/5 pointer-events-none"></div>
@@ -478,8 +491,8 @@ const FinanceiroLancamentos = () => {
 
             <div className="flex justify-between items-start p-8 pb-4 relative z-20">
               <div>
-                <h2 className="text-xl font-medium text-white/90">{editingId ? 'Editar Lançamento' : 'Novo lançamento'}</h2>
-                <p className="text-gray-400/80 text-xs mt-1 font-light">Registre suas movimentações financeiras.</p>
+                <h2 className="text-xl font-medium text-[#EEEEEE]">{editingId ? 'Editar Lançamento' : 'Novo lançamento'}</h2>
+                <p className="text-[#6e6e6e] text-xs mt-1 font-light">Registre suas movimentações financeiras.</p>
               </div>
               <button
                 onClick={() => { setIsModalOpen(false); setEditingId(null); setNewTransaction({ type: 'expense', status: 'pending', due_date: new Date().toISOString().split('T')[0] }); }}
@@ -518,7 +531,7 @@ const FinanceiroLancamentos = () => {
                 <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wide ml-1">Descrição</label>
                 <input
                   required
-                  className="w-full bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.08] rounded-xl px-4 py-3 text-white/90 focus:bg-white/[0.08] focus:border-primary/30 focus:ring-0 outline-none transition-all duration-300 text-sm font-light placeholder-gray-600"
+                  className="w-full bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.08] rounded-xl px-4 py-3 text-white/90 focus:bg-white/[0.08] focus:border-primary/30 focus:ring-0 outline-none transition-all duration-300 text-sm font-light placeholder-[#6e6e6e]"
                   placeholder="Ex: Aluguel, Projeto X..."
                   value={newTransaction.description || ''}
                   onChange={e => setNewTransaction({ ...newTransaction, description: e.target.value })}
@@ -532,7 +545,7 @@ const FinanceiroLancamentos = () => {
                     required
                     type="number"
                     step="0.01"
-                    className="w-full bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.08] rounded-xl px-4 py-3 text-white/90 focus:bg-white/[0.08] focus:border-primary/30 focus:ring-0 outline-none transition-all duration-300 text-sm font-light placeholder-gray-600"
+                    className="w-full bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.08] rounded-xl px-4 py-3 text-white/90 focus:bg-white/[0.08] focus:border-primary/30 focus:ring-0 outline-none transition-all duration-300 text-sm font-light placeholder-[#6e6e6e]"
                     placeholder="0,00"
                     value={newTransaction.amount || ''}
                     onChange={e => setNewTransaction({ ...newTransaction, amount: Number(e.target.value) })}
@@ -638,7 +651,7 @@ const TransactionCard = ({ item, onToggle, onEdit, onDelete }: { item: Transacti
               {item.description}
             </p>
             {isVirtual && (
-              <span className="text-[10px] bg-blue-500/20 text-blue-300 px-2 py-0.5 rounded-full uppercase tracking-wider font-bold border border-blue-500/20">
+              <span className="text-[10px] bg-blue-500/20 text-blue-300 px-2 py-0.5 rounded-full tracking-tight font-medium border border-blue-500/20">
                 Automático
               </span>
             )}

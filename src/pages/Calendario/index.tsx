@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import { Briefcase, User, Tag as TagIcon, X as CloseIcon } from 'lucide-react';
+import { Select } from '../../components/ui/Select';
 import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
@@ -6,6 +8,7 @@ import interactionPlugin from '@fullcalendar/interaction';
 import { useCompany } from '../../context/CompanyContext';
 import { supabase } from '../../lib/supabase';
 import KanbanCardModal from '../Organizador/KanbanCardModal';
+import { NewEventModal } from '../../components/Calendar/NewEventModal';
 import './calendario.css';
 
 const Calendario = () => {
@@ -14,6 +17,9 @@ const Calendario = () => {
   const [allEvents, setAllEvents] = useState<any[]>([]);
   const [events, setEvents] = useState<any[]>([]);
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
+  const [modalMode, setModalMode] = useState<'task' | 'event'>('task');
+  const [showEventModal, setShowEventModal] = useState(false);
+  const [initialEventDate, setInitialEventDate] = useState<string | undefined>();
 
   // Filter Options States
   const [clients, setClients] = useState<any[]>([]);
@@ -24,6 +30,28 @@ const Calendario = () => {
   const [selectedClient, setSelectedClient] = useState<string>('');
   const [selectedMember, setSelectedMember] = useState<string>('');
   const [selectedTag, setSelectedTag] = useState<string>('');
+  const [firstColumnId, setFirstColumnId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const handleGlobalNewTask = () => {
+      if (firstColumnId) {
+        setModalMode('task');
+        setSelectedCardId('new');
+      }
+    };
+
+    const handleGlobalNewEvent = () => {
+      setInitialEventDate(new Date().toISOString().slice(0, 16));
+      setShowEventModal(true);
+    };
+
+    window.addEventListener('open-new-task', handleGlobalNewTask);
+    window.addEventListener('open-new-event', handleGlobalNewEvent);
+    return () => {
+      window.removeEventListener('open-new-task', handleGlobalNewTask);
+      window.removeEventListener('open-new-event', handleGlobalNewEvent);
+    };
+  }, [firstColumnId]);
 
   useEffect(() => {
     if (selectedCompany) {
@@ -72,6 +100,15 @@ const Calendario = () => {
       .eq('company_id', selectedCompany.id)
       .order('name');
     if (tagsData) setTags(tagsData);
+
+    // 4. Fetch First Column (for new tasks)
+    const { data: cols } = await supabase
+      .from('kanban_columns')
+      .select('id')
+      .eq('company_id', selectedCompany.id)
+      .order('position', { ascending: true })
+      .limit(1);
+    if (cols && cols.length > 0) setFirstColumnId(cols[0].id);
   };
 
   const fetchEvents = async () => {
@@ -127,10 +164,15 @@ const Calendario = () => {
           const client = card.client_id ? clientsMap[card.client_id] : null;
           const cardTagIds = card.kanban_card_tags?.map((t: any) => t.tag_id) || [];
 
+          // If it's an event, we use the timestamp. If it's a task, just the date.
+          // But always as a single point in time/day to avoid taking over the calendar.
+          const isEvent = card.category === 'Evento';
+
           return {
             id: card.id,
             title: card.title,
-            date: card.due_date.split('T')[0], // FullCalendar expects YYYY-MM-DD
+            start: card.due_date, // Use due_date as the single point
+            allDay: !isEvent, // Tasks are allDay (on the deadline), Events have time
             backgroundColor: getPriorityColor(card.priority),
             borderColor: getPriorityColor(card.priority),
             extendedProps: {
@@ -140,7 +182,9 @@ const Calendario = () => {
               responsibleId: card.assigned_to,
               client: client ? client.name : null,
               clientId: card.client_id,
-              tagIds: cardTagIds
+              tagIds: cardTagIds,
+              category: card.category,
+              rawDueDate: card.due_date
             }
           };
         }).filter(Boolean);
@@ -193,15 +237,22 @@ const Calendario = () => {
   };
 
   const renderEventContent = (eventInfo: any) => {
-    const { responsible, client, priority } = eventInfo.event.extendedProps;
+    const { responsible, client, priority, category, rawDueDate } = eventInfo.event.extendedProps;
     const priorityLabel = getPriorityLabel(priority);
+    const isEvent = category === 'Evento';
+    const time = isEvent && rawDueDate ? rawDueDate.split('T')[1]?.slice(0, 5) : '';
 
     return (
       <div className="flex flex-col w-full overflow-hidden px-1.5 py-1">
         <div className="font-bold truncate text-[11px] leading-tight mb-0.5">{eventInfo.event.title}</div>
 
         <div className="flex flex-col gap-0.5 opacity-90">
-          {priorityLabel && (
+          {isEvent && time && (
+            <div className="text-[9px] uppercase tracking-wide font-bold text-blue-400 flex items-center gap-1">
+              <span>🕒</span> {time}
+            </div>
+          )}
+          {priorityLabel && !isEvent && (
             <div className="text-[9px] uppercase tracking-wide font-semibold opacity-80">
               {priorityLabel}
             </div>
@@ -286,38 +337,38 @@ const Calendario = () => {
 
           {/* Filters Group */}
           <div className="flex flex-wrap gap-2 items-center justify-end w-full md:w-auto">
-            <select
+            <Select
+              className="w-full md:w-auto"
               value={selectedClient}
-              onChange={e => setSelectedClient(e.target.value)}
-              className="bg-[#0f0f1a] border border-white/10 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-primary w-full md:w-32"
-            >
-              <option value="">Cliente</option>
-              {clients.map(c => (
-                <option key={c.id} value={c.id}>{c.name}</option>
-              ))}
-            </select>
+              onChange={setSelectedClient}
+              icon={<Briefcase size={14} />}
+              options={[
+                { value: '', label: 'Cliente' },
+                ...clients.map(c => ({ value: c.id, label: c.name }))
+              ]}
+            />
 
-            <select
+            <Select
+              className="w-full md:w-auto"
               value={selectedMember}
-              onChange={e => setSelectedMember(e.target.value)}
-              className="bg-[#0f0f1a] border border-white/10 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-primary w-full md:w-32"
-            >
-              <option value="">Responsável</option>
-              {members.map(m => (
-                <option key={m.id} value={m.id}>{m.full_name || m.email}</option>
-              ))}
-            </select>
+              onChange={setSelectedMember}
+              icon={<User size={14} />}
+              options={[
+                { value: '', label: 'Responsável' },
+                ...members.map(m => ({ value: m.id, label: m.full_name || m.email }))
+              ]}
+            />
 
-            <select
+            <Select
+              className="w-full md:w-auto"
               value={selectedTag}
-              onChange={e => setSelectedTag(e.target.value)}
-              className="bg-[#0f0f1a] border border-white/10 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-primary w-full md:w-32"
-            >
-              <option value="">Tag</option>
-              {tags.map(t => (
-                <option key={t.id} value={t.id}>{t.name}</option>
-              ))}
-            </select>
+              onChange={setSelectedTag}
+              icon={<TagIcon size={14} />}
+              options={[
+                { value: '', label: 'Tag' },
+                ...tags.map(t => ({ value: t.id, label: t.name }))
+              ]}
+            />
 
             {(selectedClient || selectedMember || selectedTag) && (
               <button
@@ -373,19 +424,39 @@ const Calendario = () => {
           slotLabelClassNames="text-gray-400 text-xs"
           eventClassNames="rounded-md border-0 shadow-sm opacity-90 hover:opacity-100 transition-opacity"
           datesSet={updateTitle} // Keep title in sync
-          eventClick={(info) => setSelectedCardId(info.event.id)}
+          eventClick={(info) => {
+            setModalMode('task');
+            setSelectedCardId(info.event.id);
+          }}
+          dateClick={(info) => {
+            setInitialEventDate(info.dateStr + 'T12:00');
+            setShowEventModal(true);
+          }}
+          selectable={true}
         />
       </div>
 
       {selectedCardId && (
         <KanbanCardModal
           cardId={selectedCardId}
+          columnId={selectedCardId === 'new' ? firstColumnId || undefined : undefined}
+          mode={modalMode}
           onClose={() => {
             setSelectedCardId(null);
             fetchEvents(); // Refresh events after closing modal
           }}
         />
       )}
+
+      <NewEventModal
+        isOpen={showEventModal}
+        initialDate={initialEventDate}
+        onClose={() => setShowEventModal(false)}
+        onSuccess={() => {
+          fetchEvents();
+          setShowEventModal(false);
+        }}
+      />
     </div>
   );
 };

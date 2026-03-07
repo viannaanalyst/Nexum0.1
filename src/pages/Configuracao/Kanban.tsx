@@ -122,7 +122,7 @@ const TaskTemplateCard = ({ template, members, onEdit, onDelete }: {
                 <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1 flex-wrap">
                         <h3 className="text-white font-semibold text-sm truncate">{template.title}</h3>
-                        <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-white/5 ${priorityOpt?.color}`}>
+                        <span className={`text-[11px] font-medium tracking-tight px-2 py-0.5 rounded-full bg-white/5 ${priorityOpt?.color}`}>
                             {priorityOpt?.label}
                         </span>
                     </div>
@@ -165,7 +165,7 @@ const TaskTemplateCard = ({ template, members, onEdit, onDelete }: {
             </div>
             {expanded && template.subtasks.length > 0 && (
                 <div className="border-t border-white/5 px-4 pb-4 pt-3 space-y-1.5">
-                    <p className="text-[10px] text-gray-600 uppercase tracking-wider font-bold mb-2">Subtarefas</p>
+                    <p className="text-[11px] text-[#6e6e6e] font-medium tracking-tight mb-2">Subtarefas</p>
                     {template.subtasks.sort((a, b) => a.order - b.order).map(sub => (
                         <div key={sub.id} className="flex items-center gap-2 text-xs text-gray-400">
                             <Circle size={11} className="text-gray-600 shrink-0" /> {sub.title}
@@ -207,7 +207,10 @@ const TaskTemplateModal = ({ template, members, onSave, onClose }: {
     return (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
             <div className="absolute inset-0 bg-black/60 backdrop-blur-md" onClick={onClose} />
-            <div className="relative z-10 w-full max-w-lg max-h-[90vh] flex flex-col rounded-[22px] border border-white/10 bg-[#0a0a1a]/90 backdrop-blur-xl shadow-2xl animate-in zoom-in-95 duration-200">
+            <div className="relative z-10 w-full max-w-lg max-h-[90vh] flex flex-col rounded-[22px] border border-white/10 bg-[#0a0a1a]/10 backdrop-blur-xl shadow-[0_32px_64px_-12px_rgba(0,0,0,0.6)] animate-in zoom-in-95 duration-200 ring-1 ring-white/10 ring-inset">
+                {/* Grain Texture Overlay */}
+                <div className="absolute inset-0 opacity-[0.03] pointer-events-none bg-[url('https://grainy-gradients.vercel.app/noise.svg')] z-0 rounded-[22px]"></div>
+
                 {/* Glow */}
                 <div className="absolute top-0 left-1/2 -translate-x-1/2 w-1/2 h-[1px] bg-gradient-to-r from-transparent via-primary/60 to-transparent" />
                 <div className="absolute top-[-40px] left-1/2 -translate-x-1/2 w-[50%] h-[80px] bg-primary/20 blur-[60px] pointer-events-none rounded-full" />
@@ -215,8 +218,8 @@ const TaskTemplateModal = ({ template, members, onSave, onClose }: {
                 {/* Header */}
                 <div className="p-6 pb-4 flex items-center justify-between border-b border-white/5 shrink-0">
                     <div>
-                        <h2 className="text-lg font-bold text-white">{isNew ? 'Novo Template de Tarefa' : 'Editar Template'}</h2>
-                        <p className="text-xs text-gray-500 mt-0.5">Configure a tarefa e suas subtarefas pré-definidas</p>
+                        <h2 className="text-lg font-bold text-[#EEEEEE]">{isNew ? 'Novo Template de Tarefa' : 'Editar Template'}</h2>
+                        <p className="text-xs text-[#6e6e6e] mt-0.5 font-light">Configure a tarefa e suas subtarefas pré-definidas</p>
                     </div>
                     <button onClick={onClose} className="p-2 text-gray-500 hover:text-white hover:bg-white/5 rounded-xl transition-all">
                         <X size={18} />
@@ -229,7 +232,7 @@ const TaskTemplateModal = ({ template, members, onSave, onClose }: {
                     <div className="space-y-1.5">
                         <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Nome do Template *</label>
                         <input type="text" value={form.title ?? ''} onChange={e => setForm(p => ({ ...p, title: e.target.value }))}
-                            className="w-full bg-white/[0.04] border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm focus:outline-none focus:border-primary/40 transition-colors placeholder-gray-600"
+                            className="w-full bg-white/[0.04] border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm focus:outline-none focus:border-primary/40 transition-colors placeholder-[#6e6e6e]"
                             placeholder="Ex: Gestão de Tráfego — Setup Mensal" />
                     </div>
 
@@ -260,7 +263,7 @@ const TaskTemplateModal = ({ template, members, onSave, onClose }: {
 
                     {/* Subtasks */}
                     <div className="space-y-2">
-                        <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">
+                        <label className="text-[10px] font-bold text-[#6e6e6e] uppercase tracking-wider">
                             Subtarefas Pré-definidas ({form.subtasks?.length ?? 0})
                         </label>
                         <div className="space-y-1.5">
@@ -289,7 +292,7 @@ const TaskTemplateModal = ({ template, members, onSave, onClose }: {
                     {/* Assignees */}
                     {members.length > 0 && (
                         <div className="space-y-2">
-                            <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">
+                            <label className="text-[10px] font-bold text-[#6e6e6e] uppercase tracking-wider">
                                 Responsáveis Padrão ({form.assignees?.length ?? 0} selecionados)
                             </label>
                             <div className="space-y-1.5 max-h-40 overflow-y-auto scrollbar-thin scrollbar-thumb-white/10">
@@ -363,11 +366,13 @@ const ClientSelectionModal = ({ clients, onConfirm, onClose, applying }: {
     return (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
             <div className="absolute inset-0 bg-black/60 backdrop-blur-md" onClick={onClose} />
-            <div className="relative z-10 w-full max-w-md max-h-[80vh] flex flex-col rounded-[22px] border border-white/10 bg-[#0a0a1a]/90 backdrop-blur-xl shadow-2xl animate-in zoom-in-95 duration-200">
+            <div className="relative z-10 w-full max-w-md max-h-[80vh] flex flex-col rounded-[22px] border border-white/10 bg-[#0a0a1a]/10 backdrop-blur-xl shadow-[0_32px_64px_-12px_rgba(0,0,0,0.6)] animate-in zoom-in-95 duration-200 ring-1 ring-white/10 ring-inset">
+                {/* Grain Texture Overlay */}
+                <div className="absolute inset-0 opacity-[0.03] pointer-events-none bg-[url('https://grainy-gradients.vercel.app/noise.svg')] z-0 rounded-[22px]"></div>
                 <div className="p-6 pb-4 border-b border-white/5 flex items-center justify-between">
                     <div>
-                        <h2 className="text-lg font-bold text-white">Selecionar Clientes</h2>
-                        <p className="text-xs text-gray-500 mt-0.5">Escolha quais clientes receberão o template</p>
+                        <h2 className="text-lg font-bold text-[#EEEEEE]">Selecionar Clientes</h2>
+                        <p className="text-xs text-[#6e6e6e] mt-0.5 font-light">Escolha quais clientes receberão o template</p>
                     </div>
                     <button onClick={onClose} className="p-2 text-gray-500 hover:text-white hover:bg-white/5 rounded-xl transition-all">
                         <X size={18} />
@@ -466,6 +471,24 @@ const ConfiguracaoKanban = () => {
             loadMembers();
         }
     }, [selectedCompany]);
+
+    useEffect(() => {
+        const handleNewColumn = () => {
+            setActiveTab('colunas');
+            addColumn();
+        };
+        const handleNewTemplate = () => {
+            setActiveTab('tarefas');
+            setModalTemplate({});
+        };
+
+        window.addEventListener('open-new-column-config', handleNewColumn);
+        window.addEventListener('open-new-template-config', handleNewTemplate);
+        return () => {
+            window.removeEventListener('open-new-column-config', handleNewColumn);
+            window.removeEventListener('open-new-template-config', handleNewTemplate);
+        };
+    }, []);
 
     // ── Load Colunas ──────────────────────────────────────────────────────────
 
@@ -633,18 +656,7 @@ const ConfiguracaoKanban = () => {
 
     return (
         <div className="p-8 max-w-3xl mx-auto space-y-6">
-            {/* Header */}
-            <div>
-                <div className="flex items-center gap-3 mb-1">
-                    <div className="p-2.5 rounded-xl bg-primary/10 border border-primary/20">
-                        <Columns className="w-5 h-5 text-primary" />
-                    </div>
-                    <h1 className="text-2xl font-bold text-white">Configuração do Kanban</h1>
-                </div>
-                <p className="text-gray-400 text-sm mt-1 ml-[52px]">
-                    Defina templates padrão de colunas e tarefas para o quadro Kanban.
-                </p>
-            </div>
+            <div className="flex-1"></div>
 
             {/* Tabs */}
             <div className="flex gap-1 p-1 bg-white/[0.03] rounded-xl border border-white/10 w-fit">

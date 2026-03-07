@@ -161,19 +161,7 @@ const Atividades = () => {
                 <div className="absolute top-0 right-0 w-64 h-64 bg-primary/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2"></div>
 
                 <div className="relative z-10 flex justify-between items-center">
-                    <div>
-                        <div className="flex items-center gap-2 mb-2">
-                            <span className="bg-primary/20 text-primary text-xs font-bold px-2 py-1 rounded uppercase tracking-wider">Painel de Produtividade</span>
-                        </div>
-                        <h1 className="text-4xl font-bold text-white mb-2 underline decoration-primary/30 underline-offset-8">Olá, {userProfile?.full_name || user?.email?.split('@')[0]}</h1>
-                        <p className="text-gray-400 text-lg">
-                            {loading ? (
-                                <span className="animate-pulse bg-white/10 h-6 w-64 rounded inline-block align-middle"></span>
-                            ) : (
-                                <>Você tem <strong className="text-white">{metrics.totalAssigned - metrics.totalCompleted} tarefas em aberto</strong>. Vamos começar?</>
-                            )}
-                        </p>
-                    </div>
+                    <div className="flex-1"></div>
 
                     {/* Efficiency Widget */}
                     <div className="bg-white/5 backdrop-blur-xl p-6 rounded-2xl border border-white/5 text-center min-w-[160px] relative group overflow-hidden transition-all hover:bg-white/10 hover:border-primary/30">

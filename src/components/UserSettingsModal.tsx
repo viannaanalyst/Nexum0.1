@@ -252,7 +252,10 @@ const UserSettingsModal: React.FC<UserSettingsModalProps> = ({ isOpen, onClose, 
         <div className="absolute inset-0 opacity-[0.03] bg-[url('https://grainy-gradients.vercel.app/noise.svg')]"></div>
       </div>
 
-      <div className="relative z-10 w-full max-w-4xl h-[700px] flex rounded-[22px] overflow-hidden shadow-2xl animate-in zoom-in-95 duration-300 border border-white/10 bg-[#0a0a1a]/80 backdrop-blur-xl">
+      <div className="relative z-10 w-full max-w-4xl h-[700px] flex rounded-[22px] overflow-hidden shadow-[0_32px_64px_-12px_rgba(0,0,0,0.6)] animate-in zoom-in-95 duration-300 border border-white/10 bg-[#0a0a1a]/10 backdrop-blur-xl ring-1 ring-white/10 ring-inset">
+
+        {/* Grain Texture Overlay */}
+        <div className="absolute inset-0 opacity-[0.03] pointer-events-none bg-[url('https://grainy-gradients.vercel.app/noise.svg')] z-0 rounded-[22px]"></div>
 
         {/* Glow Effects */}
         <div className="absolute inset-0 rounded-[22px] border border-white/5 pointer-events-none"></div>
@@ -262,8 +265,8 @@ const UserSettingsModal: React.FC<UserSettingsModalProps> = ({ isOpen, onClose, 
         {/* Sidebar Navigation */}
         <div className="w-72 border-r border-white/5 bg-[#0a0a1a]/50 backdrop-blur-md flex flex-col p-6 relative z-20">
           <div className="mb-8">
-            <h2 className="text-xl font-bold text-white mb-1">Ajustes</h2>
-            <p className="text-xs text-gray-500 font-light">Gerencie sua conta e preferências</p>
+            <h2 className="text-xl font-bold text-[#EEEEEE] mb-1">Ajustes</h2>
+            <p className="text-xs text-[#6e6e6e] font-light">Gerencie sua conta e preferências</p>
           </div>
 
           <nav className="flex-1 space-y-2">
@@ -346,9 +349,9 @@ const UserSettingsModal: React.FC<UserSettingsModalProps> = ({ isOpen, onClose, 
                   </div>
                   <div>
                     <h4 className="text-white font-medium mb-1">Foto do Perfil</h4>
-                    <p className="text-xs text-gray-500 mb-3 font-light">Clique para alterar seu avatar personalizado</p>
-                    <label className="text-xs font-bold text-primary hover:text-primary transition-colors cursor-pointer flex items-center gap-1">
-                      {uploading ? 'ENVIANDO...' : 'ALTERAR IMAGEM'}
+                    <p className="text-xs text-[#6e6e6e] mb-3 font-light">Clique para alterar seu avatar personalizado</p>
+                    <label className="text-xs font-medium text-primary hover:text-white transition-colors cursor-pointer flex items-center gap-1">
+                      {uploading ? 'Enviando...' : 'Alterar imagem'}
                       <input
                         type="file"
                         className="hidden"
@@ -370,7 +373,7 @@ const UserSettingsModal: React.FC<UserSettingsModalProps> = ({ isOpen, onClose, 
                           type="text"
                           value={name}
                           onChange={(e) => setName(e.target.value)}
-                          className="w-full bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.08] rounded-xl py-3 pl-10 pr-4 text-sm text-white focus:bg-white/[0.08] focus:border-primary/30 focus:ring-0 outline-none transition-all duration-300 font-light placeholder-gray-600"
+                          className="w-full bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.08] rounded-xl py-3 pl-10 pr-4 text-sm text-white focus:bg-white/[0.08] focus:border-primary/30 focus:ring-0 outline-none transition-all duration-300 font-light placeholder-[#6e6e6e]"
                           placeholder="Ex: Gabriel Silva"
                         />
                       </div>

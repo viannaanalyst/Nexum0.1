@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { 
-  CheckSquare, 
-  ChevronDown, 
-  ChevronRight, 
-  Filter, 
-  Search, 
-  User, 
-  Calendar, 
+import {
+  CheckSquare,
+  ChevronDown,
+  ChevronRight,
+  Filter,
+  Search,
+  User,
+  Calendar,
   AlertCircle,
   MoreHorizontal,
   Trash2,
@@ -59,13 +59,13 @@ interface Card {
 const OrganizadorLista = () => {
   const { selectedCompany } = useCompany();
   const [loading, setLoading] = useState(true);
-  
+
   // Data
   const [columns, setColumns] = useState<Column[]>([]);
   const [cards, setCards] = useState<Card[]>([]);
   const [clientsMap, setClientsMap] = useState<Record<string, string>>({});
-  const [membersMap, setMembersMap] = useState<Record<string, {name: string, email: string}>>({});
-  
+  const [membersMap, setMembersMap] = useState<Record<string, { name: string, email: string }>>({});
+
   // UI State
   const [expandedCardId, setExpandedCardId] = useState<string | null>(null);
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
@@ -105,7 +105,7 @@ const OrganizadorLista = () => {
         .select('*')
         .eq('company_id', selectedCompany.id)
         .order('position');
-      
+
       let fetchedCards = crds || [];
 
       // 3. Fetch Tags
@@ -114,7 +114,7 @@ const OrganizadorLista = () => {
           .from('kanban_card_tags')
           .select('card_id, kanban_tags(id, name, color)')
           .in('card_id', fetchedCards.map(c => c.id));
-        
+
         // 4. Fetch Checklists (All items for visible cards)
         const { data: checklistsData } = await supabase
           .from('kanban_checklists')
@@ -127,14 +127,14 @@ const OrganizadorLista = () => {
           const cardTags = (tagsData || [])
             .filter((t: any) => t.card_id === card.id)
             .map((t: any) => t.kanban_tags);
-            
+
           const cardChecklist = (checklistsData || [])
             .filter((c: any) => c.card_id === card.id);
 
           return { ...card, tags: cardTags, checklist: cardChecklist };
         });
       }
-      
+
       setCards(fetchedCards);
 
       // 5. Fetch Aux Data
@@ -157,11 +157,11 @@ const OrganizadorLista = () => {
           .from('profiles')
           .select('id, full_name, email')
           .in('id', membersData.map(m => m.user_id));
-          
+
         if (profiles) {
-          setMembersMap(profiles.reduce((acc, p) => ({ 
-            ...acc, 
-            [p.id]: { name: p.full_name || p.email, email: p.email } 
+          setMembersMap(profiles.reduce((acc, p) => ({
+            ...acc,
+            [p.id]: { name: p.full_name || p.email, email: p.email }
           }), {}));
         }
       }
@@ -183,13 +183,13 @@ const OrganizadorLista = () => {
 
   const handleToggleChecklist = async (itemId: string, currentStatus: boolean, cardId: string) => {
     setUpdatingChecklist(itemId);
-    
+
     // Optimistic Update
     setCards(prevCards => prevCards.map(c => {
       if (c.id !== cardId) return c;
       return {
         ...c,
-        checklist: c.checklist?.map(item => 
+        checklist: c.checklist?.map(item =>
           item.id === itemId ? { ...item, is_completed: !currentStatus } : item
         )
       };
@@ -205,7 +205,7 @@ const OrganizadorLista = () => {
     } catch (error) {
       console.error('Error updating checklist:', error);
       // Revert on error
-      fetchData(); 
+      fetchData();
     } finally {
       setUpdatingChecklist(null);
     }
@@ -216,8 +216,8 @@ const OrganizadorLista = () => {
     return columns.map(col => {
       const colCards = cards.filter(c => {
         const matchesCol = c.column_id === col.id;
-        const matchesSearch = c.title.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                              (c.client_id && clientsMap[c.client_id]?.toLowerCase().includes(searchTerm.toLowerCase()));
+        const matchesSearch = c.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          (c.client_id && clientsMap[c.client_id]?.toLowerCase().includes(searchTerm.toLowerCase()));
         return matchesCol && matchesSearch;
       });
       return { ...col, cards: colCards };
@@ -241,7 +241,7 @@ const OrganizadorLista = () => {
     const date = new Date(dateStr);
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    
+
     const isLate = date < today;
     const isToday = date.toDateString() === today.toDateString();
 
@@ -262,16 +262,13 @@ const OrganizadorLista = () => {
   return (
     <div className="p-8 h-full flex flex-col overflow-hidden">
       <div className="flex justify-between items-center mb-6">
-        <div>
-          <h1 className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-white to-gray-400">Lista de Tarefas</h1>
-          <p className="text-gray-400 mt-2">Visão analítica e checklist rápida.</p>
-        </div>
+        <div className="flex-1"></div>
         <div className="flex items-center gap-3">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={18} />
-            <input 
-              type="text" 
-              placeholder="Buscar tarefa ou cliente..." 
+            <input
+              type="text"
+              placeholder="Buscar tarefa ou cliente..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="bg-white/5 border border-white/10 rounded-lg pl-10 pr-4 py-2 text-white focus:outline-none focus:border-primary w-64"
@@ -284,7 +281,7 @@ const OrganizadorLista = () => {
         {filteredColumns.map(column => (
           <div key={column.id} className="bg-[#0f0f1a] border border-white/10 rounded-xl overflow-hidden">
             {/* Column Header */}
-            <div 
+            <div
               className="flex items-center justify-between p-4 cursor-pointer hover:bg-white/5 transition-colors select-none"
               onClick={() => toggleColumnCollapse(column.id)}
             >
@@ -322,7 +319,7 @@ const OrganizadorLista = () => {
 
                         return (
                           <React.Fragment key={card.id}>
-                            <tr 
+                            <tr
                               className={`group hover:bg-white/5 transition-colors cursor-pointer ${isExpanded ? 'bg-white/5' : ''}`}
                               onClick={() => toggleCardExpansion(card.id)}
                             >
@@ -333,11 +330,11 @@ const OrganizadorLista = () => {
                                     <span className="text-xs text-gray-500">{clientsMap[card.client_id]}</span>
                                   )}
                                   {card.tags && card.tags.length > 0 && (
-                                      <div className="flex gap-1 mt-1">
-                                          {card.tags.map(t => (
-                                              <span key={t.id} className="w-2 h-2 rounded-full" style={{ backgroundColor: t.color }} title={t.name} />
-                                          ))}
-                                      </div>
+                                    <div className="flex gap-1 mt-1">
+                                      {card.tags.map(t => (
+                                        <span key={t.id} className="w-2 h-2 rounded-full" style={{ backgroundColor: t.color }} title={t.name} />
+                                      ))}
+                                    </div>
                                   )}
                                 </div>
                               </td>
@@ -374,7 +371,7 @@ const OrganizadorLista = () => {
                                 )}
                               </td>
                               <td className="px-4 py-3 text-right">
-                                <button 
+                                <button
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     setSelectedCardId(card.id);
@@ -386,7 +383,7 @@ const OrganizadorLista = () => {
                                 </button>
                               </td>
                             </tr>
-                            
+
                             {/* Expanded Content (Checklist) */}
                             {isExpanded && (
                               <tr className="bg-[#0a0a1a]/50">
@@ -396,22 +393,22 @@ const OrganizadorLista = () => {
                                       <h4 className="text-sm font-bold text-gray-300 flex items-center gap-2">
                                         <CheckSquare size={14} className="text-primary" /> Checklist / Definition of Done
                                       </h4>
-                                      <button 
+                                      <button
                                         onClick={(e) => {
-                                            e.stopPropagation();
-                                            setSelectedCardId(card.id);
+                                          e.stopPropagation();
+                                          setSelectedCardId(card.id);
                                         }}
                                         className="text-xs text-primary hover:underline"
                                       >
-                                          Editar Tarefa Completa
+                                        Editar Tarefa Completa
                                       </button>
                                     </div>
-                                    
+
                                     {card.checklist && card.checklist.length > 0 ? (
                                       <div className="space-y-2">
                                         {card.checklist.map(item => (
-                                          <div 
-                                            key={item.id} 
+                                          <div
+                                            key={item.id}
                                             className={`flex items-start gap-3 p-2 rounded-lg transition-colors ${item.is_completed ? 'bg-green-500/5' : 'hover:bg-white/5'}`}
                                           >
                                             <button
@@ -450,12 +447,12 @@ const OrganizadorLista = () => {
       </div>
 
       {selectedCardId && (
-        <KanbanCardModal 
-          cardId={selectedCardId} 
+        <KanbanCardModal
+          cardId={selectedCardId}
           onClose={() => {
             setSelectedCardId(null);
             fetchData(); // Refresh data when modal closes
-          }} 
+          }}
         />
       )}
     </div>

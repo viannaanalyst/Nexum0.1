@@ -124,6 +124,15 @@ const Clientes = () => {
     }
   };
 
+  useEffect(() => {
+    const handleGlobalNewClient = () => {
+      handleOpenModal();
+    };
+
+    window.addEventListener('open-new-client', handleGlobalNewClient);
+    return () => window.removeEventListener('open-new-client', handleGlobalNewClient);
+  }, []);
+
   // Fetch Data
   useEffect(() => {
     if (selectedCompany) {
@@ -408,12 +417,7 @@ const Clientes = () => {
     <div className="max-w-7xl mx-auto space-y-8">
       {/* Header */}
       <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-white to-gray-400">
-            Gestão de Clientes
-          </h1>
-          <p className="text-gray-400 mt-2">Gerencie seus clientes, contratos e estratégias.</p>
-        </div>
+        <div className="flex-1"></div>
         <button
           onClick={() => handleOpenModal()}
           className="flex items-center space-x-2 bg-primary hover:bg-secondary text-white px-6 py-3 rounded-lg shadow-lg shadow-primary/20 transition-all duration-300 transform hover:scale-105"
@@ -481,7 +485,10 @@ const Clientes = () => {
           </div>
 
           {/* 2. Container Glass Premium */}
-          <div className="relative z-10 w-full max-w-5xl h-[85vh] flex flex-col rounded-[22px] overflow-hidden shadow-2xl animate-in zoom-in-95 duration-300 border border-white/10 bg-[#0a0a1a]/80 backdrop-blur-xl">
+          <div className="relative z-10 w-full max-w-5xl h-[85vh] flex flex-col rounded-[22px] overflow-hidden shadow-[0_32px_64px_-12px_rgba(0,0,0,0.6)] animate-in zoom-in-95 duration-300 border border-white/10 bg-[#0a0a1a]/10 backdrop-blur-xl ring-1 ring-white/10 ring-inset">
+
+            {/* Grain Texture Overlay */}
+            <div className="absolute inset-0 opacity-[0.03] pointer-events-none bg-[url('https://grainy-gradients.vercel.app/noise.svg')] z-0"></div>
 
             {/* Glow Effects */}
             <div className="absolute inset-0 rounded-[22px] border border-white/5 pointer-events-none"></div>
@@ -491,8 +498,8 @@ const Clientes = () => {
             {/* Modal Header */}
             <div className="flex justify-between items-start p-8 pb-4 relative z-20">
               <div>
-                <h2 className="text-xl font-medium text-white/90 relative z-10">{editingId ? 'Editar cliente' : 'Novo cliente'}</h2>
-                <p className="text-gray-400/80 text-xs mt-1 font-light">Gerencie as informações contratuais e estratégicas.</p>
+                <h2 className="text-xl font-medium text-[#EEEEEE] relative z-10">{editingId ? 'Editar cliente' : 'Novo cliente'}</h2>
+                <p className="text-[#6e6e6e] text-xs mt-1 font-light">Gerencie as informações contratuais e estratégicas.</p>
               </div>
               <button
                 onClick={() => setIsModalOpen(false)}
@@ -536,47 +543,47 @@ const Clientes = () => {
                   <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
                     <div className="grid grid-cols-2 gap-5">
                       <div className="col-span-2 group">
-                        <label className="block text-xs font-medium text-gray-500 mb-1.5 uppercase tracking-wide ml-1">Nome do Cliente</label>
+                        <label className="block text-[11px] font-medium text-[#6e6e6e] tracking-tight ml-1">Nome do Cliente</label>
                         <input
                           type="text"
-                          className="w-full bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.08] rounded-xl px-4 py-3 text-white/90 placeholder-gray-600 focus:bg-white/[0.08] focus:border-purple-500/30 focus:ring-0 outline-none transition-all duration-300 text-sm font-light"
+                          className="w-full bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.08] rounded-xl px-4 py-3 text-white/90 placeholder-[#6e6e6e] focus:bg-white/[0.08] focus:border-purple-500/30 focus:ring-0 outline-none transition-all duration-300 text-sm font-light"
                           value={formData.name}
                           onChange={e => setFormData({ ...formData, name: e.target.value })}
                           placeholder="Nome da Empresa ou Pessoa"
                         />
                       </div>
                       <div className="group">
-                        <label className="block text-xs font-medium text-gray-500 mb-1.5 uppercase tracking-wide ml-1">Email</label>
+                        <label className="block text-[11px] font-medium text-[#6e6e6e] tracking-tight ml-1">Email</label>
                         <input
                           type="email"
-                          className="w-full bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.08] rounded-xl px-4 py-3 text-white/90 placeholder-gray-600 focus:bg-white/[0.08] focus:border-purple-500/30 focus:ring-0 outline-none transition-all duration-300 text-sm font-light"
+                          className="w-full bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.08] rounded-xl px-4 py-3 text-white/90 placeholder-[#6e6e6e] focus:bg-white/[0.08] focus:border-purple-500/30 focus:ring-0 outline-none transition-all duration-300 text-sm font-light"
                           value={formData.email}
                           onChange={e => setFormData({ ...formData, email: e.target.value })}
                           placeholder="contato@cliente.com"
                         />
                       </div>
                       <div className="group">
-                        <label className="block text-xs font-medium text-gray-500 mb-1.5 uppercase tracking-wide ml-1">Telefone</label>
+                        <label className="block text-[11px] font-medium text-[#6e6e6e] tracking-tight ml-1">Telefone</label>
                         <IMaskInput
                           mask="(00) 00000-0000"
-                          className="w-full bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.08] rounded-xl px-4 py-3 text-white/90 placeholder-gray-600 focus:bg-white/[0.08] focus:border-purple-500/30 focus:ring-0 outline-none transition-all duration-300 text-sm font-light"
+                          className="w-full bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.08] rounded-xl px-4 py-3 text-white/90 placeholder-[#6e6e6e] focus:bg-white/[0.08] focus:border-purple-500/30 focus:ring-0 outline-none transition-all duration-300 text-sm font-light"
                           value={formData.phone}
                           onAccept={(val: string) => setFormData({ ...formData, phone: val })}
                           placeholder="(00) 00000-0000"
                         />
                       </div>
                       <div className="group">
-                        <label className="block text-xs font-medium text-gray-500 mb-1.5 uppercase tracking-wide ml-1">Website</label>
+                        <label className="block text-[11px] font-medium text-[#6e6e6e] tracking-tight ml-1">Website</label>
                         <input
                           type="text"
-                          className="w-full bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.08] rounded-xl px-4 py-3 text-white/90 placeholder-gray-600 focus:bg-white/[0.08] focus:border-purple-500/30 focus:ring-0 outline-none transition-all duration-300 text-sm font-light"
+                          className="w-full bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.08] rounded-xl px-4 py-3 text-white/90 placeholder-[#6e6e6e] focus:bg-white/[0.08] focus:border-purple-500/30 focus:ring-0 outline-none transition-all duration-300 text-sm font-light"
                           value={formData.website}
                           onChange={e => setFormData({ ...formData, website: e.target.value })}
                           placeholder="www.site.com"
                         />
                       </div>
                       <div className="group">
-                        <label className="block text-xs font-medium text-gray-500 mb-1.5 uppercase tracking-wide ml-1">Instagram</label>
+                        <label className="block text-[11px] font-medium text-[#6e6e6e] tracking-tight ml-1">Instagram</label>
                         <div className="relative">
                           <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
                             <span className="text-gray-500 font-light">@</span>
@@ -592,7 +599,7 @@ const Clientes = () => {
                       </div>
                       <div className="grid grid-cols-2 gap-4">
                         <div className="group">
-                          <label className="block text-xs font-medium text-gray-500 mb-1.5 uppercase tracking-wide ml-1">Data de Início</label>
+                          <label className="block text-[11px] font-medium text-[#6e6e6e] tracking-tight ml-1">Data de Início</label>
                           <input
                             type="date"
                             className="w-full bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.08] rounded-xl px-4 py-3 text-white/90 focus:bg-white/[0.08] focus:border-purple-500/30 focus:ring-0 outline-none transition-all duration-300 text-sm font-light [color-scheme:dark]"
@@ -601,7 +608,7 @@ const Clientes = () => {
                           />
                         </div>
                         <div className="group">
-                          <label className="block text-xs font-medium text-gray-500 mb-1.5 uppercase tracking-wide ml-1">Data de Encerramento</label>
+                          <label className="block text-[11px] font-medium text-[#6e6e6e] tracking-tight ml-1">Data de Encerramento</label>
                           <input
                             type="date"
                             className="w-full bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.08] rounded-xl px-4 py-3 text-white/90 focus:bg-white/[0.08] focus:border-purple-500/30 focus:ring-0 outline-none transition-all duration-300 text-sm font-light [color-scheme:dark]"
@@ -611,7 +618,7 @@ const Clientes = () => {
                         </div>
                       </div>
                       <div className="col-span-2 group">
-                        <label className="block text-xs font-medium text-gray-500 mb-1.5 uppercase tracking-wide ml-1">Briefing</label>
+                        <label className="block text-[11px] font-medium text-[#6e6e6e] tracking-tight ml-1">Briefing</label>
                         <textarea
                           className="w-full bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.08] rounded-xl px-4 py-3 text-white/90 placeholder-gray-600 focus:bg-white/[0.08] focus:border-purple-500/30 focus:ring-0 outline-none transition-all duration-300 text-sm font-light h-32 resize-none"
                           value={formData.briefing}
@@ -627,7 +634,7 @@ const Clientes = () => {
                 {activeTab === 'financeiro' && (
                   <div className="space-y-8 animate-in fade-in slide-in-from-right-4 duration-300">
                     <div>
-                      <label className="block text-xs font-medium text-gray-500 mb-1.5 uppercase tracking-wide ml-1">Status do Contrato</label>
+                      <label className="block text-[11px] font-medium text-[#6e6e6e] tracking-tight ml-1">Status do Contrato</label>
                       <div className="relative group">
                         <select
                           value={formData.status}
@@ -643,7 +650,7 @@ const Clientes = () => {
 
                     <div className="grid grid-cols-2 gap-6">
                       <div className="group">
-                        <label className="block text-xs font-medium text-gray-500 mb-1.5 uppercase tracking-wide ml-1">Mensalidade (MRR)</label>
+                        <label className="block text-[11px] font-medium text-[#6e6e6e] tracking-tight ml-1">Mensalidade (MRR)</label>
                         <div className="relative">
                           <span className="absolute left-4 top-3.5 text-gray-500 text-sm font-light">R$</span>
                           <input
@@ -655,7 +662,7 @@ const Clientes = () => {
                         </div>
                       </div>
                       <div className="group">
-                        <label className="block text-xs font-medium text-gray-500 mb-1.5 uppercase tracking-wide ml-1">Dia de Vencimento</label>
+                        <label className="block text-[11px] font-medium text-[#6e6e6e] tracking-tight ml-1">Dia de Vencimento</label>
                         <select
                           className="w-full bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.08] rounded-xl px-4 py-3 text-white/90 focus:bg-white/[0.08] focus:border-purple-500/30 focus:ring-0 outline-none transition-all duration-300 text-sm font-light appearance-none cursor-pointer"
                           value={formData.due_day}

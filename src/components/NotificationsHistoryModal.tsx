@@ -18,11 +18,11 @@ interface NotificationsHistoryModalProps {
   onDelete: (id: string) => void;
 }
 
-const NotificationsHistoryModal: React.FC<NotificationsHistoryModalProps> = ({ 
-  isOpen, 
-  onClose, 
-  notifications, 
-  onMarkAsRead, 
+const NotificationsHistoryModal: React.FC<NotificationsHistoryModalProps> = ({
+  isOpen,
+  onClose,
+  notifications,
+  onMarkAsRead,
   onMarkAllAsRead,
   onDelete
 }) => {
@@ -44,15 +44,18 @@ const NotificationsHistoryModal: React.FC<NotificationsHistoryModalProps> = ({
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
       {/* 1. Overlay Premium */}
-      <div 
+      <div
         className="absolute inset-0 bg-black/60 backdrop-blur-md z-0 animate-in fade-in duration-300"
         onClick={onClose}
       >
-         <div className="absolute inset-0 opacity-[0.03] bg-[url('https://grainy-gradients.vercel.app/noise.svg')]"></div>
+        <div className="absolute inset-0 opacity-[0.03] bg-[url('https://grainy-gradients.vercel.app/noise.svg')]"></div>
       </div>
 
-      <div className="relative z-10 w-full max-w-2xl h-[600px] flex flex-col rounded-[22px] overflow-hidden shadow-2xl animate-in zoom-in-95 duration-300 border border-white/10 bg-[#0a0a1a]/80 backdrop-blur-xl">
-        
+      <div className="relative z-10 w-full max-w-2xl h-[600px] flex flex-col rounded-[22px] overflow-hidden shadow-[0_32px_64px_-12px_rgba(0,0,0,0.6)] animate-in zoom-in-95 duration-300 border border-white/10 bg-[#0a0a1a]/10 backdrop-blur-xl ring-1 ring-white/10 ring-inset">
+
+        {/* Grain Texture Overlay */}
+        <div className="absolute inset-0 opacity-[0.03] pointer-events-none bg-[url('https://grainy-gradients.vercel.app/noise.svg')] z-0 rounded-[22px]"></div>
+
         {/* Glow Effects */}
         <div className="absolute inset-0 rounded-[22px] border border-white/5 pointer-events-none"></div>
         <div className="absolute top-[-50px] left-1/2 -translate-x-1/2 w-[60%] h-[100px] bg-primary/30 blur-[80px] pointer-events-none rounded-[100%]"></div>
@@ -65,13 +68,13 @@ const NotificationsHistoryModal: React.FC<NotificationsHistoryModalProps> = ({
               <Bell size={20} />
             </div>
             <div>
-              <h2 className="text-xl font-bold text-white/90">Histórico de Notificações</h2>
-              <p className="text-xs text-gray-500 font-light">Acompanhe todas as atividades recentes</p>
+              <h2 className="text-xl font-bold text-[#EEEEEE]">Histórico de Notificações</h2>
+              <p className="text-xs text-[#6e6e6e] font-light">Acompanhe todas as atividades recentes</p>
             </div>
           </div>
           <div className="flex items-center space-x-3">
             {hasUnread && (
-              <button 
+              <button
                 onClick={onMarkAllAsRead}
                 className="flex items-center space-x-1 px-3 py-1.5 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition-all text-[10px] font-bold uppercase tracking-wider border border-primary/20"
               >
@@ -79,7 +82,7 @@ const NotificationsHistoryModal: React.FC<NotificationsHistoryModalProps> = ({
                 <span>Marcar todas como lidas</span>
               </button>
             )}
-            <button 
+            <button
               onClick={onClose}
               className="p-2 text-gray-500 hover:text-white transition-colors rounded-lg hover:bg-white/5"
             >
@@ -93,13 +96,12 @@ const NotificationsHistoryModal: React.FC<NotificationsHistoryModalProps> = ({
           {notifications.length > 0 ? (
             <div className="space-y-4">
               {notifications.map((notification) => (
-                <div 
-                  key={notification.id} 
-                  className={`p-5 rounded-2xl border transition-all duration-300 group relative flex flex-col gap-2 ${
-                    notification.unread 
-                      ? 'bg-primary/[0.03] border-primary/20 shadow-[0_0_20px_-10px_rgba(99,102,241,0.15)]' 
-                      : 'bg-white/[0.02] border-white/5 hover:border-white/10 hover:bg-white/[0.04]'
-                  }`}
+                <div
+                  key={notification.id}
+                  className={`p-5 rounded-2xl border transition-all duration-300 group relative flex flex-col gap-2 ${notification.unread
+                    ? 'bg-primary/[0.03] border-primary/20 shadow-[0_0_20px_-10px_rgba(99,102,241,0.15)]'
+                    : 'bg-white/[0.02] border-white/5 hover:border-white/10 hover:bg-white/[0.04]'
+                    }`}
                 >
                   <div className="flex justify-between items-start">
                     <div className="flex-1 min-w-0 pr-4">
@@ -111,7 +113,7 @@ const NotificationsHistoryModal: React.FC<NotificationsHistoryModalProps> = ({
                           {notification.title}
                         </h4>
                       </div>
-                      <p className="text-xs text-gray-500 leading-relaxed group-hover:text-gray-300 transition-colors font-light">
+                      <p className="text-xs text-[#6e6e6e] leading-relaxed group-hover:text-gray-300 transition-colors font-light">
                         {notification.description}
                       </p>
                     </div>
@@ -122,27 +124,27 @@ const NotificationsHistoryModal: React.FC<NotificationsHistoryModalProps> = ({
                       </div>
                     </div>
                   </div>
-                  
+
                   {/* Actions (Reveal on Hover) */}
                   <div className="flex justify-end pt-2 border-t border-white/5 mt-2 opacity-0 group-hover:opacity-100 transition-all translate-y-2 group-hover:translate-y-0">
-                      <div className="flex gap-2">
-                        {notification.unread && (
-                          <button 
-                            onClick={() => onMarkAsRead(notification.id)}
-                            className="flex items-center gap-1 px-2 py-1 text-[10px] text-primary hover:bg-primary/10 rounded transition-colors"
-                            title="Marcar como lida"
-                          >
-                            <Check size={12} /> Lida
-                          </button>
-                        )}
-                        <button 
-                          onClick={() => onDelete(notification.id)}
-                          className="flex items-center gap-1 px-2 py-1 text-[10px] text-red-400 hover:bg-red-500/10 rounded transition-colors"
-                          title="Excluir"
+                    <div className="flex gap-2">
+                      {notification.unread && (
+                        <button
+                          onClick={() => onMarkAsRead(notification.id)}
+                          className="flex items-center gap-1 px-2 py-1 text-[10px] text-primary hover:bg-primary/10 rounded transition-colors"
+                          title="Marcar como lida"
                         >
-                          <Trash2 size={12} /> Excluir
+                          <Check size={12} /> Lida
                         </button>
-                      </div>
+                      )}
+                      <button
+                        onClick={() => onDelete(notification.id)}
+                        className="flex items-center gap-1 px-2 py-1 text-[10px] text-red-400 hover:bg-red-500/10 rounded transition-colors"
+                        title="Excluir"
+                      >
+                        <Trash2 size={12} /> Excluir
+                      </button>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -162,14 +164,14 @@ const NotificationsHistoryModal: React.FC<NotificationsHistoryModalProps> = ({
 
         {/* Footer */}
         <div className="p-4 border-t border-white/5 bg-[#0a0a1a]/50 flex items-center justify-between relative z-20">
-          <p className="text-[10px] text-gray-500 uppercase tracking-widest font-bold">
+          <span className="text-[11px] text-[#6e6e6e] font-medium tracking-tight">
             Total: {notifications.length}
-          </p>
+          </span>
           <div className="flex items-center space-x-2">
-             <div className="w-1.5 h-1.5 bg-primary rounded-full shadow-[0_0_5px_rgba(99,102,241,0.5)]"></div>
-             <span className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">
-               {notifications.filter(n => n.unread).length} não lidas
-             </span>
+            <div className="w-1.5 h-1.5 bg-primary rounded-full shadow-[0_0_5px_rgba(99,102,241,0.5)]"></div>
+            <span className="text-[11px] text-[#6e6e6e] font-medium tracking-tight">
+              {notifications.filter(n => n.unread).length} não lidas
+            </span>
           </div>
         </div>
       </div>

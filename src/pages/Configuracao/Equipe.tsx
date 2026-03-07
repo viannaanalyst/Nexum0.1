@@ -46,6 +46,25 @@ const Equipe = () => {
     }
   }, [selectedCompany]);
 
+  useEffect(() => {
+    const handleGlobalNewMember = () => {
+      setEditingMember(null);
+      setFormData({
+        name: '',
+        email: '',
+        password: '',
+        whatsapp: '',
+        role: 'visualizador',
+        is_approver: false,
+        status: true
+      });
+      setIsModalOpen(true);
+    };
+
+    window.addEventListener('open-new-member', handleGlobalNewMember);
+    return () => window.removeEventListener('open-new-member', handleGlobalNewMember);
+  }, []);
+
   const fetchMembers = async () => {
     try {
       if (!selectedCompany) return;
@@ -183,12 +202,7 @@ const Equipe = () => {
   return (
     <div className="max-w-6xl mx-auto space-y-8">
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-white to-gray-400">
-            Gestão de Equipe
-          </h1>
-          <p className="text-gray-400 mt-2">Convide e gerencie os membros da {selectedCompany.name}.</p>
-        </div>
+        <div className="flex-1"></div>
         <button
           onClick={() => setIsModalOpen(true)}
           className="flex items-center space-x-2 bg-primary hover:bg-secondary text-white px-6 py-3 rounded-lg shadow-lg shadow-primary/20 transition-all duration-300 transform hover:scale-105"
@@ -201,7 +215,7 @@ const Equipe = () => {
       <div className="glass-card rounded-2xl border border-white/10 overflow-hidden">
         <table className="w-full text-left border-collapse">
           <thead>
-            <tr className="bg-white/5 text-gray-400 text-sm uppercase tracking-wider">
+            <tr className="bg-white/5 text-[#6e6e6e] text-[13px] tracking-wide">
               <th className="px-6 py-4 font-medium">Membro</th>
               <th className="px-6 py-4 font-medium">Perfil</th>
               <th className="px-6 py-4 font-medium">Aprovador</th>
@@ -274,7 +288,10 @@ const Equipe = () => {
           </div>
 
           {/* 2. Container do Modal (Glass Card Premium) */}
-          <div className="relative z-10 w-full max-w-lg rounded-[22px] overflow-hidden shadow-2xl animate-in zoom-in-95 duration-300 border border-white/10 bg-[#0a0a1a]/80 backdrop-blur-xl">
+          <div className="relative z-10 w-full max-w-lg rounded-[22px] overflow-hidden shadow-[0_32px_64px_-12px_rgba(0,0,0,0.6)] animate-in zoom-in-95 duration-300 border border-white/10 bg-[#0a0a1a]/10 backdrop-blur-xl ring-1 ring-white/10 ring-inset">
+
+            {/* Grain Texture Overlay */}
+            <div className="absolute inset-0 opacity-[0.03] pointer-events-none bg-[url('https://grainy-gradients.vercel.app/noise.svg')] z-0"></div>
 
             {/* Borda interna sutil (Inner Border) */}
             <div className="absolute inset-0 rounded-[22px] border border-white/5 pointer-events-none"></div>
@@ -287,10 +304,10 @@ const Equipe = () => {
             <div className="relative p-8 pb-2">
               <div className="flex justify-between items-start">
                 <div>
-                  <h2 className="text-xl font-medium text-white/90 relative z-10">
+                  <h2 className="text-xl font-medium text-[#EEEEEE] relative z-10">
                     {editingMember ? 'Editar Membro' : 'Novo membro'}
                   </h2>
-                  <p className="text-gray-400/80 text-xs mt-1 font-light">Gerencie o acesso e permissões da equipe.</p>
+                  <p className="text-[#6e6e6e] text-xs mt-1 font-light">Gerencie o acesso e permissões da equipe.</p>
                 </div>
                 <button
                   onClick={closeModal}
@@ -309,7 +326,7 @@ const Equipe = () => {
                     type="text"
                     value={formData.name}
                     onChange={e => setFormData({ ...formData, name: e.target.value })}
-                    className="w-full bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.08] rounded-xl px-4 py-3 text-white/90 placeholder-gray-500 focus:bg-white/[0.08] focus:border-primary/30 focus:ring-0 focus:shadow-[0_0_15px_-3px_rgba(99,102,241,0.15)] outline-none transition-all duration-300 text-sm font-light"
+                    className="w-full bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.08] rounded-xl px-4 py-3 text-white/90 placeholder-[#6e6e6e] focus:bg-white/[0.08] focus:border-primary/30 focus:ring-0 focus:shadow-[0_0_15px_-3px_rgba(99,102,241,0.15)] outline-none transition-all duration-300 text-sm font-light"
                     placeholder="Nome do membro"
                     required
                   />
@@ -333,7 +350,7 @@ const Equipe = () => {
                       type="tel"
                       value={formData.whatsapp}
                       onAccept={(value: string) => setFormData(prev => ({ ...prev, whatsapp: value }))}
-                      className="w-full bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.08] rounded-xl px-4 py-3 text-white/90 placeholder-gray-500 focus:bg-white/[0.08] focus:border-primary/30 focus:ring-0 focus:shadow-[0_0_15px_-3px_rgba(99,102,241,0.15)] outline-none transition-all duration-300 text-sm font-light"
+                      className="w-full bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.08] rounded-xl px-4 py-3 text-white/90 placeholder-[#6e6e6e] focus:bg-white/[0.08] focus:border-primary/30 focus:ring-0 focus:shadow-[0_0_15px_-3px_rgba(99,102,241,0.15)] outline-none transition-all duration-300 text-sm font-light"
                       placeholder="WhatsApp"
                     />
                   </div>
@@ -345,7 +362,7 @@ const Equipe = () => {
                       type="password"
                       value={formData.password}
                       onChange={e => setFormData({ ...formData, password: e.target.value })}
-                      className="w-full bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.08] rounded-xl px-4 py-3 text-white/90 placeholder-gray-500 focus:bg-white/[0.08] focus:border-primary/30 focus:ring-0 focus:shadow-[0_0_15px_-3px_rgba(99,102,241,0.15)] outline-none transition-all duration-300 text-sm font-light"
+                      className="w-full bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.08] rounded-xl px-4 py-3 text-white/90 placeholder-[#6e6e6e] focus:bg-white/[0.08] focus:border-primary/30 focus:ring-0 focus:shadow-[0_0_15px_-3px_rgba(99,102,241,0.15)] outline-none transition-all duration-300 text-sm font-light"
                       placeholder="Senha de acesso"
                       required
                     />
@@ -374,8 +391,8 @@ const Equipe = () => {
                       <CheckCircle2 size={16} />
                     </div>
                     <div className="flex flex-col">
-                      <span className="text-sm font-medium text-gray-200">Aprovador</span>
-                      <span className="text-[10px] text-gray-500">Permissão para aprovar</span>
+                      <span className="text-sm font-medium text-[#EEEEEE]">Aprovador</span>
+                      <span className="text-[10px] text-[#6e6e6e]">Permissão para aprovar</span>
                     </div>
                   </div>
                   <div className={`w-4 h-4 rounded-full border flex items-center justify-center transition-all ${formData.is_approver ? 'border-primary bg-primary' : 'border-white/20 bg-transparent'}`}>
@@ -390,8 +407,8 @@ const Equipe = () => {
                       <UserPlus size={16} />
                     </div>
                     <div className="flex flex-col">
-                      <span className="text-sm font-medium text-gray-200">Status Ativo</span>
-                      <span className="text-[10px] text-gray-500">Acesso ao sistema</span>
+                      <span className="text-sm font-medium text-[#EEEEEE]">Status Ativo</span>
+                      <span className="text-[10px] text-[#6e6e6e]">Acesso ao sistema</span>
                     </div>
                   </div>
                   <div className={`w-4 h-4 rounded-full border flex items-center justify-center transition-all ${formData.status ? 'border-green-500 bg-green-500' : 'border-white/20 bg-transparent'}`}>
