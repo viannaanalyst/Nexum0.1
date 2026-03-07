@@ -536,7 +536,7 @@ const Clientes = () => {
                   <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
                     <div className="grid grid-cols-2 gap-5">
                       <div className="col-span-2 group">
-                        <label className="block text-[11px] font-medium text-[#6e6e6e] tracking-tight ml-1">Nome do Cliente</label>
+                        <label className="block text-[11px] font-medium text-[#6e6e6e] tracking-tight ml-1">Nome do cliente</label>
                         <input
                           type="text"
                           className="w-full bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.08] rounded-xl px-4 py-3 text-white/90 placeholder-[#6e6e6e] focus:bg-white/[0.08] focus:border-purple-500/30 focus:ring-0 outline-none transition-all duration-300 text-sm font-light"
@@ -546,7 +546,7 @@ const Clientes = () => {
                         />
                       </div>
                       <div className="group">
-                        <label className="block text-[11px] font-medium text-[#6e6e6e] tracking-tight ml-1">Email</label>
+                        <label className="block text-[11px] font-medium text-[#6e6e6e] tracking-tight ml-1">E-mail</label>
                         <input
                           type="email"
                           className="w-full bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.08] rounded-xl px-4 py-3 text-white/90 placeholder-[#6e6e6e] focus:bg-white/[0.08] focus:border-purple-500/30 focus:ring-0 outline-none transition-all duration-300 text-sm font-light"
@@ -592,7 +592,7 @@ const Clientes = () => {
                       </div>
                       <div className="grid grid-cols-2 gap-4">
                         <div className="group">
-                          <label className="block text-[11px] font-medium text-[#6e6e6e] tracking-tight ml-1">Data de Início</label>
+                          <label className="block text-[11px] font-medium text-[#6e6e6e] tracking-tight ml-1">Data início</label>
                           <input
                             type="date"
                             className="w-full bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.08] rounded-xl px-4 py-3 text-white/90 focus:bg-white/[0.08] focus:border-purple-500/30 focus:ring-0 outline-none transition-all duration-300 text-sm font-light [color-scheme:dark]"
@@ -601,7 +601,7 @@ const Clientes = () => {
                           />
                         </div>
                         <div className="group">
-                          <label className="block text-[11px] font-medium text-[#6e6e6e] tracking-tight ml-1">Data de Encerramento</label>
+                          <label className="block text-[11px] font-medium text-[#6e6e6e] tracking-tight ml-1">Data encerramento</label>
                           <input
                             type="date"
                             className="w-full bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.08] rounded-xl px-4 py-3 text-white/90 focus:bg-white/[0.08] focus:border-purple-500/30 focus:ring-0 outline-none transition-all duration-300 text-sm font-light [color-scheme:dark]"
@@ -627,7 +627,7 @@ const Clientes = () => {
                 {activeTab === 'financeiro' && (
                   <div className="space-y-8 animate-in fade-in slide-in-from-right-4 duration-300">
                     <div>
-                      <label className="block text-[11px] font-medium text-[#6e6e6e] tracking-tight ml-1">Status do Contrato</label>
+                      <label className="block text-[11px] font-medium text-[#6e6e6e] tracking-tight ml-1">Status do contrato</label>
                       <div className="relative group">
                         <select
                           value={formData.status}
@@ -646,16 +646,31 @@ const Clientes = () => {
                         <label className="block text-[11px] font-medium text-[#6e6e6e] tracking-tight ml-1">Mensalidade (MRR)</label>
                         <div className="relative">
                           <span className="absolute left-4 top-3.5 text-gray-500 text-sm font-light">R$</span>
-                          <input
-                            type="number"
+                          <IMaskInput
+                            mask={Number}
+                            scale={2}
+                            thousandsSeparator="."
+                            padFractionalZeros={true}
+                            normalizeZeros={false}
+                            radix=","
+                            mapToRadix={['.']}
                             className="w-full bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.08] rounded-xl pl-10 pr-4 py-3 text-white/90 focus:bg-white/[0.08] focus:border-purple-500/30 focus:ring-0 outline-none transition-all duration-300 text-sm font-light"
-                            value={formData.mrr}
-                            onChange={e => setFormData({ ...formData, mrr: parseFloat(e.target.value) })}
+                            placeholder="0,00"
+                            value={formData.mrr ? String(formData.mrr) : ''}
+                            onAccept={(_value, mask) => {
+                              const numericValue = Number(mask.unmaskedValue);
+                              if (formData.mrr !== numericValue) {
+                                setFormData({ ...formData, mrr: numericValue });
+                              }
+                            }}
+                            onFocus={(e: React.FocusEvent<HTMLInputElement>) => {
+                              if (e.target.value === '0,00') e.target.value = '';
+                            }}
                           />
                         </div>
                       </div>
                       <div className="group">
-                        <label className="block text-[11px] font-medium text-[#6e6e6e] tracking-tight ml-1">Dia de Vencimento</label>
+                        <label className="block text-[11px] font-medium text-[#6e6e6e] tracking-tight ml-1">Dia vencimento</label>
                         <select
                           className="w-full bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.08] rounded-xl px-4 py-3 text-white/90 focus:bg-white/[0.08] focus:border-purple-500/30 focus:ring-0 outline-none transition-all duration-300 text-sm font-light appearance-none cursor-pointer"
                           value={formData.due_day}
@@ -674,7 +689,7 @@ const Clientes = () => {
                           <DollarSign size={16} />
                         </div>
                         <div className="flex flex-col">
-                          <span className="text-sm font-medium text-gray-200">Lembrete Automático</span>
+                          <span className="text-sm font-medium text-gray-200">Lembrete automático</span>
                           <span className="text-[10px] text-gray-500">Enviar cobrança por email/whatsapp</span>
                         </div>
                       </div>
@@ -689,7 +704,7 @@ const Clientes = () => {
                 {activeTab === 'escopo' && (
                   <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
                     <div>
-                      <label className="block text-xs font-medium text-gray-500 mb-2 uppercase tracking-wide ml-1">Serviços Contratados</label>
+                      <label className="block text-xs font-medium text-gray-500 mb-2 tracking-wide ml-1">Serviços contratados</label>
                       <div className="flex gap-2 mb-3">
                         <input
                           type="text"
@@ -722,7 +737,7 @@ const Clientes = () => {
                       </div>
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-gray-500 mb-1.5 uppercase tracking-wide ml-1">Escopo Detalhado</label>
+                      <label className="block text-xs font-medium text-gray-500 mb-1.5 tracking-wide ml-1">Escopo detalhado</label>
                       <textarea
                         className="w-full bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.08] rounded-xl px-4 py-3 text-white/90 placeholder-gray-600 focus:bg-white/[0.08] focus:border-purple-500/30 focus:ring-0 outline-none transition-all duration-300 text-sm font-mono h-48 resize-none leading-relaxed"
                         value={formData.scope_description}
@@ -736,7 +751,7 @@ const Clientes = () => {
                 {/* 4. ABA EQUIPE */}
                 {activeTab === 'equipe' && (
                   <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
-                    <label className="block text-xs font-medium text-gray-500 mb-2 uppercase tracking-wide ml-1">Responsáveis pelo Cliente</label>
+                    <label className="block text-xs font-medium text-gray-500 mb-2 tracking-wide ml-1">Responsáveis pelo cliente</label>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       {companyMembers.map(member => (
                         <div
@@ -770,7 +785,7 @@ const Clientes = () => {
                 {activeTab === 'estrategia' && (
                   <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
                     <div>
-                      <label className="block text-xs font-medium text-gray-500 mb-2 uppercase tracking-wide ml-1">Objetivos Estratégicos</label>
+                      <label className="block text-xs font-medium text-gray-500 mb-2 tracking-wide ml-1">Objetivos estratégicos</label>
                       <div className="flex gap-2 mb-3">
                         <input
                           type="text"
@@ -802,9 +817,9 @@ const Clientes = () => {
 
                     <div className="border-t border-white/5 pt-6">
                       <div className="flex justify-between items-center mb-4">
-                        <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide flex items-center gap-2">
+                        <label className="block text-xs font-medium text-gray-500 tracking-wide flex items-center gap-2">
                           <Lock size={12} className="text-purple-400" />
-                          Cofre de Credenciais
+                          Cofre de credenciais
                         </label>
                       </div>
 
@@ -923,7 +938,7 @@ const Clientes = () => {
 };
 
 // Utility Styles
-const labelStyle = "block text-sm font-medium text-gray-400 mb-2 uppercase tracking-wide text-xs";
+const labelStyle = "block text-sm font-medium text-gray-400 mb-2 tracking-wide text-xs";
 const inputStyle = "w-full bg-black/20 border border-white/10 rounded-lg p-3 text-white focus:ring-2 focus:ring-primary outline-none transition-all placeholder-gray-600 focus:bg-black/40";
 
 export default Clientes;

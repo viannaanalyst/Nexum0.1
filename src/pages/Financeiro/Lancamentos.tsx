@@ -17,6 +17,7 @@ import { useCompany } from '../../context/CompanyContext';
 import { supabase } from '../../lib/supabase';
 import { Select } from '../../components/ui/Select';
 import { useUI } from '../../context/UIContext';
+import { IMaskInput } from 'react-imask';
 
 // Types
 interface Transaction {
@@ -570,7 +571,7 @@ const FinanceiroLancamentos = () => {
               </div>
 
               <div className="space-y-1.5">
-                <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wide ml-1">Descrição</label>
+                <label className="block text-[11px] font-medium text-gray-500 tracking-wide ml-1">Descrição</label>
                 <input
                   required
                   className="w-full bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.08] rounded-xl px-4 py-3 text-white/90 focus:bg-white/[0.08] focus:border-primary/30 focus:ring-0 outline-none transition-all duration-300 text-sm font-light placeholder-[#6e6e6e]"
@@ -582,19 +583,36 @@ const FinanceiroLancamentos = () => {
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1.5">
-                  <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wide ml-1">Valor (R$)</label>
-                  <input
-                    required
-                    type="number"
-                    step="0.01"
-                    className="w-full bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.08] rounded-xl px-4 py-3 text-white/90 focus:bg-white/[0.08] focus:border-primary/30 focus:ring-0 outline-none transition-all duration-300 text-sm font-light placeholder-[#6e6e6e]"
-                    placeholder="0,00"
-                    value={newTransaction.amount || ''}
-                    onChange={e => setNewTransaction({ ...newTransaction, amount: Number(e.target.value) })}
-                  />
+                  <label className="block text-[11px] font-medium text-gray-500 tracking-wide ml-1">Valor (R$)</label>
+                  <div className="relative group">
+                    <div className="absolute left-4 top-3.5 text-[#6e6e6e] text-sm font-light pointer-events-none">R$</div>
+                    <IMaskInput
+                      mask={Number}
+                      scale={2}
+                      thousandsSeparator="."
+                      padFractionalZeros={true}
+                      normalizeZeros={false}
+                      radix=","
+                      mapToRadix={['.']}
+                      unmask={true}
+                      lazy={true}
+                      className="w-full bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.08] rounded-xl pl-10 pr-4 py-3 text-white/90 focus:bg-white/[0.08] focus:border-primary/30 focus:ring-0 outline-none transition-all duration-300 text-sm font-light"
+                      placeholder="0,00"
+                      value={newTransaction.amount ? String(newTransaction.amount) : ''}
+                      onAccept={(_value, mask) => {
+                        const numericValue = Number(mask.unmaskedValue);
+                        if (newTransaction.amount !== numericValue) {
+                          setNewTransaction({ ...newTransaction, amount: numericValue });
+                        }
+                      }}
+                      onFocus={(e: React.FocusEvent<HTMLInputElement>) => {
+                        if (e.target.value === '0,00') e.target.value = '';
+                      }}
+                    />
+                  </div>
                 </div>
                 <div className="space-y-1.5">
-                  <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wide ml-1">Data de Vencimento</label>
+                  <label className="block text-[11px] font-medium text-gray-500 tracking-wide ml-1">Data de vencimento</label>
                   <input
                     required
                     type="date"
@@ -607,7 +625,7 @@ const FinanceiroLancamentos = () => {
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1.5">
-                  <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wide ml-1">Categoria</label>
+                  <label className="block text-[11px] font-medium text-gray-500 tracking-wide ml-1">Categoria</label>
                   <div className="relative group">
                     <select
                       className="w-full bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.08] rounded-xl px-4 py-3 text-white/90 focus:bg-white/[0.08] focus:border-primary/30 focus:ring-0 outline-none appearance-none cursor-pointer transition-all duration-300 text-sm font-light"
@@ -625,7 +643,7 @@ const FinanceiroLancamentos = () => {
                   </div>
                 </div>
                 <div className="space-y-1.5">
-                  <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wide ml-1">Vincular Cliente</label>
+                  <label className="block text-[11px] font-medium text-gray-500 tracking-wide ml-1">Vincular cliente</label>
                   <div className="relative group">
                     <select
                       className="w-full bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.08] rounded-xl px-4 py-3 text-white/90 focus:bg-white/[0.08] focus:border-primary/30 focus:ring-0 outline-none appearance-none cursor-pointer transition-all duration-300 text-sm font-light"
@@ -644,7 +662,7 @@ const FinanceiroLancamentos = () => {
               {/* Recorrência */}
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1.5">
-                  <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wide ml-1">Recorrência</label>
+                  <label className="block text-[11px] font-medium text-gray-500 tracking-wide ml-1">Recorrência</label>
                   <div className="relative group">
                     <select
                       className="w-full bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.08] rounded-xl px-4 py-3 text-white/90 focus:bg-white/[0.08] focus:border-primary/30 focus:ring-0 outline-none appearance-none cursor-pointer transition-all duration-300 text-sm font-light"
@@ -658,7 +676,7 @@ const FinanceiroLancamentos = () => {
                 </div>
                 {newTransaction.recurrence === 'monthly' && (
                   <div className="space-y-1.5">
-                    <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wide ml-1">Encerrar em (opcional)</label>
+                    <label className="block text-[11px] font-medium text-gray-500 tracking-wide ml-1">Encerrar em (opcional)</label>
                     <input
                       type="date"
                       className="w-full bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.08] rounded-xl px-4 py-3 text-white/90 focus:bg-white/[0.08] focus:border-primary/30 focus:ring-0 outline-none transition-all duration-300 text-sm font-light"
@@ -670,7 +688,7 @@ const FinanceiroLancamentos = () => {
               </div>
 
               <div className="space-y-1.5">
-                <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wide ml-1">Status Inicial</label>
+                <label className="block text-[11px] font-medium text-gray-500 tracking-wide ml-1">Status inicial</label>
                 <div className="flex gap-3 bg-white/[0.02] p-1.5 rounded-xl border border-white/[0.05]">
                   <button
                     type="button"

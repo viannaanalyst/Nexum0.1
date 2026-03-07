@@ -315,7 +315,7 @@ const Equipe = () => {
               <div className="space-y-4">
                 {/* Input Search-like para Nome */}
                 <div className="relative group">
-                  <label className="text-[10px] uppercase tracking-widest font-bold text-[#6e6e6e] ml-1 mb-1 block">Nome Completo</label>
+                  <label className="text-[11px] tracking-wide font-medium text-[#6e6e6e] ml-1 mb-1 block">Nome completo</label>
                   <input
                     type="text"
                     value={formData.name}
@@ -328,7 +328,7 @@ const Equipe = () => {
 
                 <div className="grid grid-cols-2 gap-3">
                   <div className="relative group">
-                    <label className="text-[10px] uppercase tracking-widest font-bold text-[#6e6e6e] ml-1 mb-1 block">Email</label>
+                    <label className="text-[11px] tracking-wide font-medium text-[#6e6e6e] ml-1 mb-1 block">E-mail</label>
                     <input
                       type="email"
                       value={formData.email}
@@ -340,7 +340,7 @@ const Equipe = () => {
                     />
                   </div>
                   <div className="relative group">
-                    <label className="text-[10px] uppercase tracking-widest font-bold text-[#6e6e6e] ml-1 mb-1 block">WhatsApp</label>
+                    <label className="text-[11px] tracking-wide font-medium text-[#6e6e6e] ml-1 mb-1 block">WhatsApp</label>
                     <IMaskInput
                       mask="(00) 00000-0000"
                       type="tel"
@@ -354,7 +354,7 @@ const Equipe = () => {
 
                 {!editingMember && (
                   <div className="relative group">
-                    <label className="text-[10px] uppercase tracking-widest font-bold text-[#6e6e6e] ml-1 mb-1 block">Senha de Acesso</label>
+                    <label className="text-[11px] tracking-wide font-medium text-[#6e6e6e] ml-1 mb-1 block">Senha de acesso</label>
                     <input
                       type="password"
                       value={formData.password}
@@ -367,7 +367,7 @@ const Equipe = () => {
                 )}
 
                 <div className="relative group">
-                  <label className="text-[10px] uppercase tracking-widest font-bold text-[#6e6e6e] ml-1 mb-1 block">Perfil de Acesso</label>
+                  <label className="text-[11px] tracking-wide font-medium text-[#6e6e6e] ml-1 mb-1 block">Perfil de acesso</label>
                   <select
                     value={formData.role}
                     onChange={e => setFormData({ ...formData, role: e.target.value as any })}
@@ -405,7 +405,7 @@ const Equipe = () => {
                       <UserPlus size={16} />
                     </div>
                     <div className="flex flex-col">
-                      <span className="text-sm font-medium text-[#EEEEEE]">Status Ativo</span>
+                      <span className="text-sm font-medium text-[#EEEEEE]">Status ativo</span>
                       <span className="text-[10px] text-[#6e6e6e]">Com acesso</span>
                     </div>
                   </div>
