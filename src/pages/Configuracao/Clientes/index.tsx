@@ -907,20 +907,19 @@ const Clientes = () => {
             </div>
 
             {/* Modal Footer */}
-            <div className="p-6 flex justify-end space-x-3 relative z-20">
+            <div className="p-6 pt-0 flex justify-end gap-2 relative z-20">
               <button
                 onClick={() => setIsModalOpen(false)}
-                className="px-6 py-3 text-sm text-gray-500 hover:text-white transition-colors hover:bg-white/5 rounded-xl font-light"
+                className="px-6 py-2.5 text-sm text-gray-500 hover:text-red-500 transition-colors font-medium flex items-center justify-center"
               >
                 Cancelar
               </button>
               <button
                 onClick={handleSave}
                 disabled={loading}
-                className="px-8 py-3 bg-white/[0.05] hover:bg-white/[0.1] text-white rounded-xl border border-white/5 hover:border-white/20 transition-all duration-300 font-medium text-sm flex items-center gap-2 group disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-8 py-2.5 bg-primary hover:bg-secondary text-white rounded-xl shadow-lg shadow-primary/20 transition-all duration-300 font-medium text-sm flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <span>{loading ? 'Salvando...' : 'Salvar Alterações'}</span>
-                <span className="text-primary group-hover:translate-x-1 transition-transform">→</span>
+                {loading ? 'Salvando...' : 'Salvar'}
               </button>
             </div>
           </div>

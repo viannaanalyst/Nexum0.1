@@ -297,7 +297,7 @@ const Equipe = () => {
             <div className="absolute inset-0 rounded-[22px] border border-white/5 pointer-events-none"></div>
 
             {/* 3. Glow Roxo no Topo (Mais fiel à referência) */}
-            <div className="absolute top-[-50px] left-1/2 -translate-x-1/2 w-[120%] h-[150px] bg-primary/40 blur-[80px] pointer-events-none rounded-[100%]"></div>
+            <div className="absolute top-[-50px] left-1/2 -translate-x-1/2 w-[120%] h-[150px] bg-primary/30 blur-[80px] pointer-events-none rounded-[100%]"></div>
             <div className="absolute top-0 left-1/2 -translate-x-1/2 w-1/3 h-[2px] bg-gradient-to-r from-transparent via-primary to-transparent shadow-[0_0_20px_2px_rgba(99,102,241,0.6)]"></div>
 
             {/* Header Minimalista */}
@@ -322,6 +322,7 @@ const Equipe = () => {
               <div className="space-y-4">
                 {/* Input Search-like para Nome */}
                 <div className="relative group">
+                  <label className="text-[10px] uppercase tracking-widest font-bold text-[#6e6e6e] ml-1 mb-1 block">Nome Completo</label>
                   <input
                     type="text"
                     value={formData.name}
@@ -334,6 +335,7 @@ const Equipe = () => {
 
                 <div className="grid grid-cols-2 gap-3">
                   <div className="relative group">
+                    <label className="text-[10px] uppercase tracking-widest font-bold text-[#6e6e6e] ml-1 mb-1 block">Email</label>
                     <input
                       type="email"
                       value={formData.email}
@@ -345,31 +347,34 @@ const Equipe = () => {
                     />
                   </div>
                   <div className="relative group">
+                    <label className="text-[10px] uppercase tracking-widest font-bold text-[#6e6e6e] ml-1 mb-1 block">WhatsApp</label>
                     <IMaskInput
                       mask="(00) 00000-0000"
                       type="tel"
                       value={formData.whatsapp}
                       onAccept={(value: string) => setFormData(prev => ({ ...prev, whatsapp: value }))}
                       className="w-full bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.08] rounded-xl px-4 py-3 text-white/90 placeholder-[#6e6e6e] focus:bg-white/[0.08] focus:border-primary/30 focus:ring-0 focus:shadow-[0_0_15px_-3px_rgba(99,102,241,0.15)] outline-none transition-all duration-300 text-sm font-light"
-                      placeholder="WhatsApp"
+                      placeholder="(00) 00000-0000"
                     />
                   </div>
                 </div>
 
                 {!editingMember && (
                   <div className="relative group">
+                    <label className="text-[10px] uppercase tracking-widest font-bold text-[#6e6e6e] ml-1 mb-1 block">Senha de Acesso</label>
                     <input
                       type="password"
                       value={formData.password}
                       onChange={e => setFormData({ ...formData, password: e.target.value })}
                       className="w-full bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.08] rounded-xl px-4 py-3 text-white/90 placeholder-[#6e6e6e] focus:bg-white/[0.08] focus:border-primary/30 focus:ring-0 focus:shadow-[0_0_15px_-3px_rgba(99,102,241,0.15)] outline-none transition-all duration-300 text-sm font-light"
-                      placeholder="Senha de acesso"
+                      placeholder="Defina uma senha"
                       required
                     />
                   </div>
                 )}
 
                 <div className="relative group">
+                  <label className="text-[10px] uppercase tracking-widest font-bold text-[#6e6e6e] ml-1 mb-1 block">Perfil de Acesso</label>
                   <select
                     value={formData.role}
                     onChange={e => setFormData({ ...formData, role: e.target.value as any })}
@@ -383,7 +388,7 @@ const Equipe = () => {
               </div>
 
               {/* Switches em Lista (Reference Style) */}
-              <div className="space-y-1 mt-2">
+              <div className="grid grid-cols-2 gap-2 mt-2">
                 <div className="flex items-center justify-between p-3 rounded-lg hover:bg-white/[0.02] transition-colors group cursor-pointer" onClick={() => setFormData({ ...formData, is_approver: !formData.is_approver })}
                 >
                   <div className="flex items-center gap-3">
@@ -392,7 +397,7 @@ const Equipe = () => {
                     </div>
                     <div className="flex flex-col">
                       <span className="text-sm font-medium text-[#EEEEEE]">Aprovador</span>
-                      <span className="text-[10px] text-[#6e6e6e]">Permissão para aprovar</span>
+                      <span className="text-[10px] text-[#6e6e6e]">Pode aprovar</span>
                     </div>
                   </div>
                   <div className={`w-4 h-4 rounded-full border flex items-center justify-center transition-all ${formData.is_approver ? 'border-primary bg-primary' : 'border-white/20 bg-transparent'}`}>
@@ -408,7 +413,7 @@ const Equipe = () => {
                     </div>
                     <div className="flex flex-col">
                       <span className="text-sm font-medium text-[#EEEEEE]">Status Ativo</span>
-                      <span className="text-[10px] text-[#6e6e6e]">Acesso ao sistema</span>
+                      <span className="text-[10px] text-[#6e6e6e]">Com acesso</span>
                     </div>
                   </div>
                   <div className={`w-4 h-4 rounded-full border flex items-center justify-center transition-all ${formData.status ? 'border-green-500 bg-green-500' : 'border-white/20 bg-transparent'}`}>
@@ -418,18 +423,20 @@ const Equipe = () => {
               </div>
 
               {/* Ações (Quick Actions Style) */}
-              <div className="pt-4 border-t border-white/5">
+              <div className="pt-4 border-t border-white/5 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={closeModal}
+                  className="px-6 py-2.5 bg-transparent text-gray-500 hover:text-red-500 transition-all duration-300 font-medium text-sm flex items-center justify-center"
+                >
+                  Cancelar
+                </button>
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full py-3.5 bg-white/[0.05] hover:bg-white/[0.1] text-white rounded-xl border border-white/5 hover:border-white/20 transition-all duration-300 font-medium text-sm flex items-center justify-center gap-2 group"
+                  className="px-8 py-2.5 bg-primary hover:bg-secondary text-white rounded-xl shadow-lg shadow-primary/20 transition-all duration-300 font-medium text-sm flex items-center justify-center"
                 >
-                  {loading ? 'Processando...' : (
-                    <>
-                      <span>{editingMember ? 'Salvar Alterações' : 'Confirmar Convite'}</span>
-                      <span className="text-primary group-hover:translate-x-1 transition-transform">→</span>
-                    </>
-                  )}
+                  {loading ? 'Salvando...' : 'Salvar'}
                 </button>
               </div>
             </form>

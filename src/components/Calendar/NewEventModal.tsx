@@ -10,9 +10,10 @@ interface NewEventModalProps {
     onClose: () => void;
     onSuccess: () => void;
     initialDate?: string;
+    eventId?: string | null;
 }
 
-export const NewEventModal: React.FC<NewEventModalProps> = ({ isOpen, onClose, onSuccess, initialDate }) => {
+export const NewEventModal: React.FC<NewEventModalProps> = ({ isOpen, onClose, onSuccess, initialDate, eventId }) => {
     const { selectedCompany } = useCompany();
     const { toast } = useUI();
     const [loading, setLoading] = useState(false);
@@ -29,14 +30,55 @@ export const NewEventModal: React.FC<NewEventModalProps> = ({ isOpen, onClose, o
     useEffect(() => {
         if (isOpen && selectedCompany) {
             fetchMembers();
-            if (initialDate) {
+            if (eventId) {
+                fetchEventDetails();
+            } else if (initialDate) {
+                // ... logic for new event ...
                 setEventDate(initialDate.split('T')[0]);
                 if (initialDate.includes('T')) {
                     setEventTime(initialDate.split('T')[1].slice(0, 5));
                 }
+                // Clear other fields for new event
+                setTitle('');
+                setDescription('');
+                setLocation('');
+                setAssignedTo('');
             }
         }
-    }, [isOpen, selectedCompany, initialDate]);
+    }, [isOpen, selectedCompany, initialDate, eventId]);
+
+    const fetchEventDetails = async () => {
+        if (!eventId) return;
+        try {
+            const { data, error } = await supabase
+                .from('kanban_cards')
+                .select('*')
+                .eq('id', eventId)
+                .single();
+
+            if (data) {
+                setTitle(data.title);
+                // Extract description from the saved format (📍 Local: ...\n\n...)
+                const descParts = data.description.split('\n\n');
+                if (descParts.length > 1 && descParts[0].includes('📍 Local:')) {
+                    setLocation(descParts[0].replace('📍 Local: ', ''));
+                    setDescription(descParts.slice(1).join('\n\n'));
+                } else {
+                    setDescription(data.description);
+                    setLocation('');
+                }
+                if (data.due_date) {
+                    setEventDate(data.due_date.split('T')[0]);
+                    if (data.due_date.includes('T')) {
+                        setEventTime(data.due_date.split('T')[1].slice(0, 5));
+                    }
+                }
+                setAssignedTo(data.assigned_to || '');
+            }
+        } catch (error) {
+            console.error('Error fetching event details:', error);
+        }
+    };
 
     const fetchMembers = async () => {
         try {
@@ -60,33 +102,41 @@ export const NewEventModal: React.FC<NewEventModalProps> = ({ isOpen, onClose, o
 
         setLoading(true);
         try {
-            // Find first column for the company to place the card in
-            const { data: cols } = await supabase
-                .from('kanban_columns')
-                .select('id')
-                .eq('company_id', selectedCompany.id)
-                .order('position')
-                .limit(1);
-
-            const columnId = cols?.[0]?.id;
-            if (!columnId) throw new Error('Nenhuma coluna encontrada');
+            // Find first column for the company to place the card in (needed only for insert)
+            let columnId = null;
+            if (!eventId) {
+                const { data: cols } = await supabase
+                    .from('kanban_columns')
+                    .select('id')
+                    .eq('company_id', selectedCompany.id)
+                    .order('position')
+                    .limit(1);
+                columnId = cols?.[0]?.id;
+                if (!columnId) throw new Error('Nenhuma coluna encontrada');
+            }
 
             // Combine date and time for due_date
             const fullDate = `${eventDate}T${eventTime}:00`;
 
-            const { error } = await supabase.from('kanban_cards').insert({
+            const cardData: any = {
                 company_id: selectedCompany.id,
-                column_id: columnId,
                 title: title,
                 description: `${location ? `📍 Local: ${location}\n\n` : ''}${description}`,
-                start_date: null, // Clear start_date to prevent range bars
+                start_date: null,
                 due_date: fullDate,
                 assigned_to: assignedTo || null,
                 category: 'Evento',
                 show_on_calendar: true,
-                position: 0,
                 priority: 'medium'
-            });
+            };
+
+            if (columnId) {
+                cardData.column_id = columnId;
+            }
+
+            const { error } = eventId
+                ? await supabase.from('kanban_cards').update(cardData).eq('id', eventId)
+                : await supabase.from('kanban_cards').insert({ ...cardData, position: 0 });
 
             if (error) throw error;
 
@@ -101,6 +151,30 @@ export const NewEventModal: React.FC<NewEventModalProps> = ({ isOpen, onClose, o
         } catch (error: any) {
             console.error('Error creating event:', error);
             toast.error(error.message || 'Erro ao criar evento', 'Erro');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleDelete = async () => {
+        if (!eventId) return;
+        if (!window.confirm('Deseja realmente excluir este evento?')) return;
+
+        setLoading(true);
+        try {
+            const { error } = await supabase
+                .from('kanban_cards')
+                .delete()
+                .eq('id', eventId);
+
+            if (error) throw error;
+
+            toast.success('Evento excluído!', 'Sucesso');
+            onSuccess();
+            onClose();
+        } catch (error: any) {
+            console.error('Error deleting event:', error);
+            toast.error(error.message || 'Erro ao excluir evento', 'Erro');
         } finally {
             setLoading(false);
         }
@@ -127,16 +201,16 @@ export const NewEventModal: React.FC<NewEventModalProps> = ({ isOpen, onClose, o
                 {/* Borda interna sutil (Inner Border) */}
                 <div className="absolute inset-0 rounded-[22px] border border-white/5 pointer-events-none"></div>
 
-                {/* Glow Azul no Topo */}
-                <div className="absolute top-[-50px] left-1/2 -translate-x-1/2 w-[120%] h-[150px] bg-blue-500/30 blur-[80px] pointer-events-none rounded-[100%]"></div>
-                <div className="absolute top-0 left-1/2 -translate-x-1/2 w-1/3 h-[2px] bg-gradient-to-r from-transparent via-blue-500 to-transparent shadow-[0_0_20px_2px_rgba(59,130,246,0.6)]"></div>
+                {/* Glow Primary no Topo */}
+                <div className="absolute top-[-50px] left-1/2 -translate-x-1/2 w-[120%] h-[150px] bg-primary/30 blur-[80px] pointer-events-none rounded-[100%]"></div>
+                <div className="absolute top-0 left-1/2 -translate-x-1/2 w-1/3 h-[2px] bg-gradient-to-r from-transparent via-primary to-transparent shadow-[0_0_20px_2px_rgba(99,102,241,0.6)]"></div>
 
                 {/* Header Minimalista */}
                 <div className="relative p-8 pb-2">
                     <div className="flex justify-between items-start">
                         <div>
-                            <h3 className="text-xl font-medium text-[#EEEEEE]">Novo Evento</h3>
-                            <p className="text-[#6e6e6e] text-xs mt-1 font-light">Agende reuniões ou compromissos na agenda.</p>
+                            <h3 className="text-xl font-medium text-[#EEEEEE]">{eventId ? 'Editar Evento' : 'Novo Evento'}</h3>
+                            <p className="text-[#6e6e6e] text-xs mt-1 font-light">{eventId ? 'Altere os detalhes do compromisso.' : 'Agende reuniões ou compromissos na agenda.'}</p>
                         </div>
                         <button
                             onClick={onClose}
@@ -157,7 +231,7 @@ export const NewEventModal: React.FC<NewEventModalProps> = ({ isOpen, onClose, o
                                 autoFocus
                                 type="text"
                                 placeholder="Ex: Reunião de Planejamento"
-                                className="w-full bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.08] rounded-xl px-4 py-3 text-white/90 placeholder-[#6e6e6e] focus:bg-white/[0.08] focus:border-blue-500/30 focus:ring-0 outline-none transition-all duration-300 text-sm font-light"
+                                className="w-full bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.08] rounded-xl px-4 py-3 text-white/90 placeholder-[#6e6e6e] focus:bg-white/[0.08] focus:border-primary/30 focus:ring-0 outline-none transition-all duration-300 text-sm font-light"
                                 value={title}
                                 onChange={(e) => setTitle(e.target.value)}
                             />
@@ -170,7 +244,7 @@ export const NewEventModal: React.FC<NewEventModalProps> = ({ isOpen, onClose, o
                                 <input
                                     required
                                     type="date"
-                                    className="w-full bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.08] rounded-xl px-4 py-3 text-white/90 focus:bg-white/[0.08] focus:border-blue-500/30 focus:ring-0 outline-none transition-all duration-300 text-sm font-light [color-scheme:dark]"
+                                    className="w-full bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.08] rounded-xl px-4 py-3 text-white/90 focus:bg-white/[0.08] focus:border-primary/30 focus:ring-0 outline-none transition-all duration-300 text-sm font-light [color-scheme:dark]"
                                     value={eventDate}
                                     onChange={(e) => setEventDate(e.target.value)}
                                 />
@@ -181,7 +255,7 @@ export const NewEventModal: React.FC<NewEventModalProps> = ({ isOpen, onClose, o
                                 <input
                                     required
                                     type="time"
-                                    className="w-full bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.08] rounded-xl px-4 py-3 text-white/90 focus:bg-white/[0.08] focus:border-blue-500/30 focus:ring-0 outline-none transition-all duration-300 text-sm font-light [color-scheme:dark]"
+                                    className="w-full bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.08] rounded-xl px-4 py-3 text-white/90 focus:bg-white/[0.08] focus:border-primary/30 focus:ring-0 outline-none transition-all duration-300 text-sm font-light [color-scheme:dark]"
                                     value={eventTime}
                                     onChange={(e) => setEventTime(e.target.value)}
                                 />
@@ -195,7 +269,7 @@ export const NewEventModal: React.FC<NewEventModalProps> = ({ isOpen, onClose, o
                                 <input
                                     type="text"
                                     placeholder="Google Meet, Sala..."
-                                    className="w-full bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.08] rounded-xl px-4 py-3 text-white/90 placeholder-[#6e6e6e] focus:bg-white/[0.08] focus:border-blue-500/30 focus:ring-0 outline-none transition-all duration-300 text-sm font-light"
+                                    className="w-full bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.08] rounded-xl px-4 py-3 text-white/90 placeholder-[#6e6e6e] focus:bg-white/[0.08] focus:border-primary/30 focus:ring-0 outline-none transition-all duration-300 text-sm font-light"
                                     value={location}
                                     onChange={(e) => setLocation(e.target.value)}
                                 />
@@ -204,7 +278,7 @@ export const NewEventModal: React.FC<NewEventModalProps> = ({ isOpen, onClose, o
                             <div className="relative group">
                                 <label className="text-[10px] uppercase tracking-widest font-bold text-[#6e6e6e] ml-1 mb-1 block">Responsável</label>
                                 <select
-                                    className="w-full bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.08] rounded-xl px-4 py-3 text-white/90 focus:bg-white/[0.08] focus:border-blue-500/30 focus:ring-0 outline-none appearance-none cursor-pointer transition-all duration-300 text-sm font-light"
+                                    className="w-full bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.08] rounded-xl px-4 py-3 text-white/90 focus:bg-white/[0.08] focus:border-primary/30 focus:ring-0 outline-none appearance-none cursor-pointer transition-all duration-300 text-sm font-light"
                                     value={assignedTo}
                                     onChange={(e) => setAssignedTo(e.target.value)}
                                 >
@@ -224,7 +298,7 @@ export const NewEventModal: React.FC<NewEventModalProps> = ({ isOpen, onClose, o
                             <textarea
                                 placeholder="Pauta da reunião..."
                                 rows={2}
-                                className="w-full bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.08] rounded-xl px-4 py-3 text-white/90 placeholder-[#6e6e6e] focus:bg-white/[0.08] focus:border-blue-500/30 focus:ring-0 outline-none transition-all duration-300 text-sm font-light resize-none"
+                                className="w-full bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.08] rounded-xl px-4 py-3 text-white/90 placeholder-[#6e6e6e] focus:bg-white/[0.08] focus:border-primary/30 focus:ring-0 outline-none transition-all duration-300 text-sm font-light resize-none"
                                 value={description}
                                 onChange={(e) => setDescription(e.target.value)}
                             />
@@ -232,26 +306,33 @@ export const NewEventModal: React.FC<NewEventModalProps> = ({ isOpen, onClose, o
                     </div>
 
                     {/* Footer Actions */}
-                    <div className="pt-4 border-t border-white/5 flex gap-3">
-                        <button
-                            type="button"
-                            onClick={onClose}
-                            className="flex-1 py-3.5 bg-white/[0.02] hover:bg-white/[0.05] text-gray-500 hover:text-white rounded-xl border border-white/5 transition-all duration-300 font-medium text-sm"
-                        >
-                            Cancelar
-                        </button>
-                        <button
-                            type="submit"
-                            disabled={loading}
-                            className="flex-[2] py-3.5 bg-white/[0.05] hover:bg-white/[0.1] text-white rounded-xl border border-white/5 hover:border-white/20 transition-all duration-300 font-medium text-sm flex items-center justify-center gap-2 group shadow-lg shadow-blue-500/10"
-                        >
-                            {loading ? 'Salvando...' : (
-                                <>
-                                    <span>Salvar Evento</span>
-                                    <span className="text-primary group-hover:translate-x-1 transition-transform">→</span>
-                                </>
-                            )}
-                        </button>
+                    <div className="pt-4 border-t border-white/5 flex items-center justify-between">
+                        {eventId ? (
+                            <button
+                                type="button"
+                                onClick={handleDelete}
+                                className="px-4 py-2 text-red-500/60 hover:text-red-500 text-xs font-medium transition-colors"
+                            >
+                                Excluir
+                            </button>
+                        ) : <div />}
+
+                        <div className="flex gap-2">
+                            <button
+                                type="button"
+                                onClick={onClose}
+                                className="px-6 py-2.5 bg-transparent text-gray-500 hover:text-red-500 transition-all duration-300 font-medium text-sm flex items-center justify-center"
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                type="submit"
+                                disabled={loading}
+                                className="px-8 py-2.5 bg-primary hover:bg-secondary text-white rounded-xl shadow-lg shadow-primary/20 transition-all duration-300 font-medium text-sm flex items-center justify-center"
+                            >
+                                {loading ? 'Salvando...' : 'Salvar'}
+                            </button>
+                        </div>
                     </div>
                 </form>
             </div>

@@ -20,6 +20,7 @@ const Calendario = () => {
   const [modalMode, setModalMode] = useState<'task' | 'event'>('task');
   const [showEventModal, setShowEventModal] = useState(false);
   const [initialEventDate, setInitialEventDate] = useState<string | undefined>();
+  const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
 
   // Filter Options States
   const [clients, setClients] = useState<any[]>([]);
@@ -171,7 +172,7 @@ const Calendario = () => {
           return {
             id: card.id,
             title: card.title,
-            start: card.due_date, // Use due_date as the single point
+            start: isEvent ? card.due_date : card.due_date.split('T')[0], // Use specifically the date part for all-day tasks
             allDay: !isEvent, // Tasks are allDay (on the deadline), Events have time
             backgroundColor: getPriorityColor(card.priority),
             borderColor: getPriorityColor(card.priority),
@@ -425,11 +426,18 @@ const Calendario = () => {
           eventClassNames="rounded-md border-0 shadow-sm opacity-90 hover:opacity-100 transition-opacity"
           datesSet={updateTitle} // Keep title in sync
           eventClick={(info) => {
-            setModalMode('task');
-            setSelectedCardId(info.event.id);
+            const category = info.event.extendedProps.category;
+            if (category === 'Evento') {
+              setSelectedEventId(info.event.id);
+              setShowEventModal(true);
+            } else {
+              setModalMode('task');
+              setSelectedCardId(info.event.id);
+            }
           }}
           dateClick={(info) => {
             setInitialEventDate(info.dateStr + 'T12:00');
+            setSelectedEventId(null);
             setShowEventModal(true);
           }}
           selectable={true}
@@ -451,10 +459,15 @@ const Calendario = () => {
       <NewEventModal
         isOpen={showEventModal}
         initialDate={initialEventDate}
-        onClose={() => setShowEventModal(false)}
+        eventId={selectedEventId}
+        onClose={() => {
+          setShowEventModal(false);
+          setSelectedEventId(null);
+        }}
         onSuccess={() => {
           fetchEvents();
           setShowEventModal(false);
+          setSelectedEventId(null);
         }}
       />
     </div>

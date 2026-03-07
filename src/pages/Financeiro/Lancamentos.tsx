@@ -29,6 +29,9 @@ interface Transaction {
   status: 'paid' | 'pending' | 'overdue';
   client_id?: string;
   is_virtual?: boolean;
+  recurrence: 'none' | 'monthly';
+  recurrence_until?: string | null;
+  template_id?: string | null;
 }
 
 interface Client {
@@ -58,7 +61,10 @@ const FinanceiroLancamentos = () => {
   const [newTransaction, setNewTransaction] = useState<Partial<Transaction>>({
     type: 'expense',
     status: 'pending',
-    due_date: new Date().toISOString().split('T')[0]
+    due_date: new Date().toISOString().split('T')[0],
+    recurrence: 'none',
+    recurrence_until: null,
+    client_id: undefined
   });
 
   // Fetch Data (Yearly to support multiple months in memory)
@@ -81,7 +87,6 @@ const FinanceiroLancamentos = () => {
           .select('id, name, mrr, due_day, status, start_date, end_date')
           .eq('company_id', selectedCompany.id)
           .eq('status', 'active')
-          .lte('start_date', endOfYear)
       ]);
 
       setTransactions(transRes.data || []);
@@ -129,41 +134,54 @@ const FinanceiroLancamentos = () => {
 
     combined = [...filteredRealTransactions];
 
-    // For each effective month, generate virtual transactions
     effectiveMonths.forEach(m => {
       const currentMonthTransactions = filteredRealTransactions.filter(t => {
         const tMonth = parseInt(t.due_date.split('-')[1], 10);
         return tMonth === m;
       });
 
-      const clientsWithPayments = new Set(
-        currentMonthTransactions
-          .filter(t => t.type === 'income' && t.client_id)
-          .map(t => t.client_id)
-      );
-
       const monthEndDate = new Date(year, m, 0).toISOString().split('T')[0];
       const monthStartDate = `${year}-${String(m).padStart(2, '0')}-01`;
 
+      // 1. FILTRAR RECORRÊNCIAS MANUAIS (TEMPLATES) PARA ESTE MÊS
+      const monthTemplates = transactions.filter(t => t.recurrence === 'monthly' && !t.template_id).filter(template => {
+        if (template.due_date > monthEndDate) return false;
+        if (template.recurrence_until && template.recurrence_until < monthStartDate) return false;
+
+        // Verifica se já existe uma instância real
+        const hasRealInstance = transactions.some(t =>
+          t.template_id === template.id &&
+          t.due_date.startsWith(`${year}-${String(m).padStart(2, '0')}`)
+        );
+        const isOriginalMonth = template.due_date.split('-')[0] === String(year) && parseInt(template.due_date.split('-')[1]) === m;
+
+        return !hasRealInstance && !isOriginalMonth;
+      });
+
+      // 2. COLETAR CLIENTES QUE JÁ TÊM LANÇAMENTO (REAL OU VIRTUAL)
+      const clientsWithActivity = new Set([
+        ...currentMonthTransactions
+          .filter(t => t.type === 'income' && t.client_id)
+          .map(t => t.client_id as string),
+        ...monthTemplates
+          .filter(t => t.type === 'income' && t.client_id)
+          .map(t => t.client_id as string)
+      ]);
+
+      // 3. GERAR MRR APENAS SE NÃO HOUVER NADA AINDA
       clients.forEach((client) => {
-        // Filter client if not in selectedClientIds
         if (!isAllClients && !selectedClientIds.includes(client.id)) return;
-
-        // Check if client was already active in this loop month
         if (client.start_date && client.start_date > monthEndDate) return;
-
-        // Check if client contract already ended before this loop month
         if (client.end_date && client.end_date !== '' && client.end_date < monthStartDate) return;
 
-        if (!clientsWithPayments.has(client.id)) {
+        if (!clientsWithActivity.has(client.id)) {
           const daysInMonth = new Date(year, m, 0).getDate();
           const actualDay = Math.min(client.due_day, daysInMonth);
           const dueDate = `${year}-${String(m).padStart(2, '0')}-${String(actualDay).padStart(2, '0')}`;
-
           const isOverdue = new Date(dueDate) < new Date() && (new Date().getMonth() + 1 > m || (new Date().getMonth() + 1 === m && new Date().getDate() > actualDay));
 
           combined.push({
-            id: `virtual-${client.id}-${m}`,
+            id: `virtual-mrr-${client.id}-${m}`,
             description: `Mensalidade: ${client.name}`,
             type: 'income',
             amount: client.mrr,
@@ -171,9 +189,37 @@ const FinanceiroLancamentos = () => {
             due_date: dueDate,
             status: isOverdue ? 'overdue' : 'pending',
             client_id: client.id,
-            is_virtual: true
+            is_virtual: true,
+            recurrence: 'none'
           });
         }
+      });
+
+      // 4. ADICIONAR AS RECORRÊNCIAS VIRTUAIS AO COMBINED
+      monthTemplates.forEach(template => {
+        const originalDay = parseInt(template.due_date.split('-')[2]);
+        const daysInMonth = new Date(year, m, 0).getDate();
+        const actualDay = Math.min(originalDay, daysInMonth);
+        const dueDate = `${year}-${String(m).padStart(2, '0')}-${String(actualDay).padStart(2, '0')}`;
+        const isOverdue = new Date(dueDate) < new Date();
+
+        // Filtro de cliente
+        const clientMatch = isAllClients || (template.client_id && selectedClientIds.includes(template.client_id));
+        if (!clientMatch) return;
+
+        combined.push({
+          id: `virtual-rec-${template.id}-${m}`,
+          description: template.description,
+          type: template.type as any,
+          amount: template.amount,
+          category: template.category,
+          due_date: dueDate,
+          status: isOverdue ? 'overdue' : 'pending',
+          client_id: template.client_id,
+          is_virtual: true,
+          recurrence: 'none',
+          template_id: template.id
+        });
       });
     });
 
@@ -204,13 +250,14 @@ const FinanceiroLancamentos = () => {
           company_id: selectedCompany?.id,
           client_id: item.client_id,
           description: item.description,
-          type: 'income',
+          type: item.type,
           amount: item.amount,
           category: item.category,
           due_date: item.due_date,
           status: 'paid',
           payment_date: new Date().toISOString(),
-          recurrence: 'monthly'
+          recurrence: 'none',
+          template_id: item.template_id?.startsWith('virtual') ? null : item.template_id // Se veio de um template recorrente
         });
         if (error) throw error;
       } else {
@@ -245,7 +292,10 @@ const FinanceiroLancamentos = () => {
       type: item.type,
       category: item.category,
       due_date: item.due_date,
-      status: item.status
+      status: item.status,
+      recurrence: item.recurrence,
+      recurrence_until: item.recurrence_until,
+      client_id: item.client_id
     });
     setEditingId(item.id);
     setIsModalOpen(true);
@@ -267,6 +317,9 @@ const FinanceiroLancamentos = () => {
             category: newTransaction.category,
             due_date: newTransaction.due_date,
             status: newTransaction.status,
+            recurrence: newTransaction.recurrence,
+            recurrence_until: newTransaction.recurrence_until || null,
+            client_id: newTransaction.client_id || null,
             ...(newTransaction.status === 'paid' ? { payment_date: new Date().toISOString() } : { payment_date: null })
           })
           .eq('id', editingId);
@@ -282,7 +335,9 @@ const FinanceiroLancamentos = () => {
           category: newTransaction.category,
           due_date: newTransaction.due_date,
           status: newTransaction.status,
-          recurrence: 'none', // Default for manual entry
+          recurrence: newTransaction.recurrence || 'none',
+          recurrence_until: newTransaction.recurrence_until || null,
+          client_id: newTransaction.client_id || null,
           ...(newTransaction.status === 'paid' ? { payment_date: new Date().toISOString() } : {})
         });
 
@@ -294,7 +349,10 @@ const FinanceiroLancamentos = () => {
       setNewTransaction({
         type: 'expense',
         status: 'pending',
-        due_date: new Date().toISOString().split('T')[0]
+        due_date: new Date().toISOString().split('T')[0],
+        recurrence: 'none',
+        recurrence_until: null,
+        client_id: undefined
       });
       fetchData();
     } catch (error) {
@@ -362,7 +420,10 @@ const FinanceiroLancamentos = () => {
               setNewTransaction({
                 type: 'expense',
                 status: 'pending',
-                due_date: new Date().toISOString().split('T')[0]
+                due_date: new Date().toISOString().split('T')[0],
+                recurrence: 'none',
+                recurrence_until: null,
+                client_id: undefined
               });
               setIsModalOpen(true);
             }}
@@ -473,7 +534,7 @@ const FinanceiroLancamentos = () => {
           {/* 1. Overlay Premium */}
           <div
             className="absolute inset-0 bg-black/60 backdrop-blur-md z-0 animate-in fade-in duration-300"
-            onClick={() => { setIsModalOpen(false); setEditingId(null); setNewTransaction({ type: 'expense', status: 'pending', due_date: new Date().toISOString().split('T')[0] }); }}
+            onClick={() => { setIsModalOpen(false); setEditingId(null); setNewTransaction({ type: 'expense', status: 'pending', due_date: new Date().toISOString().split('T')[0], recurrence: 'none', recurrence_until: null, client_id: undefined }); }}
           >
             <div className="absolute inset-0 opacity-[0.03] bg-[url('https://grainy-gradients.vercel.app/noise.svg')]"></div>
           </div>
@@ -495,7 +556,7 @@ const FinanceiroLancamentos = () => {
                 <p className="text-[#6e6e6e] text-xs mt-1 font-light">Registre suas movimentações financeiras.</p>
               </div>
               <button
-                onClick={() => { setIsModalOpen(false); setEditingId(null); setNewTransaction({ type: 'expense', status: 'pending', due_date: new Date().toISOString().split('T')[0] }); }}
+                onClick={() => { setIsModalOpen(false); setEditingId(null); setNewTransaction({ type: 'expense', status: 'pending', due_date: new Date().toISOString().split('T')[0], recurrence: 'none', recurrence_until: null, client_id: undefined }); }}
                 className="p-1.5 text-gray-500 hover:text-white rounded-lg hover:bg-white/10 transition-colors"
               >
                 <X size={18} />
@@ -563,23 +624,68 @@ const FinanceiroLancamentos = () => {
                 </div>
               </div>
 
-              <div className="space-y-1.5">
-                <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wide ml-1">Categoria</label>
-                <div className="relative group">
-                  <select
-                    className="w-full bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.08] rounded-xl px-4 py-3 text-white/90 focus:bg-white/[0.08] focus:border-primary/30 focus:ring-0 outline-none appearance-none cursor-pointer transition-all duration-300 text-sm font-light"
-                    value={newTransaction.category || ''}
-                    onChange={e => setNewTransaction({ ...newTransaction, category: e.target.value })}
-                  >
-                    <option value="" disabled>Selecione...</option>
-                    <option value="Operacional" className="bg-[#0a0a1a]">Operacional</option>
-                    <option value="Marketing" className="bg-[#0a0a1a]">Marketing</option>
-                    <option value="Ferramentas" className="bg-[#0a0a1a]">Ferramentas</option>
-                    <option value="Impostos" className="bg-[#0a0a1a]">Impostos</option>
-                    <option value="Pessoal" className="bg-[#0a0a1a]">Pessoal</option>
-                    <option value="Outros" className="bg-[#0a0a1a]">Outros</option>
-                  </select>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wide ml-1">Categoria</label>
+                  <div className="relative group">
+                    <select
+                      className="w-full bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.08] rounded-xl px-4 py-3 text-white/90 focus:bg-white/[0.08] focus:border-primary/30 focus:ring-0 outline-none appearance-none cursor-pointer transition-all duration-300 text-sm font-light"
+                      value={newTransaction.category || ''}
+                      onChange={e => setNewTransaction({ ...newTransaction, category: e.target.value })}
+                    >
+                      <option value="" disabled>Selecione...</option>
+                      <option value="Operacional" className="bg-[#0a0a1a]">Operacional</option>
+                      <option value="Marketing" className="bg-[#0a0a1a]">Marketing</option>
+                      <option value="Ferramentas" className="bg-[#0a0a1a]">Ferramentas</option>
+                      <option value="Impostos" className="bg-[#0a0a1a]">Impostos</option>
+                      <option value="Pessoal" className="bg-[#0a0a1a]">Pessoal</option>
+                      <option value="Outros" className="bg-[#0a0a1a]">Outros</option>
+                    </select>
+                  </div>
                 </div>
+                <div className="space-y-1.5">
+                  <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wide ml-1">Vincular Cliente</label>
+                  <div className="relative group">
+                    <select
+                      className="w-full bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.08] rounded-xl px-4 py-3 text-white/90 focus:bg-white/[0.08] focus:border-primary/30 focus:ring-0 outline-none appearance-none cursor-pointer transition-all duration-300 text-sm font-light"
+                      value={newTransaction.client_id || ''}
+                      onChange={e => setNewTransaction({ ...newTransaction, client_id: e.target.value })}
+                    >
+                      <option value="">Sem vínculo</option>
+                      {clients.map(c => (
+                        <option key={c.id} value={c.id} className="bg-[#0a0a1a]">{c.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              {/* Recorrência */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wide ml-1">Recorrência</label>
+                  <div className="relative group">
+                    <select
+                      className="w-full bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.08] rounded-xl px-4 py-3 text-white/90 focus:bg-white/[0.08] focus:border-primary/30 focus:ring-0 outline-none appearance-none cursor-pointer transition-all duration-300 text-sm font-light"
+                      value={newTransaction.recurrence || 'none'}
+                      onChange={e => setNewTransaction({ ...newTransaction, recurrence: e.target.value as any })}
+                    >
+                      <option value="none" className="bg-[#0a0a1a]">Nenhuma</option>
+                      <option value="monthly" className="bg-[#0a0a1a]">Mensal</option>
+                    </select>
+                  </div>
+                </div>
+                {newTransaction.recurrence === 'monthly' && (
+                  <div className="space-y-1.5">
+                    <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wide ml-1">Encerrar em (opcional)</label>
+                    <input
+                      type="date"
+                      className="w-full bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.08] rounded-xl px-4 py-3 text-white/90 focus:bg-white/[0.08] focus:border-primary/30 focus:ring-0 outline-none transition-all duration-300 text-sm font-light"
+                      value={newTransaction.recurrence_until || ''}
+                      onChange={e => setNewTransaction({ ...newTransaction, recurrence_until: e.target.value })}
+                    />
+                  </div>
+                )}
               </div>
 
               <div className="space-y-1.5">
@@ -602,13 +708,19 @@ const FinanceiroLancamentos = () => {
                 </div>
               </div>
 
-              <div className="pt-2">
+              <div className="pt-2 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => { setIsModalOpen(false); setEditingId(null); setNewTransaction({ type: 'expense', status: 'pending', due_date: new Date().toISOString().split('T')[0], recurrence: 'none', recurrence_until: null, client_id: undefined }); }}
+                  className="px-6 py-2.5 text-sm text-gray-500 hover:text-red-500 transition-colors font-medium flex items-center justify-center"
+                >
+                  Cancelar
+                </button>
                 <button
                   type="submit"
-                  className="w-full bg-white/[0.05] hover:bg-white/[0.1] text-white py-3.5 rounded-xl border border-white/5 hover:border-white/20 transition-all duration-300 font-medium text-sm flex items-center justify-center gap-2 group"
+                  className="px-8 py-2.5 bg-primary hover:bg-secondary text-white rounded-xl shadow-lg shadow-primary/20 transition-all duration-300 font-medium text-sm flex items-center justify-center"
                 >
-                  <span>Salvar Lançamento</span>
-                  <span className="text-primary group-hover:translate-x-1 transition-transform">→</span>
+                  Salvar
                 </button>
               </div>
             </form>
