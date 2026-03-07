@@ -639,18 +639,6 @@ const OrganizadorKanban = () => {
                 }))}
               />
             </div>
-
-            {userRole !== 'visualizador' && (
-              <>
-                <div className="w-px h-5 bg-white/10 mx-1" />
-                <button
-                  onClick={() => setIsNewColumnModalOpen(true)}
-                  className="flex items-center gap-2 bg-primary text-white px-3 py-2 rounded-lg hover:bg-secondary transition-all shadow-lg shadow-primary/20 text-sm"
-                >
-                  <Plus size={16} /> Nova Coluna
-                </button>
-              </>
-            )}
           </div>
         </div>
       </div>

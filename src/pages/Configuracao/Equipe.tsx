@@ -203,13 +203,6 @@ const Equipe = () => {
     <div className="max-w-6xl mx-auto space-y-8">
       <div className="flex items-center justify-between">
         <div className="flex-1"></div>
-        <button
-          onClick={() => setIsModalOpen(true)}
-          className="flex items-center space-x-2 bg-primary hover:bg-secondary text-white px-6 py-3 rounded-lg shadow-lg shadow-primary/20 transition-all duration-300 transform hover:scale-105"
-        >
-          <UserPlus size={20} />
-          <span>Adicionar Membro</span>
-        </button>
       </div>
 
       <div className="glass-card rounded-2xl border border-white/10 overflow-hidden">

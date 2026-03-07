@@ -418,13 +418,6 @@ const Clientes = () => {
       {/* Header */}
       <div className="flex justify-between items-center">
         <div className="flex-1"></div>
-        <button
-          onClick={() => handleOpenModal()}
-          className="flex items-center space-x-2 bg-primary hover:bg-secondary text-white px-6 py-3 rounded-lg shadow-lg shadow-primary/20 transition-all duration-300 transform hover:scale-105"
-        >
-          <Plus size={20} />
-          <span>Novo cliente</span>
-        </button>
       </div>
 
       {/* List */}

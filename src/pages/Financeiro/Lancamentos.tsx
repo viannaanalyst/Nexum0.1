@@ -413,25 +413,6 @@ const FinanceiroLancamentos = () => {
               label: String(new Date().getFullYear() - 2 + i)
             }))}
           />
-
-          <button
-            onClick={() => {
-              setEditingId(null);
-              setNewTransaction({
-                type: 'expense',
-                status: 'pending',
-                due_date: new Date().toISOString().split('T')[0],
-                recurrence: 'none',
-                recurrence_until: null,
-                client_id: undefined
-              });
-              setIsModalOpen(true);
-            }}
-            className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-xl hover:bg-primary/90 transition-colors shadow-lg shadow-primary/20 text-sm font-medium"
-          >
-            <Plus size={18} />
-            Novo Lançamento
-          </button>
         </div>
       </div>
 

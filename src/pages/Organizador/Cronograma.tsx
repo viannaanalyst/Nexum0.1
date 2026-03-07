@@ -365,12 +365,6 @@ const OrganizadorCronograma = () => {
             <div className="p-8 h-full max-w-7xl mx-auto">
                 <div className="flex justify-between items-center mb-8">
                     <div className="flex-1"></div>
-                    <button
-                        onClick={() => setIsNewModalOpen(true)}
-                        className="flex items-center gap-2 bg-primary text-white px-4 py-2 rounded-lg hover:bg-secondary transition-all shadow-lg shadow-primary/20"
-                    >
-                        <Plus size={18} /> Novo Cronograma
-                    </button>
                 </div>
 
                 {loading ? (

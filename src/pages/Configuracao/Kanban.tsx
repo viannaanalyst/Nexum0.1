@@ -773,10 +773,6 @@ const ConfiguracaoKanban = () => {
                                     Crie modelos reutilizáveis com subtarefas e responsáveis pré-definidos
                                 </p>
                             </div>
-                            <button onClick={() => setModalTemplate({})}
-                                className="flex items-center gap-2 px-4 py-2 bg-primary hover:bg-primary/80 text-white rounded-xl text-sm font-medium transition-all shadow-lg shadow-primary/20">
-                                <Plus size={15} /> Novo Template
-                            </button>
                         </div>
 
                         <div className="p-6">
