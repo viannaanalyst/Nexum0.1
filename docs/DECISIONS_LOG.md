@@ -190,4 +190,22 @@ Toda decisão estrutural futura deve ser adicionada aqui antes ou imediatamente 
 
 ---
 
+## DEC-020
+
+**Data:** 2026-03-07
+**Decisão:** Lógica de Recorrência Mensal "Virtual" no Financeiro
+**Motivo:** Automatizar a projeção de custos e receitas fixas (ex: Aluguel, Provedores) sem inflar o banco de dados com milhares de registros futuros não confirmados.
+**Impacto no sistema:** Novo campo `transactions.recurrence` (monthly/none) e `recurrence_until`. O front-end projeta cards automáticos via `useMemo`. A gravação real no banco só ocorre no momento do pagamento/confirmação, marcando o novo registro com `template_id`.
+
+---
+
+## DEC-021
+
+**Data:** 2026-03-07
+**Decisão:** Vínculo de Lançamentos Financeiros com Clientes (Receitas e Despesas)
+**Motivo:** Permitir rastreabilidade de bônus, pagamentos parciais ou despesas operacionais associadas diretamente a um cliente específico, integrando os módulos de Clientes e Financeiro.
+**Impacto no sistema:** Campo `client_id` na tabela `transactions`. O modal de lançamento agora inclui um seletor de cliente que busca todos os clientes ativos da empresa.
+
+---
+
 *Novas decisões devem ser adicionadas ao final deste arquivo seguindo o padrão DEC-NNN.*

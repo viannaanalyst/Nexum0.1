@@ -147,6 +147,12 @@ Renderização dos componentes
 
 Mutações (insert/update/delete) → atualizam o banco → refetch local ou atualizam estado via spread.
 
+**Lógica de Recorrência (Financeiro):**
+- O sistema utiliza "transações virtuais" geradas em memória via `useMemo`.
+- Transações com `recurrence: 'monthly'` servem como templates.
+- O front-end projeta instâncias futuras até a data definida em `recurrence_until`.
+- A conversão de virtual para real ocorre no momento do "Pagamento" (`handleToggleStatus`), gerando um novo registro no banco com `template_id`.
+
 ---
 
 ## Estrutura de Rotas (React Router DOM v7)
@@ -272,12 +278,14 @@ interface DashboardContextType {
   plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
   initialView="dayGridMonth"
   locale="pt-br"
-  events={[]}   // ← array vazio; sem integração com dados reais ainda
+  events={[]}
   height="100%"
 />
 ```
 
-**Estado atual:** Calendário renderizado sem eventos. A prop `events={[]}` indica que a integração com dados do Supabase (`kanban_cards.show_on_calendar`) não está implementada.
+**Estado atual:** Integração completa. Eventos são buscados da tabela `kanban_cards` (onde `show_on_calendar: true`).
+- **Eventos vs Tarefas:** O calendário distingue clicando em `category`. Eventos abrem o `NewEventModal` (edição/exclusão), tarefas abrem o `KanbanCardModal`.
+- **Timezone Handling:** Datas de tarefas são tratadas via `split('T')[0]` para evitar deslocamento de fuso horário em eventos de dia inteiro.
 
 ---
 

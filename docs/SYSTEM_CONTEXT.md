@@ -178,7 +178,7 @@ src/
 - kanban_checklists
 - kanban_comments
 - kanban_attachments
-- transactions
+- transactions (`recurrence_until`, `template_id` — adicionados em 2026-03-07 para suporte a recorrência)
 - clients
 - audit_logs (Novo: Log de atividades e produtividade)
 - monthly_schedules (Novo: Planejamento estratégico)
