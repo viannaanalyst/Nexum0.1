@@ -98,6 +98,7 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, mode = 't
     const [showTagInput, setShowTagInput] = useState(false); // Toggle tag creation input
     const [approvers, setApprovers] = useState<any[]>([]);
     const [showApproverModal, setShowApproverModal] = useState<string | null>(null); // Stores the checklist item ID being configured
+    const [popoverPos, setPopoverPos] = useState<{ top: number, left: number } | null>(null); // New: Popover position
     const [currentUserId, setCurrentUserId] = useState<string>('');
     const [currentUserApprover, setCurrentUserApprover] = useState<boolean>(false);
     const [userRole, setUserRole] = useState<string | null>(null);
@@ -990,9 +991,17 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, mode = 't
         }
     };
 
-    const handleToggleApprovalReq = (itemId: string, currentStatus: boolean) => {
+    const handleToggleApprovalReq = (e: React.MouseEvent, itemId: string, currentStatus: boolean) => {
+        e.stopPropagation();
         // Instead of toggling immediately, if turning ON, show modal to select approver
         if (!currentStatus) {
+            const rect = e.currentTarget.getBoundingClientRect();
+            let left = rect.left;
+            const popoverWidth = 256; 
+            if (left + popoverWidth > window.innerWidth - 20) {
+                left = window.innerWidth - popoverWidth - 20;
+            }
+            setPopoverPos({ top: rect.bottom + 8, left });
             setShowApproverModal(itemId);
         } else {
             // If turning OFF, just update
@@ -2325,7 +2334,7 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, mode = 't
                                     return (
                                         <div key={group.id} className="border border-white/10 rounded-xl overflow-hidden shadow-sm">
                                             {/* Header do Bloco */}
-                                            <div className="px-4 py-3 flex items-center justify-between group cursor-pointer hover:bg-white/[0.02] transition-colors relative">
+                                            <div className="px-4 py-3 flex items-center justify-between group cursor-pointer hover:bg-white/[0.02] transition-colors">
                                                 <div className="flex items-center gap-3 flex-1">
                                                     <input
                                                         className="text-sm font-bold text-white bg-transparent border-none focus:outline-none w-full placeholder:text-gray-500 hover:text-gray-200 transition-colors"
@@ -2334,14 +2343,18 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, mode = 't
                                                         placeholder="Nome do Checklist"
                                                         disabled={userRole === 'visualizador'}
                                                     />
-                                                    <span className="text-xs text-gray-500 font-medium shrink-0">
-                                                        {completedItems.length} de {groupItems.length}
-                                                    </span>
-                                                </div>
-                                                <div className="opacity-0 group-hover:opacity-100 transition-opacity absolute right-4">
-                                                    <button onClick={() => handleDeleteChecklistGroup(group.id)} className="p-1.5 rounded hover:bg-white/10 text-gray-600 hover:text-red-400" title="Excluir Checklist">
-                                                        <Trash2 size={14} />
-                                                    </button>
+                                                    <div className="flex items-center gap-2 shrink-0">
+                                                        <span className="text-xs text-gray-500 font-medium">
+                                                            {completedItems.length} de {groupItems.length}
+                                                        </span>
+                                                        <button 
+                                                            onClick={() => handleDeleteChecklistGroup(group.id)} 
+                                                            className="p-1.5 rounded hover:bg-white/10 text-gray-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none group-hover:pointer-events-auto" 
+                                                            title="Excluir Checklist"
+                                                        >
+                                                            <Trash2 size={14} />
+                                                        </button>
+                                                    </div>
                                                 </div>
                                             </div>
 
@@ -2362,7 +2375,7 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, mode = 't
 
                                                         {/* Ações do Item */}
                                                         <div className="flex items-center gap-1">
-                                                            <button onClick={() => handleToggleApprovalReq(item.id, item.needs_approval)} className={`p-1.5 rounded hover:bg-white/10 ${item.needs_approval ? 'text-yellow-500' : 'text-gray-600 hover:text-yellow-400'}`} title="Aprovação">
+                                                            <button onClick={(e) => handleToggleApprovalReq(e, item.id, item.needs_approval)} className={`p-1.5 rounded hover:bg-white/10 ${item.needs_approval ? 'text-yellow-500' : 'text-gray-600 hover:text-yellow-400'}`} title="Aprovação">
                                                                 <Lock size={14} />
                                                             </button>
                                                             <button onClick={() => handleDeleteChecklist(item.id)} className="p-1.5 rounded hover:bg-white/10 text-gray-600 hover:text-red-400" title="Excluir">
@@ -2609,45 +2622,36 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, mode = 't
                 </div>
             </div>
 
-            {/* Modal de Seleção de Aprovador (Mantido Igual) */}
-            {showApproverModal && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-                    <div
-                        className="absolute inset-0 bg-black/60 backdrop-blur-md z-0 animate-in fade-in duration-300"
-                        onClick={() => setShowApproverModal(null)}
+            {/* Modal de Seleção de Aprovador (Popover Style) */}
+            {showApproverModal && popoverPos && (
+                <div 
+                    className="fixed inset-0 z-[100]" 
+                    onClick={() => setShowApproverModal(null)}
+                >
+                    <div 
+                        className="absolute z-[101] w-64 bg-[#1a1a2e] border border-white/10 rounded-xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200"
+                        style={{ 
+                            top: popoverPos.top, 
+                            left: popoverPos.left
+                        }}
+                        onClick={e => e.stopPropagation()}
                     >
-                        <div className="absolute inset-0 opacity-[0.03] bg-[url('https://grainy-gradients.vercel.app/noise.svg')]"></div>
-                    </div>
-
-                    <div className="relative z-10 bg-[#0a0a1a]/80 backdrop-blur-xl p-6 rounded-[22px] border border-white/10 w-full max-w-sm shadow-2xl animate-in zoom-in-95 overflow-hidden">
-                        <div className="absolute inset-0 rounded-[22px] border border-white/5 pointer-events-none"></div>
-                        <div className="relative z-20">
-                            <h3 className="text-lg font-medium text-white/90 mb-2">Solicitar Aprovação</h3>
-                            <p className="text-sm text-gray-400 font-light mb-6">Selecione quem deve aprovar este item:</p>
-
-                            <div className="space-y-2 max-h-60 overflow-y-auto mb-6 custom-scrollbar pr-1">
-                                {approvers.map(approver => (
-                                    <button
-                                        key={approver.id}
-                                        onClick={() => updateApprovalStatus(showApproverModal, true, approver.id)}
-                                        className="w-full flex items-center gap-3 p-3 rounded-xl bg-white/[0.03] hover:bg-white/[0.08] border border-white/5 hover:border-white/10 transition-all text-left group"
-                                    >
-                                        <div className="w-8 h-8 rounded-lg bg-primary/20 flex items-center justify-center text-primary text-xs font-bold group-hover:bg-primary group-hover:text-white transition-colors">
-                                            {approver.name.charAt(0)}
-                                        </div>
-                                        <span className="text-sm text-gray-300 group-hover:text-white font-light">{approver.name}</span>
-                                    </button>
-                                ))}
-                            </div>
-
-                            <div className="flex justify-end">
+                        <div className="p-3 border-b border-white/5 bg-[#0a0a1a]/50">
+                            <h4 className="text-xs font-semibold text-white/90">Selecionar Aprovador</h4>
+                        </div>
+                        <div className="max-h-48 overflow-y-auto custom-scrollbar p-1">
+                            {approvers.map(approver => (
                                 <button
-                                    onClick={() => setShowApproverModal(null)}
-                                    className="text-sm text-gray-500 hover:text-white px-4 py-2 transition-colors"
+                                    key={approver.id}
+                                    onClick={() => updateApprovalStatus(showApproverModal, true, approver.id)}
+                                    className="w-full flex items-center gap-3 p-2 rounded-lg hover:bg-white/5 text-left transition-colors group/opt"
                                 >
-                                    Cancelar
+                                    <div className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center text-[10px] font-bold text-primary shrink-0 group-hover/opt:bg-primary group-hover/opt:text-white transition-colors">
+                                        {approver.name.charAt(0)}
+                                    </div>
+                                    <span className="text-xs text-gray-300 group-hover/opt:text-white truncate">{approver.name}</span>
                                 </button>
-                            </div>
+                            ))}
                         </div>
                     </div>
                 </div>
