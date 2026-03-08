@@ -717,7 +717,7 @@ const OrganizadorKanban = () => {
 
             <div className="p-8 pt-2 relative z-20">
               <div className="space-y-1.5 mb-6">
-                <label className="block text-[10px] font-bold text-[#6e6e6e] uppercase tracking-wide ml-1">Nome da Coluna</label>
+                <label className="block text-[10px] font-bold text-[#6e6e6e] tracking-wide ml-1">Nome da Coluna</label>
                 <input
                   autoFocus
                   className="w-full bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.08] rounded-xl px-4 py-3 text-white/90 focus:bg-white/[0.08] focus:border-primary/30 focus:ring-0 outline-none transition-all duration-300 text-sm font-light placeholder-gray-600"
@@ -775,7 +775,7 @@ const OrganizadorKanban = () => {
             <div className="p-8 pt-2 relative z-20">
               <div className="space-y-4">
                 <div className="space-y-1.5">
-                  <label className="block text-[10px] font-bold text-[#6e6e6e] uppercase tracking-wide ml-1">Nome da Coluna</label>
+                  <label className="block text-[10px] font-bold text-[#6e6e6e] tracking-wide ml-1">Nome da Coluna</label>
                   <input
                     autoFocus
                     className="w-full bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.08] rounded-xl px-4 py-3 text-white/90 focus:bg-white/[0.08] focus:border-primary/30 focus:ring-0 outline-none transition-all duration-300 text-sm font-light placeholder-gray-600"
@@ -787,7 +787,7 @@ const OrganizadorKanban = () => {
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="block text-[10px] font-bold text-[#6e6e6e] uppercase tracking-wide ml-1">Cor da Coluna</label>
+                  <label className="block text-[10px] font-bold text-[#6e6e6e] tracking-wide ml-1">Cor da Coluna</label>
                   <div className="flex items-center gap-3">
                     <input
                       type="color"
