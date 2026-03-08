@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
+
 import { createPortal } from 'react-dom';
 import {
     X, Paperclip,
     CheckSquare, MessageSquare, FileText, Plus,
     ChevronDown, ChevronUp, Lock, Send, MoreVertical, Trash2,
-    File, FileCode, FileImage, Download, GitBranch, Info,
-    // Mantendo ícones Lucide que ainda podem ser usados em outros lugares ou como fallback
+    File, FileCode, FileImage, FileArchive, Download, GitBranch, Info, Video,
+    // Mantendo icones Lucide que ainda podem ser usados em outros lugares ou como fallback
     Calendar as LucideCalendar, Clock as LucideClock, User as LucideUser, Tag as LucideTag, Share2
 } from 'lucide-react';
 import {
@@ -19,7 +20,8 @@ import {
     IconCircleDotted,
     IconTarget,
     IconArrowsMaximize,
-    IconGripVertical
+    IconGripVertical,
+    IconArrowsDiagonal
 } from '@tabler/icons-react';
 import {
     DndContext,
@@ -149,6 +151,8 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onOpenCar
     const [showSubtasksOnly, setShowSubtasksOnly] = useState(false);
     const [showChecklistOnly, setShowChecklistOnly] = useState(false);
     const [showDescriptionOnly, setShowDescriptionOnly] = useState(false);
+    const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+    const [previewName, setPreviewName] = useState<string | null>(null);
 
     // Mentions State
     const [mentionQuery, setMentionQuery] = useState<string | null>(null);
@@ -164,6 +168,74 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onOpenCar
 
     // Timer Tick Effect
     const [timerDisplay, setTimerDisplay] = useState('0h 0m 0s');
+
+    const getFileIcon = (filename: string, size: number = 18) => {
+        const ext = filename.split('.').pop()?.toLowerCase();
+        switch (ext) {
+            case 'png':
+            case 'jpg':
+            case 'jpeg':
+            case 'gif':
+            case 'webp':
+            case 'svg':
+                return <FileImage size={size} />;
+            case 'pdf':
+                return <FileText size={size} className="text-red-400" />;
+            case 'doc':
+            case 'docx':
+                return <FileText size={size} className="text-blue-400" />;
+            case 'xls':
+            case 'xlsx':
+                return <FileText size={size} className="text-emerald-400" />;
+            case 'js':
+            case 'ts':
+            case 'jsx':
+            case 'tsx':
+            case 'py':
+            case 'java':
+            case 'cpp':
+            case 'html':
+            case 'css':
+                return <FileCode size={size} className="text-amber-400" />;
+            case 'zip':
+            case 'rar':
+            case '7z':
+                return <FileArchive size={size} className="text-purple-400" />;
+            case 'mp4':
+            case 'webm':
+            case 'ogg':
+            case 'mov':
+                return <Video size={size} className="text-pink-400" />;
+            default:
+                return <File size={size} />;
+        }
+    };
+
+    const handleDownload = async (url: string, filename: string) => {
+        try {
+            const response = await fetch(url);
+            const blob = await response.blob();
+            const blobUrl = window.URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = blobUrl;
+            link.download = filename;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            window.URL.revokeObjectURL(blobUrl);
+        } catch (error) {
+            console.error('Error downloading file:', error);
+            // Fallback to simple link click if fetch fails
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = filename;
+            link.target = '_blank';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+    };
+
 
     useEffect(() => {
         if (descriptionRef.current) {
@@ -455,7 +527,7 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onOpenCar
 
                 commentsWithUsers = commentData.map(c => ({
                     ...c,
-                    user: c.user_id ? (profileMap[c.user_id] || { email: 'Usuário desconhecido' }) : { email: 'Sistema' }
+                    user: c.user_id ? (profileMap[c.user_id] || { email: 'Usuario desconhecido' }) : { email: 'Sistema' }
                 }));
             }
             setComments(commentsWithUsers);
@@ -502,7 +574,7 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onOpenCar
             if (error) throw error;
             setTimeEntries(data || []);
 
-            // Calcular total e checar se há algum rodando
+            // Calcular total e checar se ha algum rodando
             const total = (data || []).reduce((acc, entry) => acc + (entry.duration_minutes || 0), 0);
             setTotalMinutes(total);
 
@@ -538,8 +610,8 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onOpenCar
                 } else if (userId === currentUserId) {
                     // Fallback if currentUserId is available but not in members list yet?
                     // But members list should be populated.
-                    // Just in case, 'Você' or fetch from auth.
-                    userDisplay = { email: 'Você' };
+                    // Just in case, 'VocÃª' or fetch from auth.
+                    userDisplay = { email: 'VocÃª' };
                 }
             }
 
@@ -795,7 +867,7 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onOpenCar
                         )}
                     </div>
 
-                    {/* Responsável */}
+                    {/* Responsavel */}
                     <div className="flex justify-start relative pl-2">
                         <button
                             onClick={() => {
@@ -880,7 +952,7 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onOpenCar
                                 {[
                                     { value: 'urgent', label: 'Urgente', text: 'text-red-500' },
                                     { value: 'high', label: 'Alta', text: 'text-orange-500' },
-                                    { value: 'medium', label: 'Média', text: 'text-blue-500' },
+                                    { value: 'medium', label: 'Media', text: 'text-blue-500' },
                                     { value: 'low', label: 'Baixa', text: 'text-gray-500' }
                                 ].map(p => (
                                     <button
@@ -920,7 +992,7 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onOpenCar
                         </div>
                     </div>
 
-                    {/* Ações */}
+                    {/* AcÃµes */}
                     <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                         <button onClick={() => {
                             if (userRole === 'visualizador') return;
@@ -1005,59 +1077,57 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onOpenCar
                     <IconGripVertical size={isFullScreen ? 16 : 14} />
                 </div>
 
-                <div className="flex-1 flex items-start gap-4 min-w-0 pr-2">
-                    <div className="flex-1 flex flex-col gap-1 min-w-0">
-                        <div className="flex items-start gap-3 min-w-0">
-                            <button
-                                onClick={() => handleToggleChecklist(item.id, item.is_completed, item.needs_approval, item.approver_id)}
-                                className={`rounded border flex items-center justify-center transition-all shrink-0 ${isFullScreen ? 'mt-1 w-5 h-5' : 'mt-0.5 w-4 h-4'} ${item.is_completed ? 'border-emerald-500 bg-emerald-500 text-white' : 'border-gray-600 hover:border-gray-400'}`}
-                            >
-                                {item.is_completed && <CheckSquare size={isFullScreen ? 12 : 10} strokeWidth={3} />}
-                            </button>
+                <div className="flex-1 flex flex-col gap-1 min-w-0">
+                    <div className="flex items-start gap-3 min-w-0">
+                        <button
+                            onClick={() => handleToggleChecklist(item.id, item.is_completed, item.needs_approval, item.approver_id)}
+                            className={`rounded border flex items-center justify-center transition-all shrink-0 ${isFullScreen ? 'mt-1 w-5 h-5' : 'mt-0.5 w-4 h-4'} ${item.is_completed ? 'border-emerald-500 bg-emerald-500 text-white' : 'border-gray-600 hover:border-gray-400'}`}
+                        >
+                            {item.is_completed && <CheckSquare size={isFullScreen ? 12 : 10} strokeWidth={3} />}
+                        </button>
 
-                            <span 
-                                className={`flex-1 transition-colors font-medium leading-relaxed break-words ${item.is_completed ? 'text-gray-500 line-through' : 'text-gray-200'} cursor-pointer ${isFullScreen ? 'text-base' : 'text-sm'}`}
-                                onClick={() => handleToggleChecklist(item.id, item.is_completed, item.needs_approval, item.approver_id)}
-                            >
-                                {item.description}
-                            </span>
+                        <span 
+                            className={`flex-1 transition-colors font-medium leading-relaxed break-words ${item.is_completed ? 'text-gray-500 line-through' : 'text-gray-200'} cursor-pointer ${isFullScreen ? 'text-base' : 'text-sm'}`}
+                            onClick={() => handleToggleChecklist(item.id, item.is_completed, item.needs_approval, item.approver_id)}
+                        >
+                            {item.description}
+                        </span>
 
-                            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-                                {isApprover && (
-                                    <button 
-                                        onClick={(e) => handleToggleApprovalReq(e, item.id, item.needs_approval)} 
-                                        className={`p-1.5 rounded hover:bg-white/10 transition-colors ${item.needs_approval ? 'text-primary' : 'text-gray-600 hover:text-gray-400'}`}
-                                        title="Configurar Aprovação"
-                                    >
-                                        <Lock size={isFullScreen ? 16 : 14} />
-                                    </button>
-                                )}
+                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                            {isApprover && (
                                 <button 
-                                    onClick={() => handleDeleteChecklist(item.id)} 
-                                    className="p-1.5 rounded hover:bg-white/10 text-gray-600 hover:text-red-400 transition-colors" 
-                                    title="Excluir"
+                                    onClick={(e) => handleToggleApprovalReq(e, item.id, item.needs_approval)} 
+                                    className={`p-1.5 rounded hover:bg-white/10 transition-colors ${item.needs_approval ? 'text-primary' : 'text-gray-600 hover:text-gray-400'}`}
+                                    title="Configurar Aprovacao"
                                 >
-                                    <Trash2 size={isFullScreen ? 16 : 14} />
+                                    <Lock size={isFullScreen ? 16 : 14} />
                                 </button>
-                            </div>
+                            )}
+                            <button 
+                                onClick={() => handleDeleteChecklist(item.id)} 
+                                className="p-1.5 rounded hover:bg-white/10 text-gray-600 hover:text-red-400 transition-colors" 
+                                title="Excluir"
+                            >
+                                <Trash2 size={isFullScreen ? 16 : 14} />
+                            </button>
                         </div>
-
-                        {item.needs_approval && (
-                            <div className="flex flex-wrap gap-2 ml-7 mt-1">
-                                {item.is_approved ? (
-                                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-emerald-500/10 text-emerald-400 text-[10px] font-bold border border-emerald-500/20">
-                                        <CheckSquare size={10} />
-                                        APROVADO
-                                    </span>
-                                ) : (
-                                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-amber-500/10 text-amber-400 text-[10px] font-bold border border-amber-500/20">
-                                        <Lock size={10} />
-                                        AGUARDANDO APROVAÇÃO
-                                    </span>
-                                )}
-                            </div>
-                        )}
                     </div>
+
+                    {item.needs_approval && (
+                        <div className="flex flex-wrap gap-2 ml-7 mt-1">
+                            {item.is_approved ? (
+                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-emerald-500/10 text-emerald-400 text-[10px] font-bold border border-emerald-500/20">
+                                    <CheckSquare size={10} />
+                                    APROVADO
+                                </span>
+                            ) : (
+                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-amber-500/10 text-amber-400 text-[10px] font-bold border border-amber-500/20">
+                                    <Lock size={10} />
+                                    AGUARDANDO APROVAÃ‡ÃƒO
+                                </span>
+                            )}
+                        </div>
+                    )}
                 </div>
             </div>
         );
@@ -1120,7 +1190,7 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onOpenCar
                     </div>
                 </SortableContext>
 
-                {/* Input de Adicionar Item (Estilo Botão Texto) */}
+                {/* Input de Adicionar Item (Estilo Botao Texto) */}
                 {userRole !== 'visualizador' && (
                     <div className="px-3 py-2 mt-1">
                         <div className="flex items-center gap-2 text-gray-500 hover:text-gray-300 transition-colors cursor-pointer group" onClick={() => onAddItem(group.id)}>
@@ -1137,13 +1207,13 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onOpenCar
                     </div>
                 )}
 
-                {/* Seção de Concluídos */}
+                {/* Secao de Concluidos */}
                 {groupItems.filter(i => i.is_completed).length > 0 && (
                     <div className="mt-4 pt-4 border-t border-white/5">
                         <details className="group/details">
                             <summary className="px-4 py-2 flex items-center gap-3 cursor-pointer hover:bg-white/[0.02] transition-colors list-none text-xs font-medium text-gray-500 select-none">
                                 <ChevronDown size={isFullScreen ? 14 : 12} className="transition-transform group-open/details:rotate-180" />
-                                <span>Mostrar {groupItems.filter(i => i.is_completed).length} item(ns) concluído(s)</span>
+                                <span>Mostrar {groupItems.filter(i => i.is_completed).length} item(ns) concluido(s)</span>
                             </summary>
 
                             <div className="px-2 pb-2 pt-2 animate-in slide-in-from-top-2 duration-200 space-y-1">
@@ -1187,7 +1257,7 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onOpenCar
         if (!subtaskTitle.trim() || !selectedCompany) return;
 
         if (cardId === 'new') {
-            toast.warning('Salve a tarefa principal antes de criar subtarefas.', 'Atenção');
+            toast.warning('Salve a tarefa principal antes de criar subtarefas.', 'Atencao');
             return;
         }
 
@@ -1238,7 +1308,7 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onOpenCar
     const handleConvertChecklistToSubtask = async (itemId: string, description: string) => {
         if (!selectedCompany) return;
         if (cardId === 'new') {
-            toast.warning('Salve a tarefa principal antes de converter itens em subtarefas.', 'Atenção');
+            toast.warning('Salve a tarefa principal antes de converter itens em subtarefas.', 'Atencao');
             return;
         }
 
@@ -1335,7 +1405,7 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onOpenCar
             if (assignedTo && assignedTo !== originalAssignedTo) {
                 await createTaskNotification(
                     assignedTo,
-                    'Nova Tarefa Atribuída',
+                    'Nova Tarefa Atribuida',
                     `Você foi atribuído à tarefa: ${title}`,
                     finalCardId,
                     'assignment'
@@ -1345,10 +1415,10 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onOpenCar
             // Check for other changes and create system logs (only for existing cards)
             if (cardId !== 'new') {
                 if (assignedTo !== originalAssignedTo) {
-                    const oldUser = members.find(m => m.id === originalAssignedTo)?.name || 'Ninguém';
-                    const newUser = members.find(m => m.id === assignedTo)?.name || 'Ninguém';
+                    const oldUser = members.find(m => m.id === originalAssignedTo)?.name || 'Ninguem';
+                    const newUser = members.find(m => m.id === assignedTo)?.name || 'Ninguem';
                     const { data: { user } } = await supabase.auth.getUser();
-                    await createSystemLog(finalCardId, `Alterou o responsável de "${oldUser}" para "${newUser}".`, user?.id);
+                    await createSystemLog(finalCardId, `Alterou o responsavel de "${oldUser}" para "${newUser}".`, user?.id);
 
                     // Audit Log
                     await createAuditLog('update', 'card', finalCardId, {
@@ -1359,8 +1429,8 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onOpenCar
                 }
 
                 if (dueDate !== originalDueDate) {
-                    const oldDate = originalDueDate ? new Date(originalDueDate).toLocaleDateString('pt-BR') : 'Não definida';
-                    const newDate = dueDate ? new Date(dueDate).toLocaleDateString('pt-BR') : 'Não definida';
+                    const oldDate = originalDueDate ? new Date(originalDueDate).toLocaleDateString('pt-BR') : 'Nao definida';
+                    const newDate = dueDate ? new Date(dueDate).toLocaleDateString('pt-BR') : 'Nao definida';
                     const { data: { user } } = await supabase.auth.getUser();
                     await createSystemLog(finalCardId, `Alterou a data de entrega de "${oldDate}" para "${newDate}".`, user?.id);
 
@@ -1551,14 +1621,14 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onOpenCar
             if (approverId) {
                 // If a specific approver is assigned, ONLY they can approve
                 if (currentUserId !== approverId) {
-                    const approverName = members.find(m => m.id === approverId)?.name || 'o responsável';
-                    toast.warning(`Este item só pode ser aprovado por: ${approverName}`, 'Permissão negada');
+                    const approverName = members.find(m => m.id === approverId)?.name || 'o responsavel';
+                    toast.warning(`Este item so pode ser aprovado por: ${approverName}`, 'Permissao negada');
                     return;
                 }
             } else {
                 // If no specific approver, ANY approver can approve
                 if (!currentUserApprover) {
-                    toast.warning('Este item requer aprovação de um gestor.', 'Permissão negada');
+                    toast.warning('Este item requer aprovacao de um gestor.', 'Permissao negada');
                     return;
                 }
             }
@@ -1646,10 +1716,10 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onOpenCar
             const { data: { user } } = await supabase.auth.getUser();
             if (status) {
                 const approverName = members.find(m => m.id === approverId)?.name || 'um gestor';
-                await createSystemLog(cardId, `Solicitou aprovação de "${approverName}" para o item: "${itemDesc}".`, user?.id);
+                await createSystemLog(cardId, `Solicitou aprovacao de "${approverName}" para o item: "${itemDesc}".`, user?.id);
                 await createAuditLog('approve', 'card', cardId, { status: 'requested', checklist_item: itemDesc, approver: approverName });
             } else {
-                await createSystemLog(cardId, `Removeu a solicitação de aprovação do item: "${itemDesc}".`, user?.id);
+                await createSystemLog(cardId, `Removeu a solicitacao de aprovacao do item: "${itemDesc}".`, user?.id);
                 await createAuditLog('approve', 'card', cardId, { status: 'removed', checklist_item: itemDesc });
             }
 
@@ -1738,8 +1808,8 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onOpenCar
             for (const mention of mentions) {
                 await createTaskNotification(
                     mention.id,
-                    'Você foi mencionado',
-                    `${user.email?.split('@')[0]} mencionou você em: ${title}`,
+                    'VocÃª foi mencionado',
+                    `${user.email?.split('@')[0]} mencionou vocÃª em: ${title}`,
                     cardId,
                     'mention'
                 );
@@ -1785,16 +1855,6 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onOpenCar
         }
     };
 
-    const getFileIcon = (fileName: string) => {
-        const ext = fileName.split('.').pop()?.toLowerCase();
-        if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext || '')) return <FileImage size={24} className="text-yellow-500" />;
-        if (['pdf'].includes(ext || '')) return <FileText size={24} className="text-red-500" />;
-        if (['doc', 'docx'].includes(ext || '')) return <FileText size={24} className="text-blue-500" />;
-        if (['xls', 'xlsx', 'csv'].includes(ext || '')) return <FileText size={24} className="text-green-500" />;
-        if (['zip', 'rar'].includes(ext || '')) return <FileCode size={24} className="text-purple-500" />;
-        return <File size={24} className="text-gray-400" />;
-    };
-
     const fileInputRef = React.useRef<HTMLInputElement>(null);
 
     const handleAddFile = () => {
@@ -1806,8 +1866,8 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onOpenCar
         if (!file) return;
 
         try {
-            const { data: { user } } = await supabase.auth.getUser();
-            if (!user) throw new Error('Usuário não autenticado');
+            const { data: { user } = {} } = await supabase.auth.getUser();
+            if (!user) throw new Error('Usuario nao autenticado');
 
             // 1. Upload to Supabase Storage
             const fileExt = file.name.split('.').pop();
@@ -1952,22 +2012,22 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onOpenCar
 
     return createPortal(
         <>
+            {/* Time Tracking Popover (Rendered inside the portal but absolute to the field) */}
+            {showTimePopover && (
+                <TimeTrackingPopover
+                    cardId={cardId}
+                    isRunning={isRunning}
+                    activeTimer={activeTimer}
+                    totalMinutes={totalMinutes}
+                    timerDisplay={timerDisplay}
+                    timeEntries={timeEntries}
+                    onClose={() => setShowTimePopover(false)}
+                    onRefresh={fetchTimeEntries}
+                    members={members}
+                    formatDuration={formatDuration}
+                />
+            )}
             <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-                {/* Time Tracking Popover (Rendered inside the portal but absolute to the field) */}
-                {showTimePopover && (
-                    <TimeTrackingPopover
-                        cardId={cardId}
-                        isRunning={isRunning}
-                        activeTimer={activeTimer}
-                        totalMinutes={totalMinutes}
-                        timerDisplay={timerDisplay}
-                        timeEntries={timeEntries}
-                        onClose={() => setShowTimePopover(false)}
-                        onRefresh={fetchTimeEntries}
-                        members={members}
-                        formatDuration={formatDuration}
-                    />
-                )}
                 {/* 1. Overlay Premium */}
                 <div
                     className="absolute inset-0 bg-black/60 backdrop-blur-md z-0 animate-in fade-in duration-300"
@@ -1989,10 +2049,10 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onOpenCar
                     <div className="absolute top-[-50px] left-1/2 -translate-x-1/2 w-[80%] h-[100px] bg-primary/30 blur-[80px] pointer-events-none rounded-[100%] z-0"></div>
                     <div className="absolute top-0 left-1/2 -translate-x-1/2 w-1/3 h-[1px] bg-gradient-to-r from-transparent via-primary/50 to-transparent shadow-[0_0_20px_2px_rgba(99,102,241,0.4)] z-0"></div>
 
-                    {/* ================= ESQUERDA: CONTEÚDO PRINCIPAL (70%) ================= */}
+                    {/* ================= ESQUERDA: CONTEÃšDO PRINCIPAL (70%) ================= */}
                     <div className="flex-1 flex flex-col border-r border-white/5 overflow-hidden relative z-20 bg-transparent">
 
-                        {/* Ações de Topo (Flutuantes) */}
+                        {/* AcÃµes de Topo (Flutuantes) */}
                         <div className="absolute top-6 right-6 z-[60] flex gap-2">
                             {showSubtasksOnly || showChecklistOnly ? (
                                 <button onClick={onClose} className="p-2 hover:bg-white/5 rounded-lg text-gray-500 hover:text-white transition-colors">
@@ -2006,7 +2066,7 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onOpenCar
                                             disabled={saving}
                                             className="bg-primary hover:bg-primary/80 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 shadow-lg shadow-primary/20"
                                         >
-                                            {saving ? 'Salvando...' : 'Salvar Alterações'}
+                                            {saving ? 'Salvando...' : 'Salvar AlteracÃµes'}
                                         </button>
                                     )}
                                     <button onClick={onClose} className="p-2 hover:bg-white/5 rounded-lg text-gray-500 hover:text-white transition-colors">
@@ -2016,7 +2076,7 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onOpenCar
                             )}
                         </div>
 
-                        {/* Corpo Unificado Scrollável */}
+                        {/* Corpo Unificado Scrollavel */}
                         <div className="flex-1 overflow-y-auto p-8 custom-scrollbar space-y-8">
                             {showSubtasksOnly ? (
                                 <div className="max-w-[1200px] mx-auto w-full space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -2028,7 +2088,7 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onOpenCar
                                             <div className="p-1 rounded bg-white/5 group-hover:bg-primary/10 transition-colors">
                                                 <ChevronUp size={14} className="-rotate-90" />
                                             </div>
-                                            Voltar à tarefa
+                                            Voltar Ã  tarefa
                                         </button>
                                         <div className="flex items-center justify-between">
                                             <div className="flex items-center gap-4">
@@ -2052,7 +2112,7 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onOpenCar
                                         {/* Tabela Header - ClickUp Style Minimal */}
                                         <div className="grid grid-cols-[1fr_140px_140px_180px_60px] gap-6 px-6 py-4 text-xs font-bold text-gray-500 bg-white/[0.03] border-b border-white/10 uppercase tracking-wider">
                                             <div className="pl-10">Nome</div>
-                                            <div className="text-left">Responsável</div>
+                                            <div className="text-left">Responsavel</div>
                                             <div className="text-left">Prioridade</div>
                                             <div className="text-left">Data de vencimento</div>
                                             <div></div>
@@ -2105,7 +2165,7 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onOpenCar
                                             <div className="p-1 rounded bg-white/5 group-hover:bg-primary/10 transition-colors">
                                                 <ChevronUp size={14} className="-rotate-90" />
                                             </div>
-                                            Voltar à tarefa
+                                            Voltar Ã  tarefa
                                         </button>
                                         <div className="flex items-center justify-between">
                                             <div className="flex items-center gap-4">
@@ -2162,11 +2222,11 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onOpenCar
                                             <div className="p-1 rounded bg-white/5 group-hover:bg-primary/10 transition-colors">
                                                 <ChevronUp size={14} className="-rotate-90" />
                                             </div>
-                                            Voltar à tarefa
+                                            Voltar Ã  tarefa
                                         </button>
                                         <div className="flex items-center justify-between">
                                             <div className="flex items-center gap-4">
-                                                <h2 className="text-3xl font-bold text-white tracking-tight">Descrição</h2>
+                                                <h2 className="text-3xl font-bold text-white tracking-tight">Descricao</h2>
                                             </div>
                                         </div>
                                     </div>
@@ -2184,8 +2244,8 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onOpenCar
                                 </div>
                             ) : (
                                 <>
-                                    {/* Cabeçalho (Agora parte do fluxo) */}
-                                    <div className="pr-32"> {/* Padding right para não sobrepor botões */}
+                                    {/* Cabecalho (Agora parte do fluxo) */}
+                                    <div className="pr-32"> {/* Padding right para nao sobrepor botÃµes */}
                                 {/* Breadcrumbs / ID */}
                                 <div className="flex items-center gap-3 mb-3">
                                     <span className="text-[10px] bg-white/[0.05] border border-white/5 text-gray-400 px-2 py-0.5 rounded-full font-mono tracking-wider">
@@ -2200,12 +2260,12 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onOpenCar
                                     </div>
                                 </div>
 
-                                {/* Título Grande */}
+                                {/* Titulo Grande */}
                                 <input
                                     className="text-4xl font-bold text-white bg-transparent border-none focus:outline-none w-full placeholder:text-gray-600/50 leading-tight tracking-tight"
                                     value={title}
                                     onChange={e => setTitle(e.target.value)}
-                                    placeholder="Título da Tarefa"
+                                    placeholder="Titulo da Tarefa"
                                     disabled={userRole === 'visualizador'}
                                 />
                             </div>
@@ -2279,10 +2339,10 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onOpenCar
                                         </div>
 
                                         <div className="relative flex-1 flex items-center gap-2 justify-start">
-                                            {/* Data Início */}
+                                            {/* Data Inicio */}
                                             <div className="relative flex items-center gap-1 hover:bg-white/5 px-1.5 py-1 rounded cursor-pointer transition-colors group/start">
                                                 <span className={`text-sm ${startDate ? 'text-gray-300' : 'text-[#6e6e6e]'}`}>
-                                                    {startDate ? new Date(startDate + 'T12:00:00').toLocaleDateString('pt-BR').slice(0, 5) : 'Início'}
+                                                    {startDate ? new Date(startDate + 'T12:00:00').toLocaleDateString('pt-BR').slice(0, 5) : 'Inicio'}
                                                 </span>
                                                 <input
                                                     ref={startDatePickerRef}
@@ -2295,7 +2355,7 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onOpenCar
                                                 />
                                             </div>
 
-                                            <span className="text-gray-700">→</span>
+                                            <span className="text-gray-700">â†’</span>
 
                                             {/* Data Prevista */}
                                             <div className="relative flex items-center gap-1 hover:bg-white/5 px-1.5 py-1 rounded cursor-pointer transition-colors group/due">
@@ -2316,7 +2376,7 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onOpenCar
                                                 />
                                             </div>
 
-                                            {/* Botão limpar (só aparece se tiver datas) */}
+                                            {/* Botao limpar (so aparece se tiver datas) */}
                                             {(startDate || dueDate) && (
                                                 <button
                                                     className="ml-1 text-gray-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
@@ -2457,7 +2517,7 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onOpenCar
                                 {/* === COLUNA DIREITA === */}
                                 <div className="space-y-4">
 
-                                    {/* 1. Responsáveis */}
+                                    {/* 1. Responsaveis */}
                                     <div className="flex items-center justify-between group h-8">
                                         <div
                                             className="flex items-center gap-2 text-[#EEEEEE] min-w-[140px] cursor-pointer"
@@ -2466,7 +2526,7 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onOpenCar
                                             <div className="p-1 rounded hover:bg-white/5 transition-colors">
                                                 <IconUser size={16} stroke={1.5} color="#6e6e6e" />
                                             </div>
-                                            <span className="text-sm font-medium text-[#EEEEEE] group-hover:text-white transition-colors">Responsáveis</span>
+                                            <span className="text-sm font-medium text-[#EEEEEE] group-hover:text-white transition-colors">Responsaveis</span>
                                         </div>
 
                                         <div className="relative flex-1 flex justify-start">
@@ -2563,7 +2623,7 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onOpenCar
                                                             className={`${priority === 'urgent' ? 'text-red-500' : priority === 'high' ? 'text-orange-500' : priority === 'medium' ? 'text-blue-500' : 'text-gray-500'}`}
                                                         />
                                                         <span className="text-sm text-gray-300 capitalize">
-                                                            {priority === 'urgent' ? 'Urgente' : priority === 'high' ? 'Alta' : priority === 'medium' ? 'Média' : 'Baixa'}
+                                                            {priority === 'urgent' ? 'Urgente' : priority === 'high' ? 'Alta' : priority === 'medium' ? 'Media' : 'Baixa'}
                                                         </span>
                                                     </div>
                                                 ) : (
@@ -2577,7 +2637,7 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onOpenCar
                                                     {[
                                                         { value: 'urgent', label: 'Urgente', text: 'text-red-500' },
                                                         { value: 'high', label: 'Alta', text: 'text-orange-500' },
-                                                        { value: 'medium', label: 'Média', text: 'text-blue-500' },
+                                                        { value: 'medium', label: 'Media', text: 'text-blue-500' },
                                                         { value: 'low', label: 'Baixa', text: 'text-gray-500' }
                                                     ].map(p => (
                                                         <button
@@ -2706,20 +2766,20 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onOpenCar
 
                             <div className="h-px bg-white/5 w-full" />
 
-                            {/* 2. Descrição */}
+                            {/* 2. Descricao */}
                             <div className="space-y-3 group">
                                 {(!description && !isEditingDescription) ? (
                                     <button
                                         onClick={() => setIsEditingDescription(true)}
                                         className="flex items-center gap-2 px-3 py-2 rounded-xl text-white hover:bg-white/5 transition-all group/btn"
                                     >
-                                        <span className="text-base font-medium">Adicionar descrição</span>
+                                        <span className="text-base font-medium">Adicionar descricao</span>
                                     </button>
                                 ) : (
                                     <>
                                         <div className="flex items-center justify-between text-white pr-2">
                                             <div className="flex items-center gap-2">
-                                                <h3 className="text-base font-semibold tracking-tight text-[#EEEEEE]">Descrição</h3>
+                                                <h3 className="text-base font-semibold tracking-tight text-[#EEEEEE]">Descricao</h3>
                                             </div>
                                             <div className="flex items-center gap-2">
                                                 {description && (
@@ -2750,7 +2810,7 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onOpenCar
                                             <textarea
                                                 ref={descriptionRef}
                                                 className="w-full bg-transparent text-gray-300 resize-none overflow-hidden focus:outline-none placeholder:text-gray-600/50 leading-relaxed text-sm font-light border-none p-0 transition-all"
-                                                placeholder="Escreva, pressione a barra de espaço para usar a IA ou '/' para usar comandos"
+                                                placeholder="Escreva, pressione a barra de espaco para usar a IA ou '/' para usar comandos"
                                                 value={description}
                                                 onChange={(e) => setDescription(e.target.value)}
                                                 onBlur={() => !description && setIsEditingDescription(false)}
@@ -2766,7 +2826,7 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onOpenCar
 
                             {/* 3. Subtarefas (Estilo ClickUp) */}
                             <div className="space-y-2">
-                                {/* Cabeçalho e Filtros */}
+                                {/* Cabecalho e Filtros */}
                                 <div className="flex items-center justify-between pb-2 mb-2">
                                     <div className="flex items-center gap-4">
                                         <div className="flex items-center gap-2 text-white">
@@ -2778,11 +2838,11 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onOpenCar
                                             <div className="h-1.5 w-16 bg-white/10 rounded-full overflow-hidden">
                                                 <div
                                                     className="h-full bg-blue-500 rounded-full transition-all duration-500"
-                                                    style={{ width: `${subtasks.length > 0 ? (subtasks.filter(t => t.column_id && columnsMap[t.column_id]?.toLowerCase() === 'concluído').length / subtasks.length) * 100 : 0}%` }}
+                                                    style={{ width: `${subtasks.length > 0 ? (subtasks.filter(t => t.column_id && columnsMap[t.column_id]?.toLowerCase() === 'concluido').length / subtasks.length) * 100 : 0}%` }}
                                                 ></div>
                                             </div>
                                             <span className="text-xs text-blue-500 font-medium">
-                                                {subtasks.filter(t => t.column_id && columnsMap[t.column_id]?.toLowerCase() === 'concluído').length}/{subtasks.length}
+                                                {subtasks.filter(t => t.column_id && columnsMap[t.column_id]?.toLowerCase() === 'concluido').length}/{subtasks.length}
                                             </span>
                                         </div>
                                     </div>
@@ -2810,8 +2870,8 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onOpenCar
                                 <div className="rounded-xl border border-white/5">
                                     {/* Tabela Header - ClickUp Style Minimal */}
                                     <div className="grid grid-cols-[1fr_100px_100px_140px_40px] gap-4 px-4 py-2 text-[11px] font-medium text-gray-500 bg-[#0a0a1a]/40 border-b border-white/5 rounded-t-xl">
-                                        <div className="pl-8">Nome</div> {/* pl-8 para alinhar com o texto da task, pulando o ícone de status */}
-                                        <div className="text-left">Responsável</div>
+                                        <div className="pl-8">Nome</div> {/* pl-8 para alinhar com o texto da task, pulando o icone de status */}
+                                        <div className="text-left">Responsavel</div>
                                         <div className="text-left">Prioridade</div>
                                         <div className="text-left">Data de vencimento</div>
                                         <div></div>
@@ -2858,7 +2918,7 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onOpenCar
 
                             {/* 4. Checklists (ClickUp Style) */}
                             <div className="space-y-4">
-                                {/* Header Geral da Seção */}
+                                {/* Header Geral da Secao */}
                                 <div className="flex items-center justify-between">
                                     <div className="flex items-center gap-4">
                                         <h3 className="text-base font-semibold tracking-tight text-[#EEEEEE]">Checklists</h3>
@@ -2958,30 +3018,45 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onOpenCar
 
                                             let timeStr = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }).toLowerCase();
 
-                                            if (isToday) return `Hoje às ${timeStr}`;
-                                            if (isYesterday) return `Ontem às ${timeStr}`;
-                                            return `${d.toLocaleDateString([], { month: 'short', day: 'numeric' })} às ${timeStr}`;
+                                            if (isToday) return `Hoje Ã s ${timeStr}`;
+                                            if (isYesterday) return `Ontem Ã s ${timeStr}`;
+                                            return `${d.toLocaleDateString([], { month: 'short', day: 'numeric' })} Ã s ${timeStr}`;
                                         };
 
                                         return (
                                             <div key={file.id} className="w-[206px] h-[180px] shrink-0 bg-[#0a0a1a] border border-white/5 rounded-xl flex flex-col hover:border-white/20 transition-colors group relative overflow-hidden">
 
-                                                {/* Botão flutuante de Excluir */}
+                                                {/* Botao flutuante de Excluir */}
                                                 <button onClick={() => handleDeleteFile(file.id, file.file_url, file.file_name)} className="absolute top-2 right-2 p-1.5 rounded-lg bg-black/60 backdrop-blur-md text-gray-400 hover:text-white hover:bg-red-500/80 opacity-0 group-hover:opacity-100 transition-all transform translate-y-1 group-hover:translate-y-0 z-20 shadow-md">
                                                     <Trash2 size={14} />
                                                 </button>
 
                                                 <a href={file.file_url} target="_blank" rel="noopener noreferrer" className="flex-1 flex flex-col min-h-0 relative">
                                                     {/* Top Area - Preview */}
-                                                    <div className="flex-1 flex items-center justify-center bg-[#050510] relative overflow-hidden min-h-0">
-                                                        {isImage ? (
-                                                            <img src={file.file_url} alt={file.file_name} className="w-full h-full object-contain opacity-80 group-hover:opacity-100 transition-opacity p-2" />
-                                                        ) : (
-                                                            <div className="text-primary/70 transform group-hover:scale-110 transition-transform duration-300 scale-[2]">
-                                                                {getFileIcon(file.file_name)}
+                                                        <div className="flex-1 flex items-center justify-center bg-[#050510] relative overflow-hidden min-h-0">
+                                                            {isImage ? (
+                                                                <img src={file.file_url} alt={file.file_name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                                                            ) : (
+                                                                <div className="text-primary/70 transform group-hover:scale-110 transition-transform duration-300 scale-[2]">
+                                                                    {getFileIcon(file.file_name)}
+                                                                </div>
+                                                            )}
+                                                            
+                                                            {/* Fullscreen Overlay Button - Now for all files */}
+                                                            <div 
+                                                                className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer z-10"
+                                                                onClick={(e) => {
+                                                                    e.preventDefault();
+                                                                    e.stopPropagation();
+                                                                    setPreviewUrl(file.file_url);
+                                                                    setPreviewName(file.file_name);
+                                                                }}
+                                                            >
+                                                                <div className="p-2.5 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-white transform scale-90 group-hover:scale-100 transition-transform duration-300">
+                                                                    <IconArrowsDiagonal size={20} stroke={2} />
+                                                                </div>
                                                             </div>
-                                                        )}
-                                                    </div>
+                                                        </div>
 
                                                     {/* Bottom Strip */}
                                                     <div className="h-16 shrink-0 bg-white/[0.02] border-t border-white/5 p-3 flex flex-row items-center justify-between relative z-10 w-full gap-2 text-left">
@@ -3018,7 +3093,7 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onOpenCar
                             <h3 className="text-base font-semibold text-[#EEEEEE] tracking-tight">Atividade</h3>
                         </div>
 
-                        {/* Feed Scrollável */}
+                        {/* Feed Scrollavel */}
                         <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar bg-[#050510]/50 flex flex-col-reverse">
                             {comments.length === 0 ? (
                                 <div className="text-center py-10 opacity-30">
@@ -3030,7 +3105,7 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onOpenCar
                                     const hasUser = !!comment.user_id;
                                     const userAvatar = comment.user?.avatar_url;
                                     const userInitial = (comment.user?.email?.[0] || comment.user?.full_name?.[0] || 'S').toUpperCase();
-                                    const userName = comment.user_id ? (comment.user?.email || 'Usuário') : 'Sistema';
+                                    const userName = comment.user_id ? (comment.user?.email || 'Usuario') : 'Sistema';
 
                                     return (
                                         <div key={comment.id} className={`flex gap-3 ${comment.is_system_log ? 'opacity-70' : ''}`}>
@@ -3058,7 +3133,7 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onOpenCar
                             )}
                         </div>
 
-                        {/* Input Fixo no Rodapé */}
+                        {/* Input Fixo no Rodape */}
                         <div className="p-4 border-t border-white/5 bg-[#0a0a1a]">
                             {/* Mentions Popup */}
                             {mentionQuery !== null && filteredMembers.length > 0 && (
@@ -3089,7 +3164,7 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onOpenCar
                                         onChange={handleCommentChange}
                                         onKeyDown={(e) => e.key === 'Enter' && handleAddComment()}
                                         className="w-full bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.08] rounded-xl pl-4 pr-10 py-3 text-sm text-white focus:bg-white/[0.08] focus:border-primary/30 focus:ring-0 outline-none transition-all placeholder-gray-600"
-                                        placeholder="Escreva um comentário..."
+                                        placeholder="Escreva um comentario..."
                                     />
                                     <button
                                         onClick={handleAddComment}
@@ -3104,7 +3179,7 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onOpenCar
                 </div>
             </div>
 
-            {/* Modal de Seleção de Aprovador (Popover Style) */}
+            {/* Modal de Selecao de Aprovador (Popover Style) */}
             {showApproverModal && popoverPos && (
                 <div 
                     className="fixed inset-0 z-[100]" 
@@ -3136,6 +3211,123 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onOpenCar
                             ))}
                         </div>
                     </div>
+                </div>
+            )}
+
+            {/* ================= MODAL DE PREVIEW DE ANEXO ================= */}
+            {previewUrl && (
+                <div 
+                    className="fixed inset-0 z-[100] flex flex-col bg-[#050510]/95 backdrop-blur-xl animate-in fade-in duration-300"
+                    onClick={() => setPreviewUrl(null)}
+                >
+                    {/* Header do Preview */}
+                    <div className="h-16 flex items-center justify-between px-6 border-b border-white/5 bg-black/20 shrink-0">
+                        <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
+                                {previewName ? getFileIcon(previewName) : <Paperclip size={18} />}
+                            </div>
+                            <span className="text-sm font-semibold text-white tracking-tight">{previewName}</span>
+                        </div>
+                        <div className="flex items-center gap-4">
+                            <button 
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (previewUrl && previewName) {
+                                        handleDownload(previewUrl, previewName);
+                                    }
+                                }}
+                                className="flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-white/5 text-gray-400 hover:text-white transition-colors text-xs font-medium"
+                            >
+                                <Download size={14} />
+                                Baixar
+                            </button>
+                            <button 
+                                onClick={() => setPreviewUrl(null)}
+                                className="p-2 rounded-lg hover:bg-white/10 text-gray-400 hover:text-white transition-colors"
+                            >
+                                <X size={20} />
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Área de Conteúdo (Imagem, PDF ou Placeholder) */}
+                        {(() => {
+                            const previewExt = previewName?.split('.').pop()?.toLowerCase() || '';
+                            const isPreviewImage = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'].includes(previewExt);
+                            const isPreviewPdf = previewExt === 'pdf';
+                            const isPreviewText = ['txt', 'csv', 'js', 'ts', 'jsx', 'tsx', 'py'].includes(previewExt);
+                            const isPreviewOffice = ['xlsx', 'xls', 'docx', 'doc', 'pptx', 'ppt'].includes(previewExt);
+                            const isPreviewVideo = ['mp4', 'webm', 'ogg', 'mov'].includes(previewExt);
+                            const isIframePreview = isPreviewPdf || isPreviewText || isPreviewOffice;
+
+                            if (isPreviewImage) {
+                                return (
+                                    <div className="flex-1 flex items-center justify-center p-8 w-full h-full">
+                                        <img 
+                                            src={previewUrl} 
+                                            alt={previewName || 'Preview'} 
+                                            className="max-w-full max-h-full object-contain shadow-2xl rounded-sm animate-in zoom-in-95 duration-500"
+                                            onClick={(e) => e.stopPropagation()}
+                                        />
+                                    </div>
+                                );
+                            }
+
+                            if (isPreviewVideo) {
+                                return (
+                                    <div className="flex-1 flex items-center justify-center p-8 w-full h-full">
+                                        <video 
+                                            src={previewUrl} 
+                                            controls 
+                                            autoPlay
+                                            className="max-w-full max-h-full rounded-xl shadow-2xl bg-black"
+                                            onClick={(e) => e.stopPropagation()}
+                                        />
+                                    </div>
+                                );
+                            }
+
+                            if (isIframePreview) {
+                                const finalPreviewUrl = isPreviewOffice 
+                                    ? `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(previewUrl)}`
+                                    : previewUrl;
+
+                                return (
+                                    <div className="w-full h-full bg-white animate-in fade-in duration-500" onClick={(e) => e.stopPropagation()}>
+                                        <iframe 
+                                            src={finalPreviewUrl} 
+                                            className="w-full h-full border-none" 
+                                            title={previewName || 'Preview'}
+                                        />
+                                    </div>
+                                );
+                            }
+
+                            return (
+                                <div className="flex-1 flex items-center justify-center p-8 w-full h-full">
+                                    <div className="flex flex-col items-center gap-6 p-12 bg-white/5 rounded-[32px] border border-white/10 backdrop-blur-md shadow-2xl animate-in zoom-in-95 duration-500 max-w-md w-full" onClick={(e) => e.stopPropagation()}>
+                                        <div className="p-8 rounded-2xl bg-primary/10 border border-primary/20 text-primary">
+                                            {previewName ? (
+                                                getFileIcon(previewName, 48)
+                                            ) : (
+                                                <Paperclip size={48} />
+                                            )}
+                                        </div>
+                                        <div className="text-center space-y-2">
+                                            <h3 className="text-lg font-bold text-white tracking-tight px-4 truncate w-full max-w-[300px]" title={previewName || ''}>{previewName}</h3>
+                                            <p className="text-xs text-gray-400">Pré-visualização não disponível</p>
+                                        </div>
+                                        <button 
+                                            onClick={() => previewUrl && previewName && handleDownload(previewUrl, previewName)}
+                                            className="mt-2 w-full px-6 py-3.5 rounded-xl bg-primary hover:bg-primary/80 text-white font-bold transition-all shadow-lg shadow-primary/20 flex items-center justify-center gap-2"
+                                        >
+                                            <Download size={18} />
+                                            Baixar Arquivo
+                                        </button>
+                                    </div>
+                                </div>
+                            );
+                        })()}
                 </div>
             )}
         </>,
@@ -3182,7 +3374,7 @@ const TimeTrackingPopover = ({
         if (hMatch) total += parseInt(hMatch[1]) * 60;
         if (mMatch) total += parseInt(mMatch[1]);
 
-        // Se for só número (ex: "90") assume minutos
+        // Se for so número (ex: "90") assume minutos
         if (!hMatch && !mMatch && /^\d+$/.test(input.trim())) {
             total = parseInt(input);
         }
@@ -3245,7 +3437,7 @@ const TimeTrackingPopover = ({
                 .update({
                     is_running: false,
                     end_time: now.toISOString(),
-                    duration_minutes: Math.max(1, minutes) // Mínimo 1 minuto
+                    duration_minutes: Math.max(1, minutes) // Minimo 1 minuto
                 })
                 .eq('id', activeTimer.id);
 
@@ -3286,12 +3478,12 @@ const TimeTrackingPopover = ({
         }
     };
 
-    // Obter nome do usuário do timer ativo
+    // Obter nome do usuario do timer ativo
     const activeUserName = members.find(m => m.id === activeTimer?.user_id)?.name || 'Você';
 
     return (
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-[340px] bg-[#0d0d1a]/98 backdrop-blur-3xl border border-white/10 rounded-[24px] shadow-2xl z-[100] animate-in zoom-in-95 duration-200 overflow-hidden flex flex-col">
-            {/* Header com Botão de Fechar discreto */}
+            {/* Header com Botao de Fechar discreto */}
             <div className="flex justify-between items-center px-6 pt-6 mb-2">
                 <span className="text-[11px] text-[#6e6e6e] font-medium tracking-wide">Tempo rastreado</span>
                 <button onClick={onClose} className="text-gray-500 hover:text-white transition-colors p-1 hover:bg-white/5 rounded-full">
@@ -3346,7 +3538,7 @@ const TimeTrackingPopover = ({
                 </div>
             </div>
 
-            {/* Lista Histórica */}
+            {/* Lista Historica */}
             <div className="flex-1 bg-black/40 border-t border-white/5 flex flex-col min-h-0 max-h-[300px]">
                 <div className="p-4 py-3 bg-white/[0.01] flex justify-between items-center">
                     <span className="text-[10px] text-[#6e6e6e] font-semibold tracking-wider">Histórico</span>
