@@ -68,3 +68,10 @@ body {
 .custom-scrollbar::-webkit-scrollbar-button {
   display: none;
 }
+
+/* contentEditable Placeholder */
+[contenteditable]:empty:before {
+  content: attr(data-placeholder);
+  pointer-events: none;
+  display: block; /* For Firefox */
+}

@@ -25,6 +25,7 @@ const Suporte = () => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [supportModalOpen, setSupportModalOpen] = useState(false);
+  const [selectedTicket, setSelectedTicket] = useState<any>(null);
 
   const fetchTickets = async () => {
     if (!user) return;
@@ -48,7 +49,10 @@ const Suporte = () => {
   useEffect(() => {
     fetchTickets();
 
-    const handleOpenTicket = () => setSupportModalOpen(true);
+    const handleOpenTicket = () => {
+      setSelectedTicket(null);
+      setSupportModalOpen(true);
+    };
     window.addEventListener('open-support-ticket', handleOpenTicket);
     return () => window.removeEventListener('open-support-ticket', handleOpenTicket);
   }, [user]);
@@ -98,7 +102,7 @@ const Suporte = () => {
               {stat.icon}
             </div>
             <div>
-              <p className="text-xs text-gray-500 font-medium uppercase tracking-widest">{stat.label}</p>
+              <p className="text-xs text-gray-400 font-bold">{stat.label}</p>
               <p className="text-2xl font-bold text-white">{stat.count}</p>
             </div>
           </div>
@@ -124,62 +128,59 @@ const Suporte = () => {
             <p className="font-light">Carregando seus chamados...</p>
           </div>
         ) : filteredTickets.length > 0 ? (
-          <div className="grid grid-cols-1 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {filteredTickets.map((ticket) => (
               <div
                 key={ticket.id}
-                className="glass-card rounded-2xl border border-white/5 hover:border-white/10 transition-all duration-300 group overflow-hidden"
+                onClick={() => {
+                  setSelectedTicket(ticket);
+                  setSupportModalOpen(true);
+                }}
+                className="glass-card rounded-2xl border border-white/5 hover:border-white/10 transition-all duration-300 group overflow-hidden flex flex-col cursor-pointer hover:bg-white/[0.02]"
               >
-                <div className="p-6 flex flex-col md:flex-row md:items-center gap-6">
-                  {/* Icon & Type */}
-                  <div className="flex items-center space-x-4 md:w-48 shrink-0">
-                    <div className={`p-3 rounded-xl ${ticket.type === 'bug' ? 'bg-red-500/10 text-red-400 border-red-500/20' : 'bg-primary/10 text-primary border-primary/20'}`}>
-                      {ticket.type === 'bug' ? <Bug size={20} /> : <Lightbulb size={20} />}
+                {/* Header with Type and Date */}
+                <div className="p-5 border-b border-white/5 flex items-start justify-between">
+                  <div className="flex items-center space-x-3">
+                    <div className={`p-2 rounded-lg ${ticket.type === 'bug' ? 'bg-red-500/10 text-red-400 border-red-500/20' : 'bg-primary/10 text-primary border-primary/20'}`}>
+                      {ticket.type === 'bug' ? <Bug size={16} /> : <Lightbulb size={16} />}
                     </div>
                     <div>
-                      <p className={`text-[10px] font-bold uppercase tracking-wider ${ticket.type === 'bug' ? 'text-red-400' : 'text-primary'}`}>
+                      <p className={`text-[11px] font-bold ${ticket.type === 'bug' ? 'text-red-400' : 'text-primary'}`}>
                         {ticket.type === 'bug' ? 'Bug' : 'Melhoria'}
                       </p>
-                      <p className="text-xs text-gray-500">{new Date(ticket.created_at).toLocaleDateString('pt-BR')}</p>
+                      <p className="text-[10px] text-gray-500">{new Date(ticket.created_at).toLocaleDateString('pt-BR')}</p>
                     </div>
                   </div>
+                  {ticket.screenshot_url && (
+                    <a
+                      href={ticket.screenshot_url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="p-1.5 rounded-lg bg-white/5 border border-white/10 text-gray-500 hover:text-white transition-all"
+                    >
+                      <ImageIcon size={14} />
+                    </a>
+                  )}
+                </div>
 
-                  {/* Description */}
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-bold text-white mb-1 truncate">
-                      {ticket.title || 'Sem título'}
-                    </p>
-                    <p className="text-xs text-gray-500 line-clamp-1 group-hover:text-gray-400 transition-colors">
-                      {ticket.description}
-                    </p>
-                    {ticket.page_url && (
-                      <div className="flex items-center space-x-2 mt-2">
-                        <ExternalLink size={12} className="text-gray-500" />
-                        <span className="text-[10px] text-gray-500 truncate max-w-xs">{ticket.page_url}</span>
-                      </div>
-                    )}
-                  </div>
+                {/* Content */}
+                <div className="p-5 flex-1 space-y-2">
+                  <h4 className="text-sm font-bold text-white line-clamp-1 group-hover:text-primary transition-colors">
+                    {ticket.title || 'Sem título'}
+                  </h4>
+                  <p className="text-xs text-gray-500 line-clamp-3 leading-relaxed">
+                    {ticket.description}
+                  </p>
+                </div>
 
-                  {/* Status & Screenshot */}
-                  <div className="flex items-center justify-between md:justify-end gap-6 md:w-64">
-                    {ticket.screenshot_url && (
-                      <a
-                        href={ticket.screenshot_url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="p-2 rounded-lg bg-white/5 border border-white/10 text-gray-400 hover:text-white hover:bg-white/10 transition-all group/img"
-                        title="Ver screenshot"
-                      >
-                        <ImageIcon size={18} className="group-hover/img:scale-110 transition-transform" />
-                      </a>
-                    )}
-                    <span className={`px-4 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest border ${getStatusStyle(ticket.status)}`}>
-                      {getStatusLabel(ticket.status)}
-                    </span>
-                    <button className="p-2 text-gray-600 hover:text-white transition-colors">
-                      <ChevronRight size={18} />
-                    </button>
-                  </div>
+                {/* Footer with Status */}
+                <div className="p-5 pt-0 mt-auto flex items-center justify-between">
+                  <span className={`px-3 py-1 rounded-full text-[10px] font-bold border ${getStatusStyle(ticket.status)}`}>
+                    {getStatusLabel(ticket.status)}
+                  </span>
+                  <button className="text-gray-600 hover:text-white transition-colors">
+                    <ChevronRight size={16} />
+                  </button>
                 </div>
               </div>
             ))}
@@ -199,8 +200,10 @@ const Suporte = () => {
 
       <SupportTicketModal
         isOpen={supportModalOpen}
+        ticket={selectedTicket}
         onClose={() => {
           setSupportModalOpen(false);
+          setSelectedTicket(null);
           fetchTickets(); // Refresh list after closing
         }}
       />

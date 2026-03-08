@@ -161,7 +161,14 @@ const Atividades = () => {
                 <div className="absolute top-0 right-0 w-64 h-64 bg-primary/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2"></div>
 
                 <div className="relative z-10 flex justify-between items-center">
-                    <div className="flex-1"></div>
+                    <div className="flex-1">
+                        <h1 className="text-3xl font-bold text-white mb-2">
+                            Bem-vindo(a), {userProfile?.full_name || 'Usuário'}!
+                        </h1>
+                        <p className="text-gray-400 max-w-md">
+                            Seu painel está atualizado. Você tem <span className="text-primary font-bold">{metrics.totalAssigned}</span> tarefas atribuídas e já concluiu <span className="text-emerald-400 font-bold">{metrics.completedToday}</span> hoje.
+                        </p>
+                    </div>
 
                     {/* Efficiency Widget */}
                     <div className="bg-white/5 backdrop-blur-xl p-6 rounded-2xl border border-white/5 text-center min-w-[160px] relative group overflow-hidden transition-all hover:bg-white/10 hover:border-primary/30">

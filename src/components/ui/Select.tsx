@@ -73,7 +73,7 @@ export const Select: React.FC<SelectProps> = ({
                 type="button"
                 onClick={() => setIsOpen(prev => !prev)}
                 className={`
-          flex items-center gap-2 px-3 py-2 rounded-xl
+          flex items-center justify-between gap-2 px-3 py-2 rounded-xl w-full
           bg-white/[0.04] hover:bg-white/[0.07]
           border border-white/[0.08] hover:border-white/[0.15]
           text-white/90 text-sm font-light

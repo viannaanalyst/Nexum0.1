@@ -6,20 +6,27 @@ import {
   Upload,
   Loader2,
   Trash2,
-  Type,
-  ImageIcon
+  ImageIcon,
+  Send,
+  Paperclip,
+  MessageSquare,
+  Sparkles
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { useCompany } from '../context/CompanyContext';
 import { useUI } from '../context/UIContext';
+import { Select } from './ui/Select';
+import { format } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 
 interface SupportTicketModalProps {
   isOpen: boolean;
   onClose: () => void;
+  ticket?: any;
 }
 
-const SupportTicketModal: React.FC<SupportTicketModalProps> = ({ isOpen, onClose }) => {
+const SupportTicketModal: React.FC<SupportTicketModalProps> = ({ isOpen, onClose, ticket }) => {
   const { user } = useAuth();
   const { selectedCompany } = useCompany();
   const { toast } = useUI();
@@ -30,18 +37,99 @@ const SupportTicketModal: React.FC<SupportTicketModalProps> = ({ isOpen, onClose
   const [pageUrl, setPageUrl] = useState('');
   const [screenshot, setScreenshot] = useState<File | null>(null);
   const [screenshotPreview, setScreenshotPreview] = useState<string | null>(null);
+  const [priority, setPriority] = useState<'baixa' | 'media' | 'alta'>('baixa');
   const [loading, setLoading] = useState(false);
+  const [messages, setMessages] = useState<any[]>([]);
+  const [newMessage, setNewMessage] = useState('');
+  const [sendingMessage, setSendingMessage] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const descriptionRef = useRef<HTMLDivElement>(null);
+  const chatEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (isOpen) {
-      setTitle('');
-      setDescription('');
-      setPageUrl(''); // Empty by default as requested
+      setTitle(ticket?.title || '');
+      setType(ticket?.type || 'bug');
+      setDescription(ticket?.description || '');
+      setPageUrl(ticket?.page_url || '');
       setScreenshot(null);
-      setScreenshotPreview(null);
+      setScreenshotPreview(ticket?.screenshot_url || null);
+      setPriority(ticket?.priority || 'baixa');
+      
+      // Set initial content for contentEditable
+      if (descriptionRef.current) {
+        descriptionRef.current.innerHTML = ticket?.description || '';
+      }
+
+      if (ticket?.id) {
+        fetchMessages();
+        const subscription = supabase
+          .channel(`ticket-messages-${ticket.id}`)
+          .on('postgres_changes', { 
+            event: 'INSERT', 
+            schema: 'public', 
+            table: 'support_ticket_messages',
+            filter: `ticket_id=eq.${ticket.id}`
+          }, async (payload) => {
+            // Fetch profile for the new message sender
+            const { data: profile } = await supabase
+              .from('profiles')
+              .select('full_name, avatar_url, email')
+              .eq('id', payload.new.user_id)
+              .single();
+            
+            setMessages(prev => {
+              // Avoid duplicates from handleSendMessage manual update
+              const exists = prev.some(m => m.id === payload.new.id || 
+                (m.message === payload.new.message && m.user_id === payload.new.user_id && Math.abs(new Date(m.created_at).getTime() - new Date(payload.new.created_at).getTime()) < 1000));
+              if (exists) return prev;
+              
+              return [...prev, { ...payload.new, user: profile }];
+            });
+          })
+          .subscribe();
+
+        return () => {
+          subscription.unsubscribe();
+        };
+      }
     }
-  }, [isOpen]);
+  }, [isOpen, ticket]);
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
+
+  const scrollToBottom = () => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  const getInitials = (name: string) => {
+    if (!name) return '?';
+    const parts = name.split(' ');
+    if (parts.length >= 2) {
+      return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
+    }
+    return parts[0][0].toUpperCase();
+  };
+
+  const fetchMessages = async () => {
+    if (!ticket?.id) return;
+    const { data, error } = await supabase
+      .from('support_ticket_messages')
+      .select(`
+        *,
+        user:profiles(full_name, avatar_url, email)
+      `)
+      .eq('ticket_id', ticket.id)
+      .order('created_at', { ascending: true });
+    
+    if (error) {
+      console.error('Error fetching messages:', error);
+    } else {
+      setMessages(data || []);
+    }
+  };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -116,30 +204,122 @@ const SupportTicketModal: React.FC<SupportTicketModalProps> = ({ isOpen, onClose
         screenshot_url = publicUrl;
       }
 
-      const { error } = await supabase
-        .from('support_tickets')
-        .insert([{
-          user_id: user?.id,
-          company_id: selectedCompany?.id,
-          title,
-          type,
-          description,
-          page_url: pageUrl,
-          screenshot_url,
-          user_name: user?.name || user?.email,
-          company_name: selectedCompany?.name,
-          status: 'open'
-        }]);
+      if (ticket?.id) {
+        const { error } = await supabase
+          .from('support_tickets')
+          .update({
+            title,
+            type,
+            description,
+            page_url: pageUrl,
+            screenshot_url,
+            priority,
+          })
+          .eq('id', ticket.id);
 
-      if (error) throw error;
+        if (error) throw error;
+        toast.success('Chamado atualizado com sucesso!');
+      } else {
+        const { error } = await supabase
+          .from('support_tickets')
+          .insert([{
+            user_id: user?.id,
+            company_id: selectedCompany?.id,
+            title,
+            type,
+            description,
+            page_url: pageUrl,
+            screenshot_url,
+            priority,
+            user_name: user?.name || user?.email,
+            company_name: selectedCompany?.name,
+            status: 'open'
+          }]);
 
-      toast.success('Chamado enviado com sucesso!');
+        if (error) throw error;
+        toast.success('Chamado enviado com sucesso!');
+      }
       onClose();
     } catch (error: any) {
       console.error('Error submitting ticket:', error);
       toast.error(error.message || 'Erro ao enviar chamado.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSendMessage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newMessage.trim() || !ticket?.id || !user) return;
+
+    setSendingMessage(true);
+    try {
+      const { error: messageError } = await supabase
+        .from('support_ticket_messages')
+        .insert([{
+          ticket_id: ticket.id,
+          user_id: user.id,
+          message: newMessage.trim()
+        }]);
+
+      if (messageError) throw messageError;
+
+      // Manually update local state for immediate feedback
+      const localMsg = {
+        id: Math.random().toString(36).substr(2, 9),
+        ticket_id: ticket.id,
+        user_id: user.id,
+        message: newMessage.trim(),
+        created_at: new Date().toISOString(),
+        user: {
+          full_name: user.name,
+          avatar_url: user.avatar_url,
+          email: user.email
+        }
+      };
+      setMessages(prev => {
+        // Avoid duplicate if real-time already fired
+        if (prev.some(m => m.message === localMsg.message && Math.abs(new Date(m.created_at).getTime() - new Date(localMsg.created_at).getTime()) < 1000)) {
+          return prev;
+        }
+        return [...prev, localMsg];
+      });
+
+      // Notify the other party
+      const isSuperAdmin = user.is_super_admin;
+      
+      if (!isSuperAdmin) {
+        // User sent message -> notify Super Admins
+        const { data: admins } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('is_super_admin', true);
+
+        if (admins && admins.length > 0) {
+          const notifications = admins.map(admin => ({
+            user_id: admin.id,
+            title: `Nova mensagem no chamado #${ticket.id.slice(0, 8)}`,
+            description: `${user.name || user.email}: ${newMessage.trim().substring(0, 60)}...`,
+            type: 'support'
+          }));
+          await supabase.from('notifications').insert(notifications);
+        }
+      } else {
+        // Admin sent message -> notify ticket owner
+        await supabase.from('notifications').insert([{
+          user_id: ticket.user_id,
+          title: `Suporte respondeu seu chamado`,
+          description: `Nova mensagem no chamado #${ticket.id.slice(0, 8)}`,
+          type: 'support'
+        }]);
+      }
+
+      setNewMessage('');
+    } catch (error: any) {
+      console.error('Error sending message:', error);
+      toast.error('Erro ao enviar mensagem');
+    } finally {
+      setSendingMessage(false);
     }
   };
 
@@ -156,7 +336,7 @@ const SupportTicketModal: React.FC<SupportTicketModalProps> = ({ isOpen, onClose
       </div>
 
       {/* Modal Content */}
-      <div className="relative z-10 w-full max-w-lg rounded-[22px] overflow-hidden shadow-[0_32px_64px_-12px_rgba(0,0,0,0.6)] animate-in zoom-in-95 duration-300 border border-white/10 bg-[#0a0a1a]/10 backdrop-blur-xl ring-1 ring-white/10 ring-inset flex flex-col max-h-[92vh]">
+      <div className={`relative z-10 w-full ${ticket ? 'max-w-6xl' : 'max-w-4xl'} rounded-[22px] overflow-hidden shadow-[0_32px_64px_-12px_rgba(0,0,0,0.6)] animate-in zoom-in-95 duration-300 border border-white/10 bg-[#0a0a1a]/10 backdrop-blur-xl ring-1 ring-white/10 ring-inset flex flex-col max-h-[92vh]`}>
 
         {/* Grain Texture Overlay */}
         <div className="absolute inset-0 opacity-[0.03] pointer-events-none bg-[url('https://grainy-gradients.vercel.app/noise.svg')] z-0 rounded-[22px]"></div>
@@ -170,8 +350,17 @@ const SupportTicketModal: React.FC<SupportTicketModalProps> = ({ isOpen, onClose
         <div className="relative p-8 pb-4">
           <div className="flex justify-between items-start">
             <div>
-              <h2 className="text-xl font-medium text-[#EEEEEE] relative z-10">Novo chamado</h2>
-              <p className="text-[#6e6e6e] text-xs mt-1 font-light">Descreva detalhadamente como podemos te ajudar.</p>
+              <h2 className="text-xl font-medium text-[#EEEEEE] relative z-10 flex items-center gap-3">
+                {ticket ? 'Detalhes do chamado' : 'Novo chamado'}
+                {ticket && (
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/5 text-[#6e6e6e] border border-white/5 font-mono">
+                    #{ticket.id.slice(0, 8)}
+                  </span>
+                )}
+              </h2>
+              <p className="text-[#6e6e6e] text-xs mt-1 font-light">
+                {ticket ? 'Visualize e troque mensagens sobre seu chamado.' : 'Descreva detalhadamente como podemos te ajudar.'}
+              </p>
             </div>
             <button
               onClick={onClose}
@@ -182,8 +371,9 @@ const SupportTicketModal: React.FC<SupportTicketModalProps> = ({ isOpen, onClose
           </div>
         </div>
 
-        {/* Form Content */}
-        <form onSubmit={handleSubmit} className="p-8 pt-2 flex-1 overflow-y-auto custom-scrollbar space-y-5 relative z-20">
+        <div className={`flex-1 overflow-y-auto custom-scrollbar flex ${ticket ? 'flex-row' : 'flex-col'}`}>
+          {/* Form Content / Left Column */}
+          <form onSubmit={handleSubmit} className={`${ticket ? 'flex-1 border-r border-white/5' : ''} p-8 pt-2 space-y-5 relative z-20`}>
           <div className="space-y-4">
             {/* Title Field */}
             <div className="relative group">
@@ -214,59 +404,57 @@ const SupportTicketModal: React.FC<SupportTicketModalProps> = ({ isOpen, onClose
             <div className="relative group">
               <label className="text-[11px] tracking-wide font-medium text-[#6e6e6e] ml-1 mb-1 block capitalize">Descrição</label>
               <div className="relative">
-                <textarea
-                  required
-                  rows={4}
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  onPaste={handlePaste}
-                  placeholder="Descreva aqui o erro ou a melhoria desejada..."
-                  className="w-full bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.08] rounded-xl px-4 py-3 text-white/90 focus:bg-white/[0.08] focus:border-primary/30 focus:ring-0 outline-none transition-all duration-300 text-sm font-light placeholder-[#6e6e6e] resize-none leading-relaxed"
+                <div
+                  ref={descriptionRef}
+                  contentEditable
+                  onInput={(e) => setDescription(e.currentTarget.innerHTML)}
+                  className="w-full bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.08] rounded-xl px-4 py-3 text-white/90 focus:bg-white/[0.08] focus:border-primary/30 focus:ring-0 outline-none transition-all duration-300 text-sm font-light min-h-[150px] leading-relaxed overflow-y-auto empty:before:content-[attr(data-placeholder)] empty:before:text-[#6e6e6e]"
+                  data-placeholder="Descreva aqui o erro ou a melhoria desejada..."
                 />
-                <div className="absolute top-2 right-2 flex p-1.5 bg-black/40 backdrop-blur-md rounded-xl border border-white/10 space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <div className="w-7 h-7 flex items-center justify-center hover:bg-white/10 rounded-lg cursor-pointer text-gray-500 hover:text-white transition-all"><Type size={14} /></div>
-                  <div className="w-7 h-7 flex items-center justify-center hover:bg-white/10 rounded-lg cursor-pointer text-gray-500 hover:text-white transition-all"><ImageIcon size={14} /></div>
-                </div>
               </div>
-              <p className="text-[10px] text-gray-600 mt-1 ml-1">Dica: Você pode colar prints diretamente com Ctrl+V</p>
+              <p className="text-[10px] text-gray-600 mt-1 ml-1">Dica: Você pode colar textos e prints diretamente no campo de descrição.</p>
             </div>
 
             {/* Category and Priority Grid */}
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-4">
               <div className="relative group">
                 <label className="text-[11px] tracking-wide font-medium text-[#6e6e6e] ml-1 mb-1 block capitalize">Categoria</label>
-                <select
+                <Select
                   value={type}
-                  onChange={(e) => setType(e.target.value as any)}
-                  className="w-full bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.08] rounded-xl px-4 py-3 text-white/90 focus:bg-white/[0.08] focus:border-primary/30 focus:ring-0 outline-none appearance-none cursor-pointer transition-all duration-300 text-sm font-light"
-                >
-                  <option value="bug" className="bg-[#0a0a1a]">Bug</option>
-                  <option value="melhoria" className="bg-[#0a0a1a]">Melhoria</option>
-                </select>
+                  onChange={setType}
+                  options={[
+                    { value: 'bug', label: 'Bug' },
+                    { value: 'melhoria', label: 'Melhoria' }
+                  ]}
+                  className="w-full"
+                />
               </div>
 
               <div className="relative group">
                 <label className="text-[11px] tracking-wide font-medium text-[#6e6e6e] ml-1 mb-1 block capitalize">Prioridade</label>
-                <select
-                  className="w-full bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.08] rounded-xl px-4 py-3 text-white/90 focus:bg-white/[0.08] focus:border-primary/30 focus:ring-0 outline-none appearance-none cursor-pointer transition-all duration-300 text-sm font-light"
-                >
-                  <option value="baixa" className="bg-[#0a0a1a]">Baixa</option>
-                  <option value="media" className="bg-[#0a0a1a]">Média</option>
-                  <option value="alta" className="bg-[#0a0a1a]">Alta</option>
-                </select>
+                <Select
+                  value={priority}
+                  onChange={setPriority}
+                  options={[
+                    { value: 'baixa', label: 'Baixa' },
+                    { value: 'media', label: 'Média' },
+                    { value: 'alta', label: 'Alta' }
+                  ]}
+                  className="w-full"
+                />
               </div>
             </div>
 
             {/* Screenshot Area */}
             <div className="relative group">
-              <label className="text-[11px] tracking-wide font-bold text-[#6e6e6e] ml-1 mb-1 block uppercase tracking-widest">Anexo de print</label>
+              <label className="text-[11px] tracking-wide font-bold text-[#6e6e6e] ml-1 mb-1 block">Anexo de print</label>
               {!screenshotPreview ? (
                 <div
                   onClick={() => fileInputRef.current?.click()}
                   className="w-full flex flex-col items-center justify-center p-6 border-2 border-dashed border-white/10 rounded-xl hover:bg-white/5 hover:border-primary/30 transition-all cursor-pointer group bg-white/[0.01]"
                 >
                   <Upload className="text-gray-500 mb-2 group-hover:text-primary transition-colors" size={20} />
-                  <span className="text-[10px] text-gray-500 font-medium group-hover:text-gray-300 uppercase tracking-widest">Clique para anexar print</span>
+                  <span className="text-[10px] text-gray-500 font-medium group-hover:text-gray-300">Clique para anexar print</span>
                 </div>
               ) : (
                 <div className="relative aspect-video rounded-xl overflow-hidden border border-white/10 group">
@@ -279,7 +467,7 @@ const SupportTicketModal: React.FC<SupportTicketModalProps> = ({ isOpen, onClose
                     >
                       <Trash2 size={18} />
                     </button>
-                    <span className="text-[10px] text-white font-medium uppercase tracking-widest">Remover Imagem</span>
+                    <span className="text-[10px] text-white font-medium">Remover imagem</span>
                   </div>
                 </div>
               )}
@@ -310,11 +498,104 @@ const SupportTicketModal: React.FC<SupportTicketModalProps> = ({ isOpen, onClose
               {loading ? (
                 <Loader2 className="animate-spin w-4 h-4" />
               ) : (
-                'Enviar Chamado'
+                ticket ? 'Salvar alterações' : 'Enviar'
               )}
             </button>
           </div>
-        </form>
+          </form>
+
+          {/* Right Column: Chat History - Only visible when editing */}
+          {ticket && (
+            <div className="flex-[0.8] flex flex-col h-[600px] lg:h-auto min-h-[500px] relative z-20 bg-black/20 backdrop-blur-sm">
+              <div className="p-4 px-6 border-b border-white/5 flex items-center justify-between bg-white/[0.02]">
+                <div className="flex items-center gap-2">
+                  <MessageSquare size={14} className="text-primary" />
+                  <h3 className="text-xs font-semibold text-white/70 tracking-tight">Histórico de mensagens</h3>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+                  <span className="text-[10px] text-gray-500 font-medium tracking-widest">Suporte online</span>
+                </div>
+              </div>
+
+              {/* Messages Container */}
+              <div className="flex-1 overflow-y-auto custom-scrollbar p-6 space-y-6">
+                {messages.length === 0 ? (
+                  <div className="h-full flex flex-col items-center justify-center text-center p-8">
+                    <div className="w-16 h-16 rounded-3xl bg-primary/10 flex items-center justify-center mb-4 border border-primary/20 rotate-12 transition-transform hover:rotate-0 duration-500">
+                      <Sparkles className="w-8 h-8 text-primary/60" />
+                    </div>
+                    <h4 className="text-sm font-medium text-white/80 mb-2">Inicie o atendimento</h4>
+                    <p className="text-xs font-light text-[#6e6e6e] max-w-[180px] leading-relaxed">
+                      Nenhuma mensagem enviada ainda. Mande um "Olá" para começar.
+                    </p>
+                  </div>
+                ) : (
+                  messages.map((msg) => {
+                    const isMe = msg.user_id === user?.id;
+                    const senderName = msg.user?.full_name || msg.user?.email || 'Usuário';
+                    const avatarUrl = msg.user?.avatar_url;
+
+                    return (
+                      <div key={msg.id} className={`flex gap-3 ${isMe ? 'flex-row-reverse' : 'flex-row'} items-start animate-in fade-in slide-in-from-bottom-2 duration-300`}>
+                        {/* Avatar */}
+                        <div className={`flex-shrink-0 w-8 h-8 rounded-full border border-white/10 flex items-center justify-center overflow-hidden bg-white/5 shadow-inner`}>
+                          {avatarUrl ? (
+                            <img src={avatarUrl} alt={senderName} className="w-full h-full object-cover" />
+                          ) : (
+                            <span className="text-[10px] font-bold text-white/40">{getInitials(senderName)}</span>
+                          )}
+                        </div>
+
+                        {/* Content */}
+                        <div className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} max-w-[80%]`}>
+                          <div className={`rounded-2xl p-4 text-sm font-light leading-relaxed prose prose-invert ${
+                            isMe 
+                            ? 'bg-primary/20 text-white rounded-tr-none border border-primary/20' 
+                            : 'bg-white/[0.05] text-white/80 rounded-tl-none border border-white/5'
+                          }`}>
+                            <p className="whitespace-pre-wrap">{msg.message}</p>
+                          </div>
+                          <span className="text-[10px] text-[#6e6e6e] font-light mt-1.5 px-1 bg-white/[0.02] py-0.5 rounded-full border border-white/5">
+                            {format(new Date(msg.created_at), "HH:mm '·' d 'de' MMM", { locale: ptBR })}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+                <div ref={chatEndRef} />
+              </div>
+
+              {/* Chat Input Dock */}
+              <div className="p-4 bg-black/40 border-t border-white/5 backdrop-blur-md">
+                <form onSubmit={handleSendMessage} className="relative group/input">
+                  <div className="absolute inset-0 bg-primary/5 rounded-2xl blur-xl opacity-0 group-focus-within/input:opacity-100 transition-opacity duration-500" />
+                  <textarea
+                    value={newMessage}
+                    onChange={(e) => setNewMessage(e.target.value)}
+                    placeholder="Escreva sua mensagem aqui..."
+                    rows={2}
+                    className="relative w-full bg-white/[0.03] hover:bg-white/[0.05] border border-white/10 rounded-2xl pl-4 pr-14 py-4 text-white/90 focus:bg-white/[0.07] focus:border-primary/40 focus:ring-0 outline-none transition-all duration-300 text-sm font-light placeholder-gray-600 resize-none shadow-2xl"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        handleSendMessage(e);
+                      }
+                    }}
+                  />
+                  <button
+                    type="submit"
+                    disabled={sendingMessage || !newMessage.trim()}
+                    className="absolute bottom-3.5 right-3.5 w-10 h-10 flex items-center justify-center bg-primary text-white rounded-xl hover:bg-secondary hover:scale-105 active:scale-95 transition-all disabled:opacity-30 disabled:cursor-not-allowed shadow-xl shadow-primary/30 z-10"
+                  >
+                    {sendingMessage ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
+                  </button>
+                </form>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

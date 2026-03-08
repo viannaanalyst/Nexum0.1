@@ -542,7 +542,6 @@ const MainLayout = () => {
 
               <NavItem to="/relatorios" icon={<IconBrandOpenai />} label="Nexum intelligence" expanded={sidebarOpen} />
               <NavItem to="/calendario" icon={<IconCalendar />} label="Calendário" expanded={sidebarOpen} />
-              <NavItem to="/suporte" icon={<IconHelpCircle />} label="Suporte" expanded={sidebarOpen} />
 
               {/* Financeiro with Submenu */}
               <div className="relative">
@@ -653,6 +652,8 @@ const MainLayout = () => {
                   </>
                 )}
               </div>
+
+              <NavItem to="/suporte" icon={<IconHelpCircle />} label="Suporte" expanded={sidebarOpen} />
             </nav>
           </aside>
         )}
