@@ -830,6 +830,7 @@ const OrganizadorKanban = () => {
             setSelectedCardId(null);
             fetchKanbanData(); // Refresh after close
           }}
+          onOpenCard={(id) => setSelectedCardId(id)}
         />
       )}
     </div>
