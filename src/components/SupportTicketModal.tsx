@@ -10,8 +10,10 @@ import {
   Send,
   Paperclip,
   MessageSquare,
-  Sparkles
+  Sparkles,
+  Smile
 } from 'lucide-react';
+import EmojiPicker, { Theme } from 'emoji-picker-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { useCompany } from '../context/CompanyContext';
@@ -42,9 +44,11 @@ const SupportTicketModal: React.FC<SupportTicketModalProps> = ({ isOpen, onClose
   const [messages, setMessages] = useState<any[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [sendingMessage, setSendingMessage] = useState(false);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const descriptionRef = useRef<HTMLDivElement>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const emojiPickerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (isOpen) {
@@ -62,6 +66,7 @@ const SupportTicketModal: React.FC<SupportTicketModalProps> = ({ isOpen, onClose
       }
 
       if (ticket?.id) {
+        setMessages([]); // Clear previous messages
         fetchMessages();
         const subscription = supabase
           .channel(`ticket-messages-${ticket.id}`)
@@ -79,12 +84,17 @@ const SupportTicketModal: React.FC<SupportTicketModalProps> = ({ isOpen, onClose
               .single();
             
             setMessages(prev => {
-              // Avoid duplicates from handleSendMessage manual update
-              const exists = prev.some(m => m.id === payload.new.id || 
-                (m.message === payload.new.message && m.user_id === payload.new.user_id && Math.abs(new Date(m.created_at).getTime() - new Date(payload.new.created_at).getTime()) < 1000));
-              if (exists) return prev;
+              // Remove the optimistic version of this message if it exists
+              const filtered = prev.filter(m => 
+                !(m.isOptimistic && m.message === payload.new.message && m.user_id === payload.new.user_id)
+              );
               
-              return [...prev, { ...payload.new, user: profile }];
+              // Avoid duplicates if the message is already there (e.g. from a quick re-fetch)
+              if (filtered.some(m => m.id === payload.new.id)) return filtered;
+              
+              const newMessages = [...filtered, { ...payload.new, user: profile }];
+              // Sort to ensure correct order
+              return newMessages.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
             });
           })
           .subscribe();
@@ -99,6 +109,16 @@ const SupportTicketModal: React.FC<SupportTicketModalProps> = ({ isOpen, onClose
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (emojiPickerRef.current && !emojiPickerRef.current.contains(event.target as Node)) {
+        setShowEmojiPicker(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const scrollToBottom = () => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -115,19 +135,36 @@ const SupportTicketModal: React.FC<SupportTicketModalProps> = ({ isOpen, onClose
 
   const fetchMessages = async () => {
     if (!ticket?.id) return;
-    const { data, error } = await supabase
-      .from('support_ticket_messages')
-      .select(`
-        *,
-        user:profiles(full_name, avatar_url, email)
-      `)
-      .eq('ticket_id', ticket.id)
-      .order('created_at', { ascending: true });
-    
-    if (error) {
+    try {
+      const { data: messagesData, error: messagesError } = await supabase
+        .from('support_ticket_messages')
+        .select('*')
+        .eq('ticket_id', ticket.id)
+        .order('created_at', { ascending: true });
+      
+      if (messagesError) throw messagesError;
+
+      if (messagesData && messagesData.length > 0) {
+        const userIds = [...new Set(messagesData.map(m => m.user_id))];
+        const { data: profilesData, error: profilesError } = await supabase
+          .from('profiles')
+          .select('id, full_name, avatar_url, email')
+          .in('id', userIds);
+        
+        if (profilesError) console.error('Error fetching profiles:', profilesError);
+
+        const messagesWithProfiles = messagesData.map(msg => ({
+          ...msg,
+          user: profilesData?.find(p => p.id === msg.user_id)
+        }));
+
+        setMessages(messagesWithProfiles);
+      } else {
+        setMessages([]);
+      }
+    } catch (error: any) {
       console.error('Error fetching messages:', error);
-    } else {
-      setMessages(data || []);
+      toast.error('Erro ao buscar mensagens: ' + error.message);
     }
   };
 
@@ -266,24 +303,19 @@ const SupportTicketModal: React.FC<SupportTicketModalProps> = ({ isOpen, onClose
 
       // Manually update local state for immediate feedback
       const localMsg = {
-        id: Math.random().toString(36).substr(2, 9),
+        id: `temp-${Math.random().toString(36).substr(2, 9)}`,
         ticket_id: ticket.id,
         user_id: user.id,
         message: newMessage.trim(),
         created_at: new Date().toISOString(),
+        isOptimistic: true,
         user: {
           full_name: user.name,
           avatar_url: user.avatar_url,
           email: user.email
         }
       };
-      setMessages(prev => {
-        // Avoid duplicate if real-time already fired
-        if (prev.some(m => m.message === localMsg.message && Math.abs(new Date(m.created_at).getTime() - new Date(localMsg.created_at).getTime()) < 1000)) {
-          return prev;
-        }
-        return [...prev, localMsg];
-      });
+      setMessages(prev => [...prev, localMsg]);
 
       // Notify the other party
       const isSuperAdmin = user.is_super_admin;
@@ -321,6 +353,10 @@ const SupportTicketModal: React.FC<SupportTicketModalProps> = ({ isOpen, onClose
     } finally {
       setSendingMessage(false);
     }
+  };
+
+  const onEmojiClick = (emojiData: any) => {
+    setNewMessage(prev => prev + emojiData.emoji);
   };
 
   if (!isOpen) return null;
@@ -519,9 +555,11 @@ const SupportTicketModal: React.FC<SupportTicketModalProps> = ({ isOpen, onClose
               </div>
 
               {/* Messages Container */}
-              <div className="flex-1 overflow-y-auto custom-scrollbar p-6 space-y-6">
+              <div className="flex-1 overflow-y-auto custom-scrollbar flex flex-col relative">
+                <div className="flex-1" /> {/* Spacer to push messages to bottom */}
+                <div className="p-6 space-y-6">
                 {messages.length === 0 ? (
-                  <div className="h-full flex flex-col items-center justify-center text-center p-8">
+                  <div className="flex flex-col items-center justify-center text-center p-8 mt-auto">
                     <div className="w-16 h-16 rounded-3xl bg-primary/10 flex items-center justify-center mb-4 border border-primary/20 rotate-12 transition-transform hover:rotate-0 duration-500">
                       <Sparkles className="w-8 h-8 text-primary/60" />
                     </div>
@@ -564,11 +602,25 @@ const SupportTicketModal: React.FC<SupportTicketModalProps> = ({ isOpen, onClose
                     );
                   })
                 )}
-                <div ref={chatEndRef} />
+                  <div ref={chatEndRef} />
+                </div>
               </div>
 
               {/* Chat Input Dock */}
-              <div className="p-4 bg-black/40 border-t border-white/5 backdrop-blur-md">
+              <div className="p-4 bg-black/40 border-t border-white/5 backdrop-blur-md relative">
+                {showEmojiPicker && (
+                  <div ref={emojiPickerRef} className="absolute bottom-full right-4 mb-4 z-[100] animate-in slide-in-from-bottom-2 duration-200">
+                    <EmojiPicker
+                      onEmojiClick={onEmojiClick}
+                      theme={Theme.DARK}
+                      lazyLoadEmojis={true}
+                      skinTonesDisabled={true}
+                      searchDisabled={false}
+                      width={320}
+                      height={400}
+                    />
+                  </div>
+                )}
                 <form onSubmit={handleSendMessage} className="relative group/input">
                   <div className="absolute inset-0 bg-primary/5 rounded-2xl blur-xl opacity-0 group-focus-within/input:opacity-100 transition-opacity duration-500" />
                   <textarea
@@ -576,7 +628,7 @@ const SupportTicketModal: React.FC<SupportTicketModalProps> = ({ isOpen, onClose
                     onChange={(e) => setNewMessage(e.target.value)}
                     placeholder="Escreva sua mensagem aqui..."
                     rows={2}
-                    className="relative w-full bg-white/[0.03] hover:bg-white/[0.05] border border-white/10 rounded-2xl pl-4 pr-14 py-4 text-white/90 focus:bg-white/[0.07] focus:border-primary/40 focus:ring-0 outline-none transition-all duration-300 text-sm font-light placeholder-gray-600 resize-none shadow-2xl"
+                    className="relative w-full bg-white/[0.03] hover:bg-white/[0.05] border border-white/10 rounded-2xl pl-4 pr-24 py-4 text-white/90 focus:bg-white/[0.07] focus:border-primary/40 focus:ring-0 outline-none transition-all duration-300 text-sm font-light placeholder-gray-600 resize-none shadow-2xl"
                     onKeyDown={(e) => {
                       if (e.key === 'Enter' && !e.shiftKey) {
                         e.preventDefault();
@@ -584,13 +636,26 @@ const SupportTicketModal: React.FC<SupportTicketModalProps> = ({ isOpen, onClose
                       }
                     }}
                   />
-                  <button
-                    type="submit"
-                    disabled={sendingMessage || !newMessage.trim()}
-                    className="absolute bottom-3.5 right-3.5 w-10 h-10 flex items-center justify-center bg-primary text-white rounded-xl hover:bg-secondary hover:scale-105 active:scale-95 transition-all disabled:opacity-30 disabled:cursor-not-allowed shadow-xl shadow-primary/30 z-10"
-                  >
-                    {sendingMessage ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
-                  </button>
+                  <div className="absolute bottom-3.5 right-3.5 flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                      className={`w-10 h-10 flex items-center justify-center rounded-xl transition-all ${
+                        showEmojiPicker 
+                        ? 'bg-primary/20 text-primary border border-primary/20' 
+                        : 'text-gray-500 hover:text-white hover:bg-white/5'
+                      }`}
+                    >
+                      <Smile size={18} />
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={sendingMessage || !newMessage.trim()}
+                      className="w-10 h-10 flex items-center justify-center bg-primary text-white rounded-xl hover:bg-secondary hover:scale-105 active:scale-95 transition-all disabled:opacity-30 disabled:cursor-not-allowed shadow-xl shadow-primary/30 z-10"
+                    >
+                      {sendingMessage ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
+                    </button>
+                  </div>
                 </form>
               </div>
             </div>
