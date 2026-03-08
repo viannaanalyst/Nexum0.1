@@ -74,6 +74,14 @@ const GlobalFAB = () => {
                 color: 'from-accent to-primary',
                 isMenu: false
             });
+        } else if (path.includes('suporte')) {
+            setConfig({
+                icon: <Plus />,
+                label: 'Novo Chamado',
+                action: () => window.dispatchEvent(new CustomEvent('open-support-ticket')),
+                color: 'from-primary to-accent',
+                isMenu: false
+            });
         } else if (path.includes('lancamentos')) {
             setConfig({
                 icon: <DollarSign />,
@@ -134,8 +142,8 @@ const GlobalFAB = () => {
                             />
                         </>
                     ) : (
-                        <>
-                            <QuickAction icon={<MessageSquare size={20} />} label="Suporte" color="bg-white/10" />
+                         <>
+                            <QuickAction icon={<MessageSquare size={20} />} label="Suporte" color="bg-white/10" onClick={() => handleAction('open-support-ticket')} />
                             <QuickAction icon={<Zap size={20} />} label="Automação" color="bg-white/10" />
                         </>
                     )}

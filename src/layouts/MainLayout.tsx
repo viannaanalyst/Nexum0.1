@@ -378,8 +378,14 @@ const MainLayout = () => {
                     </div>
 
                     <div className="p-4 border-t border-white/10 bg-white/[0.01] relative z-10">
-                      <button className="w-full py-2.5 rounded-xl bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 text-xs font-medium transition-all">
-                        Falar com Suporte
+                      <button 
+                        onClick={() => {
+                          navigate('/suporte');
+                          setHelpPopoverOpen(false);
+                        }}
+                        className="w-full py-2.5 rounded-xl bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 text-xs font-medium transition-all"
+                      >
+                        Ir para Suporte
                       </button>
                     </div>
                   </div>
@@ -536,6 +542,7 @@ const MainLayout = () => {
 
               <NavItem to="/relatorios" icon={<IconBrandOpenai />} label="Nexum intelligence" expanded={sidebarOpen} />
               <NavItem to="/calendario" icon={<IconCalendar />} label="Calendário" expanded={sidebarOpen} />
+              <NavItem to="/suporte" icon={<IconHelpCircle />} label="Suporte" expanded={sidebarOpen} />
 
               {/* Financeiro with Submenu */}
               <div className="relative">

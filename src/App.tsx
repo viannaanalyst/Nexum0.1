@@ -22,6 +22,7 @@ import OrganizadorKanban from './pages/Organizador/Kanban';
 import OrganizadorLista from './pages/Organizador/Lista';
 import OrganizadorAtividades from './pages/Organizador/Atividades';
 import OrganizadorCronograma from './pages/Organizador/Cronograma';
+import Suporte from './pages/Suporte';
 
 // Component to protect routes based on authentication and roles
 const ProtectedRoute = ({ children, allowedRoles }: { children: React.ReactNode, allowedRoles?: string[] }) => {
@@ -120,6 +121,7 @@ function App() {
                 {/* Other Sidebar Routes */}
                 <Route path="relatorios" element={<div className="text-white p-8">Nexum Intelligence (Em construção)</div>} />
                 <Route path="calendario" element={<Calendario />} />
+                <Route path="suporte" element={<Suporte />} />
 
                 {/* Financeiro Sub-routes */}
                 <Route path="financeiro" element={<Navigate to="/financeiro/visao-geral" replace />} />

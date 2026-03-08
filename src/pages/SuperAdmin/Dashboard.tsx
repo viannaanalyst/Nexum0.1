@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
-import { Plus, Building2, ExternalLink, LogOut } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Plus, Building2, ExternalLink, LogOut, Loader2, Bug, Lightbulb, Link as LinkIcon, Image as ImageIcon, CheckCircle2, AlertCircle, Clock, User as UserIcon, Building2 as CompanyIcon, ChevronRight } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useCompany, type Company } from '../../context/CompanyContext';
 import { useNavigate } from 'react-router-dom';
 import { IMaskInput } from 'react-imask';
+import { supabase } from '../../lib/supabase';
 
 const SuperAdminDashboard = () => {
   const { user, logout } = useAuth();
@@ -15,6 +16,46 @@ const SuperAdminDashboard = () => {
     cnpj: '',
     whatsapp: '',
   });
+  const [activeTab, setActiveTab] = useState<'companies' | 'tickets'>('companies');
+  const [tickets, setTickets] = useState<any[]>([]);
+  const [loadingTickets, setLoadingTickets] = useState(false);
+
+  const fetchTickets = async () => {
+    setLoadingTickets(true);
+    try {
+      const { data, error } = await supabase
+        .from('support_tickets')
+        .select('*')
+        .order('created_at', { ascending: false });
+      
+      if (error) throw error;
+      setTickets(data || []);
+    } catch (error) {
+      console.error('Error fetching tickets:', error);
+    } finally {
+      setLoadingTickets(false);
+    }
+  };
+
+  React.useEffect(() => {
+    if (activeTab === 'tickets') {
+      fetchTickets();
+    }
+  }, [activeTab]);
+
+  const handleUpdateTicketStatus = async (ticketId: string, status: string) => {
+    try {
+      const { error } = await supabase
+        .from('support_tickets')
+        .update({ status })
+        .eq('id', ticketId);
+      
+      if (error) throw error;
+      setTickets(tickets.map(t => t.id === ticketId ? { ...t, status } : t));
+    } catch (error) {
+      console.error('Error updating ticket status:', error);
+    }
+  };
 
   const handleCreateCompany = (e: React.FormEvent) => {
     e.preventDefault();
@@ -59,49 +100,169 @@ const SuperAdminDashboard = () => {
           </div>
         </header>
 
-        <div className="flex justify-end mb-8">
-          <button
-            onClick={() => setIsModalOpen(true)}
-            className="flex items-center space-x-2 bg-primary hover:bg-secondary text-white px-6 py-3 rounded-lg shadow-lg shadow-primary/20 transition-all duration-300 transform hover:scale-105"
-          >
-            <Plus size={20} />
-            <span>Nova Empresa</span>
-          </button>
+        <div className="flex items-center justify-between mb-8">
+          <div className="flex bg-white/5 p-1 rounded-xl border border-white/10">
+            <button
+              onClick={() => setActiveTab('companies')}
+              className={`px-6 py-2 rounded-lg text-sm font-medium transition-all ${
+                activeTab === 'companies' ? 'bg-primary text-white shadow-lg' : 'text-gray-400 hover:text-white'
+              }`}
+            >
+              Empresas
+            </button>
+            <button
+              onClick={() => setActiveTab('tickets')}
+              className={`px-6 py-2 rounded-lg text-sm font-medium transition-all ${
+                activeTab === 'tickets' ? 'bg-primary text-white shadow-lg' : 'text-gray-400 hover:text-white'
+              }`}
+            >
+              Chamados de Suporte
+            </button>
+          </div>
+
+          {activeTab === 'companies' && (
+            <button
+              onClick={() => setIsModalOpen(true)}
+              className="flex items-center space-x-2 bg-primary hover:bg-secondary text-white px-6 py-3 rounded-lg shadow-lg shadow-primary/20 transition-all duration-300 transform hover:scale-105"
+            >
+              <Plus size={20} />
+              <span>Nova Empresa</span>
+            </button>
+          )}
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-          {companies.map((company) => (
-            <div key={company.id} className="glass-card p-6 rounded-2xl border border-white/10 hover:border-primary/50 transition-all duration-300 group">
-              <div className="flex items-start justify-between mb-6">
-                <div className="p-3 bg-primary/10 rounded-xl">
-                  <Building2 className="w-8 h-8 text-primary group-hover:scale-110 transition-transform duration-300" />
+        {activeTab === 'companies' ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            {companies.map((company) => (
+              <div key={company.id} className="glass-card p-6 rounded-2xl border border-white/10 hover:border-primary/50 transition-all duration-300 group">
+                <div className="flex items-start justify-between mb-6">
+                  <div className="p-3 bg-primary/10 rounded-xl">
+                    <CompanyIcon className="w-8 h-8 text-primary group-hover:scale-110 transition-transform duration-300" />
+                  </div>
+                  <span className={`px-3 py-1 rounded-full text-xs font-medium border ${company.status === 'active'
+                    ? 'bg-green-500/10 text-green-400 border-green-500/20'
+                    : 'bg-red-500/10 text-red-400 border-red-500/20'
+                    }`}>
+                    {company.status === 'active' ? 'Ativo' : 'Inativo'}
+                  </span>
                 </div>
-                <span className={`px-3 py-1 rounded-full text-xs font-medium border ${company.status === 'active'
-                  ? 'bg-green-500/10 text-green-400 border-green-500/20'
-                  : 'bg-red-500/10 text-red-400 border-red-500/20'
-                  }`}>
-                  {company.status === 'active' ? 'Ativo' : 'Inativo'}
-                </span>
-              </div>
 
-              <h3 className="text-xl font-bold text-white mb-2">{company.name}</h3>
-              <div className="space-y-2 mb-6">
-                <p className="text-sm text-gray-400 flex items-center">
-                  <span className="w-20">CNPJ:</span>
-                  <span className="text-gray-300">{company.cnpj}</span>
-                </p>
-              </div>
+                <h3 className="text-xl font-bold text-white mb-2">{company.name}</h3>
+                <div className="space-y-2 mb-6">
+                  <p className="text-sm text-gray-400 flex items-center">
+                    <span className="w-20">CNPJ:</span>
+                    <span className="text-gray-300">{company.cnpj}</span>
+                  </p>
+                </div>
 
-              <button
-                onClick={() => handleAccessPanel(company.id)}
-                className="w-full flex items-center justify-center space-x-2 bg-white/5 hover:bg-white/10 text-white py-3 rounded-lg border border-white/10 transition-all duration-300 group-hover:border-primary/30"
-              >
-                <span>Acessar Painel</span>
-                <ExternalLink size={16} />
-              </button>
-            </div>
-          ))}
-        </div>
+                <button
+                  onClick={() => handleAccessPanel(company.id)}
+                  className="w-full flex items-center justify-center space-x-2 bg-white/5 hover:bg-white/10 text-white py-3 rounded-lg border border-white/10 transition-all duration-300 group-hover:border-primary/30"
+                >
+                  <span>Acessar Painel</span>
+                  <ExternalLink size={16} />
+                </button>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="space-y-6">
+            {loadingTickets ? (
+              <div className="text-center py-20">
+                <Loader2 className="w-10 h-10 text-primary animate-spin mx-auto mb-4" />
+                <p className="text-gray-400">Carregando chamados...</p>
+              </div>
+            ) : tickets.length > 0 ? (
+              tickets.map((ticket) => (
+                <div key={ticket.id} className="glass-card p-6 rounded-2xl border border-white/10 hover:border-white/20 transition-all">
+                  <div className="flex flex-col md:flex-row gap-6">
+                    {/* Ticket Header & Status */}
+                    <div className="md:w-64 shrink-0">
+                      <div className="flex items-center gap-2 mb-4">
+                        {ticket.type === 'bug' ? (
+                          <div className="p-2 bg-red-500/10 text-red-500 rounded-lg border border-red-500/20">
+                            <Bug size={18} />
+                          </div>
+                        ) : (
+                          <div className="p-2 bg-primary/10 text-primary rounded-lg border border-primary/20">
+                            <Lightbulb size={18} />
+                          </div>
+                        )}
+                        <div>
+                          <p className={`text-[10px] font-bold uppercase tracking-wider ${ticket.type === 'bug' ? 'text-red-500' : 'text-primary'}`}>
+                            {ticket.type}
+                          </p>
+                          <p className="text-xs text-gray-500">{new Date(ticket.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</p>
+                        </div>
+                      </div>
+
+                      <div className="space-y-3">
+                        <div className="flex items-center gap-2 text-sm">
+                          <UserIcon size={14} className="text-gray-500" />
+                          <span className="text-gray-300">{ticket.user_name || 'Usuário'}</span>
+                        </div>
+                        <div className="flex items-center gap-2 text-sm">
+                          <CompanyIcon size={14} className="text-gray-500" />
+                          <span className="text-gray-300">{ticket.company_name || 'Empresa'}</span>
+                        </div>
+                        <div className="flex items-center gap-2 text-sm truncate">
+                          <LinkIcon size={14} className="text-gray-500 shrink-0" />
+                          <a href={ticket.page_url} target="_blank" rel="noreferrer" className="text-primary hover:underline truncate">Ver página</a>
+                        </div>
+                      </div>
+
+                      <div className="mt-6 space-y-2">
+                        <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest ml-1">Status</p>
+                        <select
+                          value={ticket.status}
+                          onChange={(e) => handleUpdateTicketStatus(ticket.id, e.target.value)}
+                          className="w-full bg-white/5 border border-white/10 rounded-lg p-2 text-xs text-white focus:outline-none focus:border-primary"
+                        >
+                          <option value="open">Aberto</option>
+                          <option value="in_progress">Em Progresso</option>
+                          <option value="resolved">Resolvido</option>
+                          <option value="closed">Fechado</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    {/* Ticket Content */}
+                    <div className="flex-1 space-y-4">
+                      {ticket.title && (
+                        <h4 className="text-lg font-bold text-white tracking-tight">{ticket.title}</h4>
+                      )}
+                      
+                      <div className="bg-white/5 rounded-xl p-5 border border-white/5">
+                        <p className="text-white text-sm leading-relaxed whitespace-pre-wrap">{ticket.description}</p>
+                      </div>
+
+                      {ticket.screenshot_url && (
+                        <div>
+                          <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest ml-1 mb-2">Screenshot</p>
+                          <a href={ticket.screenshot_url} target="_blank" rel="noreferrer" className="block relative group overflow-hidden rounded-xl border border-white/10 max-w-md hover:border-primary/50 transition-all">
+                            <img src={ticket.screenshot_url} alt="Screenshot" className="w-full h-auto" />
+                            <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                              <span className="bg-primary px-4 py-2 rounded-lg text-white text-xs font-bold flex items-center gap-2">
+                                <ImageIcon size={14} />
+                                Ver imagem completa
+                              </span>
+                            </div>
+                          </a>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="text-center py-20 bg-white/5 rounded-2xl border border-dashed border-white/10">
+                <CheckCircle2 className="w-12 h-12 text-gray-700 mx-auto mb-4" />
+                <h4 className="text-gray-400 font-medium tracking-wide">Nenhum chamado pendente</h4>
+                <p className="text-xs text-gray-600 mt-1">Tudo em ordem por aqui!</p>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Modal Nova Empresa */}
