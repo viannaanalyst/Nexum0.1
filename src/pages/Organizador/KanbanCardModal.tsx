@@ -329,7 +329,7 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onRefresh
                 if (sortedCols.length > 0) {
                     const isPropValid = columnId && sortedCols.some(c => c.id === columnId);
                     const isCurrentValid = currentColumnId && sortedCols.some(c => c.id === currentColumnId);
-                    
+
                     if (cardId === 'new' && isPropValid) {
                         if (!currentColumnId || currentColumnId === columnId || !isCurrentValid) {
                             setCurrentColumnId(columnId as string);
@@ -1029,7 +1029,7 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onRefresh
                         </div>
                     </div>
 
-                    {/* AcÃµes */}
+                    {/* Ações */}
                     <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                         <button onClick={() => {
                             if (userRole === 'visualizador') return;
@@ -1160,7 +1160,7 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onRefresh
                             ) : (
                                 <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-amber-500/10 text-amber-400 text-[10px] font-bold border border-amber-500/20">
                                     <Lock size={10} />
-                                    AGUARDANDO APROVAÃ‡ÃƒO
+                                    AGUARDANDO APROVA\u00C7\u00C3O
                                 </span>
                             )}
                         </div>
@@ -1294,7 +1294,7 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onRefresh
         if (!subtaskTitle.trim() || !selectedCompany) return;
 
         if (cardId === 'new') {
-            toast.warning('Salve a tarefa principal antes de criar subtarefas.', 'Atencao');
+            toast.warning('Salve a tarefa principal antes de criar subtarefas.', 'Atenção');
             return;
         }
 
@@ -1337,7 +1337,7 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onRefresh
     const handleConvertChecklistToSubtask = async (itemId: string, description: string) => {
         if (!selectedCompany) return;
         if (cardId === 'new') {
-            toast.warning('Salve a tarefa principal antes de converter itens em subtarefas.', 'Atencao');
+            toast.warning('Salve a tarefa principal antes de converter itens em subtarefas.', 'Atenção');
             return;
         }
 
@@ -2078,10 +2078,10 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onRefresh
                     <div className="absolute top-[-50px] left-1/2 -translate-x-1/2 w-[80%] h-[100px] bg-primary/30 blur-[80px] pointer-events-none rounded-[100%] z-0"></div>
                     <div className="absolute top-0 left-1/2 -translate-x-1/2 w-1/3 h-[1px] bg-gradient-to-r from-transparent via-primary/50 to-transparent shadow-[0_0_20px_2px_rgba(99,102,241,0.4)] z-0"></div>
 
-                    {/* ================= ESQUERDA: CONTEÃšDO PRINCIPAL (70%) ================= */}
+                    {/* ================= ESQUERDA: CONTEÚDO PRINCIPAL (70%) ================= */}
                     <div className="flex-1 flex flex-col border-r border-white/5 overflow-hidden relative z-20 bg-transparent">
 
-                        {/* AcÃµes de Topo (Flutuantes) */}
+                        {/* Ações de Topo (Flutuantes) */}
                         <div className="absolute top-6 right-6 z-[60] flex gap-2">
                             {showSubtasksOnly || showChecklistOnly ? (
                                 <button onClick={onClose} className="p-2 hover:bg-white/5 rounded-lg text-gray-500 hover:text-white transition-colors">
@@ -2095,7 +2095,7 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onRefresh
                                             disabled={saving}
                                             className="bg-primary hover:bg-primary/80 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 shadow-lg shadow-primary/20"
                                         >
-                                            {saving ? 'Salvando...' : 'Salvar AlteracÃµes'}
+                                            {saving ? 'Salvando...' : 'Salvar Altera\u00E7\u00F5es'}
                                         </button>
                                     )}
                                     <button onClick={onClose} className="p-2 hover:bg-white/5 rounded-lg text-gray-500 hover:text-white transition-colors">
@@ -2117,7 +2117,7 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onRefresh
                                             <div className="p-1 rounded bg-white/5 group-hover:bg-primary/10 transition-colors">
                                                 <ChevronUp size={14} className="-rotate-90" />
                                             </div>
-                                            Voltar Ã  tarefa
+                                            Voltar \u00E0 tarefa
                                         </button>
                                         <div className="flex items-center justify-between">
                                             <div className="flex items-center gap-4">
@@ -2251,11 +2251,11 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onRefresh
                                             <div className="p-1 rounded bg-white/5 group-hover:bg-primary/10 transition-colors">
                                                 <ChevronUp size={14} className="-rotate-90" />
                                             </div>
-                                            Voltar Ã  tarefa
+                                            Voltar \u00E0 tarefa
                                         </button>
                                         <div className="flex items-center justify-between">
                                             <div className="flex items-center gap-4">
-                                                <h2 className="text-3xl font-bold text-white tracking-tight">Descricao</h2>
+                                                <h2 className="text-3xl font-bold text-white tracking-tight">Descri\u00E7\u00E3o</h2>
                                             </div>
                                         </div>
                                     </div>
@@ -2273,8 +2273,8 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onRefresh
                                 </div>
                             ) : (
                                 <>
-                                    {/* Cabecalho (Agora parte do fluxo) */}
-                                    <div className="pr-32"> {/* Padding right para nao sobrepor botÃµes */}
+                                    {/* Cabe\u00E7alho (Agora parte do fluxo) */}
+                                    <div className="pr-32"> {/* Padding right para nao sobrepor bot\u00F5es */}
                                         {/* Breadcrumbs / ID */}
                                         <div className="flex items-center gap-3 mb-3">
                                             <span className="text-[10px] bg-white/[0.05] border border-white/5 text-gray-400 px-2 py-0.5 rounded-full font-mono tracking-wider">
@@ -2294,7 +2294,7 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onRefresh
                                             className="text-4xl font-bold text-white bg-transparent border-none focus:outline-none w-full placeholder:text-gray-600/50 leading-tight tracking-tight"
                                             value={title}
                                             onChange={e => setTitle(e.target.value)}
-                                            placeholder="Titulo da Tarefa"
+                                            placeholder="Título da Tarefa"
                                             disabled={userRole === 'visualizador'}
                                         />
                                     </div>
@@ -2371,7 +2371,7 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onRefresh
                                                     {/* Data Inicio */}
                                                     <div className="relative flex items-center gap-1 hover:bg-white/5 px-1.5 py-1 rounded cursor-pointer transition-colors group/start">
                                                         <span className={`text-sm ${startDate ? 'text-gray-300' : 'text-[#6e6e6e]'}`}>
-                                                            {startDate ? new Date(startDate + 'T12:00:00').toLocaleDateString('pt-BR').slice(0, 5) : 'Inicio'}
+                                                            {startDate ? new Date(startDate + 'T12:00:00').toLocaleDateString('pt-BR').slice(0, 5) : 'Início'}
                                                         </span>
                                                         <input
                                                             ref={startDatePickerRef}
@@ -2384,7 +2384,7 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onRefresh
                                                         />
                                                     </div>
 
-                                                    <span className="text-gray-700">â†’</span>
+                                                    <span className="text-gray-700">{'\u2192'}</span>
 
                                                     {/* Data Prevista */}
                                                     <div className="relative flex items-center gap-1 hover:bg-white/5 px-1.5 py-1 rounded cursor-pointer transition-colors group/due">
@@ -2802,13 +2802,13 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onRefresh
                                                 onClick={() => setIsEditingDescription(true)}
                                                 className="flex items-center gap-2 px-3 py-2 rounded-xl text-white hover:bg-white/5 transition-all group/btn"
                                             >
-                                                <span className="text-base font-medium">Adicionar descricao</span>
+                                                <span className="text-base font-medium">Adicionar descrição</span>
                                             </button>
                                         ) : (
                                             <>
                                                 <div className="flex items-center justify-between text-white pr-2">
                                                     <div className="flex items-center gap-2">
-                                                        <h3 className="text-base font-semibold tracking-tight text-[#EEEEEE]">Descricao</h3>
+                                                        <h3 className="text-base font-semibold tracking-tight text-[#EEEEEE]">Descrição</h3>
                                                     </div>
                                                     <div className="flex items-center gap-2">
                                                         {description && (
