@@ -1836,7 +1836,7 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onRefresh
                 subcategory,
                 client_id: clientId || null, // New: Save Client ID
                 company_id: selectedCompany.id,
-                column_id: currentColumnId || columnId, // Always include the current/selected column
+                column_id: currentColumnId || columnId || columns[0]?.id, // Always include the current/selected column
                 ...(cardId === 'new' ? { position: 9999 } : {})
             };
 

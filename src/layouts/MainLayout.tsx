@@ -43,6 +43,8 @@ import type { UserSettingsTab } from '../components/UserSettingsModal';
 import NotificationsHistoryModal from '../components/NotificationsHistoryModal';
 import { useUI } from '../context/UIContext';
 import GlobalFAB from '../components/GlobalFAB';
+import CommandPalette from '../components/CommandPalette';
+import KanbanCardModal from '../pages/Organizador/KanbanCardModal';
 
 const MainLayout = () => {
   const { user, logout, refreshUser } = useAuth();
@@ -65,6 +67,7 @@ const MainLayout = () => {
   const [flyoutMenu, setFlyoutMenu] = useState<string | null>(null);
   const [flyoutY, setFlyoutY] = useState(0);
   const [helpPopoverOpen, setHelpPopoverOpen] = useState(false);
+  const [globalNewTaskOpen, setGlobalNewTaskOpen] = useState(false);
 
   // Real notifications from database
   const [notifications, setNotifications] = useState<any[]>([]);
@@ -117,6 +120,12 @@ const MainLayout = () => {
       };
     }
   }, [user]);
+
+  useEffect(() => {
+    const handleOpenNewTask = () => setGlobalNewTaskOpen(true);
+    window.addEventListener('open-new-task', handleOpenNewTask);
+    return () => window.removeEventListener('open-new-task', handleOpenNewTask);
+  }, []);
 
   const unreadCount = notifications.filter(n => n.unread).length;
   const hasUnread = unreadCount > 0;
@@ -217,18 +226,22 @@ const MainLayout = () => {
 
           <div className="flex items-center space-x-4">
             {/* Search Bar - Moved to the right */}
-            <div className="relative hidden md:block">
-              <IconSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 w-3.5 h-3.5" />
+            <button 
+              onClick={() => window.dispatchEvent(new CustomEvent('open-command-palette'))}
+              className="relative hidden md:block text-left"
+            >
+              <IconSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 w-3.5 h-3.5 pointer-events-none" />
               <input
                 type="text"
                 placeholder="Pesquisar..."
-                className="bg-white/[0.03] border border-white/10 rounded-full py-1.5 pl-9 pr-14 text-[11px] text-white focus:outline-none focus:ring-1 focus:ring-primary/50 w-36 placeholder-gray-600 transition-all focus:w-48 hover:bg-white/5"
+                readOnly
+                className="bg-white/[0.03] border border-white/10 rounded-full py-1.5 pl-9 pr-14 text-[11px] text-white focus:outline-none focus:ring-1 focus:ring-primary/50 w-36 placeholder-gray-600 transition-all hover:bg-white/5 cursor-pointer hover:w-48"
               />
               <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center space-x-1 px-1.5 py-0.5 rounded border border-white/20 bg-white/10 pointer-events-none">
                 <span className="text-[8px] font-black text-gray-400 uppercase tracking-tight">Ctrl</span>
                 <span className="text-[9px] font-black text-white">K</span>
               </div>
-            </div>
+            </button>
 
             {/* Notifications Button */}
             <div className="relative">
@@ -632,7 +645,6 @@ const MainLayout = () => {
                     <SubNavItem to="/configuracao/clientes" icon={<IconUsers size={16} />} label="Gestão de Clientes" />
                     <SubNavItem to="/configuracao/ia-automacao" icon={<IconCpu size={16} />} label="IA e Automação" />
                     <SubNavItem to="/configuracao/equipe" icon={<IconUserCheck size={16} />} label="Equipe" />
-                    <SubNavItem to="/configuracao/kanban" icon={<IconColumns size={16} />} label="Kanban" />
                   </div>
                 </div>
 
@@ -647,7 +659,6 @@ const MainLayout = () => {
                       <SubNavItem to="/configuracao/clientes" icon={<IconUsers size={16} />} label="Gestão de clientes" />
                       <SubNavItem to="/configuracao/ia-automacao" icon={<IconCpu size={16} />} label="IA e automação" />
                       <SubNavItem to="/configuracao/equipe" icon={<IconUserCheck size={16} />} label="Equipe" />
-                      <SubNavItem to="/configuracao/kanban" icon={<IconColumns size={16} />} label="Configuração de kanban" />
                     </div>
                   </>
                 )}
@@ -693,6 +704,17 @@ const MainLayout = () => {
           <span className="absolute right-full mr-3 bg-[#161635]/95 text-white text-xs px-3 py-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap border border-white/10">Restaurar layout</span>
         </button>
       )}
+      {/* Command Palette */}
+      <CommandPalette />
+
+      {/* Global Task Creation Modal */}
+      {globalNewTaskOpen && (
+        <KanbanCardModal
+          cardId="new"
+          onClose={() => setGlobalNewTaskOpen(false)}
+        />
+      )}
+      
       {/* Floating Action Button */}
       <GlobalFAB />
     </div>

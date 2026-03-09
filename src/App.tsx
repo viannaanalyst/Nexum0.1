@@ -9,7 +9,6 @@ import EmpresaConfig from './pages/Configuracao/Empresa';
 import EquipeConfig from './pages/Configuracao/Equipe';
 import RegrasFinanceiras from './pages/Configuracao/RegrasFinanceiras';
 import Clientes from './pages/Configuracao/Clientes';
-import KanbanConfig from './pages/Configuracao/Kanban';
 import Atividades from './pages/Atividades';
 import SuperAdminDashboard from './pages/SuperAdmin/Dashboard';
 import TrocarSenha from './pages/TrocarSenha';
@@ -109,7 +108,6 @@ function App() {
                 <Route path="configuracao/clientes" element={<Clientes />} />
                 <Route path="configuracao/ia-automacao" element={<div className="text-white p-8">IA e Automação (Em construção)</div>} />
                 <Route path="configuracao/equipe" element={<EquipeConfig />} />
-                <Route path="configuracao/kanban" element={<KanbanConfig />} />
 
                 {/* Organizador Sub-routes */}
                 <Route path="organizador" element={<Navigate to="/organizador/kanban" replace />} />

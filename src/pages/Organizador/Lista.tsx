@@ -25,6 +25,7 @@ interface Column {
   color: string;
   is_done_column: boolean;
   position: number;
+  client_id: string | null;
 }
 
 interface Tag {
@@ -52,6 +53,7 @@ interface Card {
   assigned_to?: string;
   client_id?: string;
   position: number;
+  parent_id?: string | null;
   tags?: Tag[];
   checklist?: ChecklistItem[]; // Injected for list view
 }
@@ -244,17 +246,35 @@ const OrganizadorLista = () => {
 
   // Filter Logic
   const filteredColumns = useMemo(() => {
-    return columns.map(col => {
+    return columns
+      .filter(col => {
+         if (selectedClientIdFilter && selectedClientIdFilter !== 'all') {
+             return col.client_id === selectedClientIdFilter || col.client_id === null;
+         }
+         return col.client_id === null;
+      })
+      .map(col => {
       const colCards = cards.filter(c => {
         const matchesCol = c.column_id === col.id;
         const matchesSearch = c.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
           (c.client_id && clientsMap[c.client_id]?.toLowerCase().includes(searchTerm.toLowerCase()));
-        const matchesClient = !selectedClientIdFilter || c.client_id === selectedClientIdFilter;
+        
+        // Fix: Ensure we correctly filter by selected client. If 'all' was an option it would be here, 
+        // but since we strictly use IDs, we match exactly.
+        let matchesClient = !selectedClientIdFilter || selectedClientIdFilter === 'all' || c.client_id === selectedClientIdFilter;
+
+        // If the card doesn't match directly, check if it's a subtask whose parent matches
+        if (!matchesClient && c.parent_id) {
+          const parent = cards.find(p => p.id === c.parent_id);
+          if (parent && parent.client_id === selectedClientIdFilter) {
+            matchesClient = true;
+          }
+        }
 
         return matchesCol && matchesSearch && matchesClient;
       });
       return { ...col, cards: colCards };
-    }); // We keep all columns, even empty ones, but could filter them out
+    }); // Restored: Keep all columns, even empty ones, as the user wants to see the full pipeline for the client
   }, [columns, cards, searchTerm, clientsMap, selectedClientIdFilter]);
 
   const getPriorityBadge = (priority: string) => {
