@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   DndContext,
   DragOverlay,
@@ -54,6 +54,7 @@ interface Column {
   color: string;
   is_done_column: boolean;
   position: number;
+  client_id: string | null;
 }
 
 interface Tag {
@@ -91,6 +92,12 @@ const OrganizadorKanban = () => {
   const [selectedCardId, setSelectedCardId] = useState<string | { id: string; columnId?: string } | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // Pan (Grab to Scroll) states
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const [isPanning, setIsPanning] = useState(false);
+  const [startX, setStartX] = useState(0);
+  const [scrollLeft, setScrollLeft] = useState(0);
+
   // Client Filter State
   const [clients, setClients] = useState<{ id: string; name: string }[]>([]);
   const [selectedClient, setSelectedClient] = useState<string>('');
@@ -101,6 +108,7 @@ const OrganizadorKanban = () => {
 
   const [newColumnTitle, setNewColumnTitle] = useState('');
   const [isNewColumnModalOpen, setIsNewColumnModalOpen] = useState(false);
+  const [replicationClientIds, setReplicationClientIds] = useState<string[]>([]);
   const [editColumnTitle, setEditColumnTitle] = useState('');
   const [editColumnColor, setEditColumnColor] = useState('#3b82f6');
   const [editingColumn, setEditingColumn] = useState<Column | null>(null);
@@ -161,6 +169,37 @@ const OrganizadorKanban = () => {
     }
   };
 
+  const handleMouseDown = (e: React.MouseEvent) => {
+    // Only pan if clicking on the background container or empty space
+    const target = e.target as HTMLElement;
+    
+    // We check if the target is interactive or a drag handle
+    // Important: we exclude the scroll container itself from this check
+    const isDragHandle = target.closest('.cursor-grab') && target.closest('.cursor-grab') !== scrollContainerRef.current;
+    const isInteractive = target.closest('button, a, input, [role="button"]');
+    
+    if (isDragHandle || isInteractive) return;
+
+    setIsPanning(true);
+    const x = e.pageX - (scrollContainerRef.current?.offsetLeft || 0);
+    setStartX(x);
+    setScrollLeft(scrollContainerRef.current?.scrollLeft || 0);
+  };
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (!isPanning) return;
+    e.preventDefault();
+    const x = e.pageX - (scrollContainerRef.current?.offsetLeft || 0);
+    const walk = (x - startX) * 1.5; // Multiplier for scroll speed
+    if (scrollContainerRef.current) {
+      scrollContainerRef.current.scrollLeft = scrollLeft - walk;
+    }
+  };
+
+  const handleMouseUp = () => {
+    setIsPanning(false);
+  };
+
   const fetchUserPermissions = async () => {
     if (!selectedCompany) return;
     try {
@@ -202,6 +241,15 @@ const OrganizadorKanban = () => {
     };
   }, [columns]);
 
+  // Sync replication client when modal opens
+  useEffect(() => {
+    if (isNewColumnModalOpen && selectedClient) {
+      setReplicationClientIds([selectedClient]);
+    } else if (isNewColumnModalOpen) {
+      setReplicationClientIds([]);
+    }
+  }, [isNewColumnModalOpen, selectedClient]);
+
   const fetchKanbanData = async () => {
     if (!selectedCompany) return;
     setLoading(true);
@@ -234,7 +282,7 @@ const OrganizadorKanban = () => {
         .eq('company_id', selectedCompany.id);
 
       if (currentClient) {
-        colQuery = colQuery.eq('client_id', currentClient);
+        colQuery = colQuery.or(`client_id.eq.${currentClient},client_id.is.null`);
       } else {
         colQuery = colQuery.is('client_id', null);
       }
@@ -254,7 +302,15 @@ const OrganizadorKanban = () => {
       const { data: crds } = await cardQuery.order('position');
 
       if (cols && cols.length > 0) {
-        setColumns(cols);
+        // Sort to ensure global/done columns are last
+        const sortedCols = [...cols].sort((a, b) => {
+          if (a.is_done_column && !b.is_done_column) return 1;
+          if (!a.is_done_column && b.is_done_column) return -1;
+          if (a.client_id === null && b.client_id !== null) return 1;
+          if (a.client_id !== null && b.client_id === null) return -1;
+          return a.position - b.position;
+        });
+        setColumns(sortedCols);
       } else {
         setColumns([]);
       }
@@ -309,15 +365,21 @@ const OrganizadorKanban = () => {
     if (!newColumnTitle.trim() || !selectedCompany) return;
 
     try {
-      const { error } = await supabase.from('kanban_columns').insert({
-        company_id: selectedCompany.id,
-        client_id: selectedClient || null,
-        title: newColumnTitle,
-        position: columns.length,
-        color: 'gray'
-      });
+      // Determine which clients to create the column for
+      // If none selected in replication, use current selectedClient (or null)
+      const targets = replicationClientIds.length > 0 ? replicationClientIds : [selectedClient || null];
 
-      if (error) throw error;
+      for (const clientId of targets) {
+        const { error } = await supabase.from('kanban_columns').insert({
+          company_id: selectedCompany.id,
+          client_id: clientId,
+          title: newColumnTitle,
+          position: columns.length,
+          color: 'gray'
+        });
+
+        if (error) throw error;
+      }
 
       // Audit Log
       const { data: { user } } = await supabase.auth.getUser();
@@ -328,13 +390,18 @@ const OrganizadorKanban = () => {
           action_type: 'create',
           entity_type: 'column',
           entity_id: null,
-          details: { title: newColumnTitle }
+          details: { 
+            title: newColumnTitle,
+            replicated_to: replicationClientIds 
+          }
         });
       }
 
       setNewColumnTitle('');
+      setReplicationClientIds([]);
       setIsNewColumnModalOpen(false);
       fetchKanbanData();
+      toast.success(targets.length > 1 ? `Coluna criada para ${targets.length} clientes` : 'Coluna criada com sucesso');
     } catch (error) {
       console.error('Error creating column:', error);
       toast.error('Erro ao criar coluna');
@@ -345,9 +412,14 @@ const OrganizadorKanban = () => {
     if (!editColumnTitle.trim() || !editingColumn) return;
 
     try {
+      const updateData: any = { color: editColumnColor };
+      if (editingColumn.client_id !== null) {
+        updateData.title = editColumnTitle;
+      }
+
       const { error } = await supabase
         .from('kanban_columns')
-        .update({ title: editColumnTitle, color: editColumnColor })
+        .update(updateData)
         .eq('id', editingColumn.id);
 
       if (error) throw error;
@@ -371,10 +443,19 @@ const OrganizadorKanban = () => {
   };
 
   const handleMoveColumn = async (columnId: string, direction: 'left' | 'right') => {
+    const column = columns.find(c => c.id === columnId);
+    if (!column || column.client_id === null) return;
+
     const idx = columns.findIndex(c => c.id === columnId);
     if (idx < 0) return;
     const swapIdx = direction === 'left' ? idx - 1 : idx + 1;
     if (swapIdx < 0 || swapIdx >= columns.length) return;
+
+    // Block moving a regular column to the right of a global/done column
+    const targetColumn = columns[swapIdx];
+    if (direction === 'right' && (targetColumn.client_id === null || targetColumn.is_done_column)) {
+      return;
+    }
 
     const newColumns = [...columns];
     [newColumns[idx], newColumns[swapIdx]] = [newColumns[swapIdx], newColumns[idx]];
@@ -428,9 +509,28 @@ const OrganizadorKanban = () => {
   };
 
   const handleDeleteCard = async (cardId: string) => {
+    // Buscar contagens de subtarefas e checklists para o aviso
+    let warningMessage = 'Tem certeza que deseja excluir este card? Esta ação não pode ser desfeita.';
+    
+    try {
+      const [subtasksRes, checklistRes] = await Promise.all([
+        supabase.from('kanban_cards').select('id', { count: 'exact', head: true }).eq('parent_id', cardId),
+        supabase.from('kanban_checklists').select('id', { count: 'exact', head: true }).eq('card_id', cardId)
+      ]);
+
+      const subtaskCount = subtasksRes.count || 0;
+      const checklistCount = checklistRes.count || 0;
+
+      if (subtaskCount > 0 || checklistCount > 0) {
+        warningMessage = `Este card possui ${subtaskCount > 0 ? `${subtaskCount} subtarefa(s)` : ''}${subtaskCount > 0 && checklistCount > 0 ? ' e ' : ''}${checklistCount > 0 ? `${checklistCount} item(ns) de checklist` : ''} que também serão excluídos. Esta ação não pode ser desfeita.`;
+      }
+    } catch (error) {
+      console.error('Error fetching card dependencies:', error);
+    }
+
     if (!await confirm(
       'Excluir Card',
-      'Tem certeza que deseja excluir este card? Esta ação não pode ser desfeita.',
+      warningMessage,
       { type: 'danger', confirmText: 'Excluir' }
     )) return;
 
@@ -456,7 +556,7 @@ const OrganizadorKanban = () => {
         });
       }
 
-      setCards(cards.filter(c => c.id !== cardId));
+      setCards(cards.filter(c => c.id !== cardId && c.parent_id !== cardId));
       toast.success('Card excluído');
     } catch (error) {
       console.error('Error deleting card:', error);
@@ -481,6 +581,10 @@ const OrganizadorKanban = () => {
     const overColumn = columns.find(c => c.id === overId);
 
     if (activeColumn && overColumn && activeId !== overId) {
+      // Prevents dragging global columns or dragging any column over a global column (locks last)
+      if (activeColumn.client_id === null || activeColumn.is_done_column) return;
+      if (overColumn.client_id === null || overColumn.is_done_column) return;
+
       const oldIdx = columns.findIndex(c => c.id === activeId);
       const newIdx = columns.findIndex(c => c.id === overId);
       const newColumns = arrayMove(columns, oldIdx, newIdx);
@@ -549,6 +653,7 @@ const OrganizadorKanban = () => {
 
         const updatedItems = items.map(item => {
           if (item.id === activeId) return { ...item, column_id: overColumnId! };
+          if (item.parent_id === activeId) return { ...item, column_id: overColumnId! };
           return item;
         });
 
@@ -567,6 +672,12 @@ const OrganizadorKanban = () => {
       .from('kanban_cards')
       .update({ column_id: overColumnId })
       .eq('id', activeId);
+
+    // Persistir subtasks no Supabase
+    await supabase
+      .from('kanban_cards')
+      .update({ column_id: overColumnId })
+      .eq('parent_id', activeId);
 
     // Audit Log
     const { data: { user } } = await supabase.auth.getUser();
@@ -615,7 +726,7 @@ const OrganizadorKanban = () => {
     return map;
   }, [cards]);
 
-  if (loading) return <div className="p-8 text-white">Carregando quadro...</div>;
+  if (loading && columns.length === 0) return <div className="p-8 text-white">Carregando quadro...</div>;
 
   // Filter cards by client
   const filteredCards = selectedClient
@@ -650,7 +761,14 @@ const OrganizadorKanban = () => {
         onDragEnd={handleDragEnd}
       >
         <SortableContext items={columns.map(c => c.id)} strategy={horizontalListSortingStrategy}>
-          <div className="flex gap-6 overflow-x-auto pb-4 h-full">
+          <div 
+            ref={scrollContainerRef}
+            className={`flex gap-6 overflow-x-auto pb-8 h-full scrollbar-hide ${isPanning ? 'cursor-grabbing select-none' : 'cursor-grab'}`}
+            onMouseDown={handleMouseDown}
+            onMouseMove={handleMouseMove}
+            onMouseUp={handleMouseUp}
+            onMouseLeave={handleMouseUp}
+          >
             {columns.map(col => (
               <KanbanColumn
                 key={col.id}
@@ -658,6 +776,7 @@ const OrganizadorKanban = () => {
                 columnIndex={columns.indexOf(col)}
                 totalColumns={columns.length}
                 cards={filteredCards.filter(c => c.column_id === col.id)}
+                allCards={filteredCards}
                 allSubtasksMap={parentToSubtasksMap}
                 expandedCards={expandedCards}
                 onToggleExpanded={toggleCardExpanded}
@@ -716,8 +835,8 @@ const OrganizadorKanban = () => {
             </div>
 
             <div className="p-8 pt-2 relative z-20">
-              <div className="space-y-1.5 mb-6">
-                <label className="block text-[10px] font-bold text-[#6e6e6e] tracking-wide ml-1">Nome da Coluna</label>
+              <div className="space-y-1.5 mb-4">
+                <label className="block text-[10px] font-bold text-[#6e6e6e] tracking-wide ml-1">Nome da coluna</label>
                 <input
                   autoFocus
                   className="w-full bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.08] rounded-xl px-4 py-3 text-white/90 focus:bg-white/[0.08] focus:border-primary/30 focus:ring-0 outline-none transition-all duration-300 text-sm font-light placeholder-gray-600"
@@ -728,19 +847,46 @@ const OrganizadorKanban = () => {
                 />
               </div>
 
+              <div className="space-y-2 mb-6">
+                <label className="block text-[10px] font-bold text-[#6e6e6e] tracking-wide ml-1">Replicar para clientes</label>
+                <div className="bg-white/5 rounded-xl border border-white/10 p-3 max-h-40 overflow-y-auto custom-scrollbar space-y-2">
+                  {clients.length === 0 ? (
+                    <p className="text-[10px] text-gray-500 text-center py-2">Nenhum cliente disponível</p>
+                  ) : (
+                    clients.map(client => (
+                      <label key={client.id} className="flex items-center gap-3 p-2 hover:bg-white/5 rounded-lg cursor-pointer transition-colors group">
+                        <input
+                          type="checkbox"
+                          checked={replicationClientIds.includes(client.id)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setReplicationClientIds(prev => [...prev, client.id]);
+                            } else {
+                              setReplicationClientIds(prev => prev.filter(id => id !== client.id));
+                            }
+                          }}
+                          className="w-4 h-4 rounded border-white/20 bg-white/5 text-primary focus:ring-primary/30 focus:ring-offset-0 transition-all cursor-pointer"
+                        />
+                        <span className="text-xs text-gray-300 group-hover:text-white transition-colors">{client.name}</span>
+                      </label>
+                    ))
+                  )}
+                </div>
+                <p className="text-[10px] text-primary/60 ml-1 font-medium italic">* A coluna será criada individualmente para cada cliente selecionado.</p>
+              </div>
+
               <div className="flex justify-end gap-3 pt-4 border-t border-white/5">
                 <button
                   onClick={() => setIsNewColumnModalOpen(false)}
-                  className="px-5 py-2.5 text-sm text-gray-500 hover:text-white transition-colors hover:bg-white/5 rounded-xl font-light"
+                  className="px-6 py-2.5 bg-transparent text-gray-500 hover:text-red-500 transition-all duration-300 font-medium text-sm flex items-center justify-center"
                 >
                   Cancelar
                 </button>
                 <button
                   onClick={handleCreateColumn}
-                  className="px-6 py-2.5 bg-white/[0.05] hover:bg-white/[0.1] text-white rounded-xl border border-white/5 hover:border-white/20 transition-all duration-300 font-medium text-sm flex items-center gap-2 group shadow-lg"
+                  className="px-8 py-2.5 bg-primary hover:bg-secondary text-white rounded-xl shadow-lg shadow-primary/20 transition-all duration-300 font-medium text-sm flex items-center justify-center"
                 >
-                  <span>Criar</span>
-                  <span className="text-primary group-hover:translate-x-1 transition-transform">→</span>
+                  Criar
                 </button>
               </div>
             </div>
@@ -775,19 +921,25 @@ const OrganizadorKanban = () => {
             <div className="p-8 pt-2 relative z-20">
               <div className="space-y-4">
                 <div className="space-y-1.5">
-                  <label className="block text-[10px] font-bold text-[#6e6e6e] tracking-wide ml-1">Nome da Coluna</label>
+                  <div className="flex items-center justify-between ml-1">
+                    <label className="block text-[10px] font-bold text-[#6e6e6e] tracking-wide">Nome da coluna</label>
+                    {editingColumn?.client_id === null && (
+                      <span className="text-[9px] text-primary/60 font-medium">Coluna padrão do sistema</span>
+                    )}
+                  </div>
                   <input
                     autoFocus
-                    className="w-full bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.08] rounded-xl px-4 py-3 text-white/90 focus:bg-white/[0.08] focus:border-primary/30 focus:ring-0 outline-none transition-all duration-300 text-sm font-light placeholder-gray-600"
+                    className="w-full bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.08] rounded-xl px-4 py-3 text-white/90 focus:bg-white/[0.08] focus:border-primary/30 focus:ring-0 outline-none transition-all duration-300 text-sm font-light placeholder-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
                     placeholder="Nome da coluna"
                     value={editColumnTitle}
                     onChange={e => setEditColumnTitle(e.target.value)}
                     onKeyDown={e => e.key === 'Enter' && handleUpdateColumn()}
+                    disabled={editingColumn?.client_id === null}
                   />
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="block text-[10px] font-bold text-[#6e6e6e] tracking-wide ml-1">Cor da Coluna</label>
+                  <label className="block text-[10px] font-bold text-[#6e6e6e] tracking-wide ml-1">Cor da coluna</label>
                   <div className="flex items-center gap-3">
                     <input
                       type="color"
@@ -802,16 +954,15 @@ const OrganizadorKanban = () => {
                 <div className="flex justify-end gap-3 pt-4 border-t border-white/5">
                   <button
                     onClick={() => setIsEditColumnModalOpen(false)}
-                    className="px-5 py-2.5 text-sm text-gray-500 hover:text-white transition-colors hover:bg-white/5 rounded-xl font-light"
+                    className="px-6 py-2.5 bg-transparent text-gray-500 hover:text-red-500 transition-all duration-300 font-medium text-sm flex items-center justify-center"
                   >
                     Cancelar
                   </button>
                   <button
                     onClick={handleUpdateColumn}
-                    className="px-6 py-2.5 bg-white/[0.05] hover:bg-white/[0.1] text-white rounded-xl border border-white/5 hover:border-white/20 transition-all duration-300 font-medium text-sm flex items-center gap-2 group shadow-lg"
+                    className="px-8 py-2.5 bg-primary hover:bg-secondary text-white rounded-xl shadow-lg shadow-primary/20 transition-all duration-300 font-medium text-sm flex items-center justify-center"
                   >
-                    <span>Salvar</span>
-                    <span className="text-primary group-hover:translate-x-1 transition-transform">→</span>
+                    Salvar
                   </button>
                 </div>
               </div>
@@ -825,7 +976,8 @@ const OrganizadorKanban = () => {
         <KanbanCardModal
           cardId={typeof selectedCardId === 'string' ? selectedCardId : selectedCardId.id}
           columnId={typeof selectedCardId === 'object' ? selectedCardId.columnId : undefined}
-          defaultClientId={selectedClient || undefined}
+          defaultClientId={selectedClient || columns.find(c => c.id === (typeof selectedCardId === 'object' ? selectedCardId.columnId : ''))?.client_id || undefined}
+          onRefresh={() => fetchKanbanData()}
           onClose={() => {
             setSelectedCardId(null);
             fetchKanbanData(); // Refresh after close
@@ -844,6 +996,7 @@ const KanbanColumn = ({
   columnIndex,
   totalColumns,
   cards,
+  allCards,
   allSubtasksMap,
   expandedCards,
   onToggleExpanded,
@@ -861,6 +1014,7 @@ const KanbanColumn = ({
   columnIndex: number,
   totalColumns: number,
   cards: Card[],
+  allCards: Card[],
   allSubtasksMap: Record<string, Card[]>,
   expandedCards: Record<string, boolean>,
   onToggleExpanded: (id: string) => void,
@@ -874,7 +1028,10 @@ const KanbanColumn = ({
   membersMap: Record<string, { name: string; avatar_url?: string }>,
   userRole: string | null
 }) => {
-  const { setNodeRef, attributes, listeners, transform, transition, isDragging } = useSortable({ id: column.id });
+  const { setNodeRef, attributes, listeners, transform, transition, isDragging } = useSortable({ 
+    id: column.id,
+    disabled: column.client_id === null
+  });
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -883,15 +1040,17 @@ const KanbanColumn = ({
   };
 
   // Filtrar apenas cards de nível superior (sem parent_id)
-  // Subtarefas serão renderizadas dentro dos pais
+  // Subtarefas serão renderizadas dentro dos pais.
+  // IMPORTANTE: Se o parent_id não existir na lista atual de cards (caso de réplicas de outros clientes), 
+  // o card deve ser tratado como top-level para este quadro.
   const topLevelCards = React.useMemo(() =>
-    cards.filter(c => !c.parent_id),
-    [cards]);
+    cards.filter(c => !c.parent_id || !allCards.some(pc => pc.id === c.parent_id)),
+    [cards, allCards]);
 
   return (
     <div ref={setNodeRef} style={style} className={`min-w-[320px] w-[320px] flex flex-col transition-all ${isDragging ? 'opacity-50' : ''}`}>
       <div className={`
-        flex flex-col rounded-2xl backdrop-blur-sm border border-white/5 overflow-hidden transition-all hover:brightness-110
+        flex flex-col rounded-2xl backdrop-blur-sm border border-white/5 transition-all hover:brightness-110
       `} style={{
           backgroundColor: column.color ? `${column.color}0D` : '#16163366',
         }}>
@@ -924,21 +1083,25 @@ const KanbanColumn = ({
                     >
                       <Pencil size={14} /> Editar
                     </button>
-                    {columnIndex > 0 && (
-                      <button
-                        className="w-full text-left px-3 py-2 text-sm text-gray-300 hover:bg-white/5 rounded-lg flex items-center gap-2"
-                        onClick={() => onMoveColumn(column.id, 'left')}
-                      >
-                        <ChevronLeft size={14} /> Mover para esquerda
-                      </button>
-                    )}
-                    {columnIndex < totalColumns - 1 && (
-                      <button
-                        className="w-full text-left px-3 py-2 text-sm text-gray-300 hover:bg-white/5 rounded-lg flex items-center gap-2"
-                        onClick={() => onMoveColumn(column.id, 'right')}
-                      >
-                        <ChevronRight size={14} /> Mover para direita
-                      </button>
+                    {column.client_id !== null && (
+                      <>
+                        {columnIndex > 0 && (
+                          <button
+                            className="w-full text-left px-3 py-2 text-sm text-gray-300 hover:bg-white/5 rounded-lg flex items-center gap-2"
+                            onClick={() => onMoveColumn(column.id, 'left')}
+                          >
+                            <ChevronLeft size={14} /> Mover para esquerda
+                          </button>
+                        )}
+                        {columnIndex < totalColumns - 1 && (
+                          <button
+                            className="w-full text-left px-3 py-2 text-sm text-gray-300 hover:bg-white/5 rounded-lg flex items-center gap-2"
+                            onClick={() => onMoveColumn(column.id, 'right')}
+                          >
+                            <ChevronRight size={14} /> Mover para direita
+                          </button>
+                        )}
+                      </>
                     )}
                     <div className="h-px bg-white/5 my-1" />
                     <button

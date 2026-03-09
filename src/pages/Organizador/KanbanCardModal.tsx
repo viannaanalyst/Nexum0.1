@@ -1262,16 +1262,8 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onOpenCar
         }
 
         try {
-            // Find first column
-            const { data: cols } = await supabase
-                .from('kanban_columns')
-                .select('id')
-                .eq('company_id', selectedCompany.id)
-                .order('position')
-                .limit(1);
-
-            const firstColId = cols?.[0]?.id;
-            if (!firstColId) {
+            const targetColId = currentColumnId || columnId;
+            if (!targetColId) {
                 toast.error('Nenhuma coluna encontrada para criar subtarefa.', 'Erro');
                 return;
             }
@@ -1279,7 +1271,7 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onOpenCar
             const { data, error } = await supabase.from('kanban_cards').insert({
                 company_id: selectedCompany.id,
                 client_id: clientId || null,
-                column_id: firstColId,
+                column_id: targetColId,
                 title: subtaskTitle,
                 parent_id: cardId,
                 position: 9999,
@@ -1314,10 +1306,9 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onOpenCar
 
         try {
             // 1. Create subtask
-            const { data: cols } = await supabase.from('kanban_columns').select('id').eq('company_id', selectedCompany.id).order('position').limit(1);
-            const firstColId = cols?.[0]?.id;
+            const targetColId = currentColumnId || columnId;
 
-            if (!firstColId) {
+            if (!targetColId) {
                 toast.error('Nenhuma coluna encontrada.', 'Erro');
                 return;
             }
@@ -1325,7 +1316,7 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onOpenCar
             const { data: newCard, error: createError } = await supabase.from('kanban_cards').insert({
                 company_id: selectedCompany.id,
                 client_id: clientId || null,
-                column_id: firstColId,
+                column_id: targetColId,
                 title: description,
                 parent_id: cardId,
                 position: 9999,
