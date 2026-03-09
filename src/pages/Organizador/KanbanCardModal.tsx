@@ -86,8 +86,8 @@ interface SortableChecklistItemProps {
     handleDeleteChecklist: (itemId: string) => void;
 }
 
-const SortableChecklistItem = ({ 
-    item, 
+const SortableChecklistItem = ({
+    item,
     isFullScreen = false,
     currentUserApprover,
     userRole,
@@ -197,10 +197,10 @@ interface SortableChecklistGroupProps {
     handleDeleteChecklist: (itemId: string) => void;
 }
 
-const SortableChecklistGroup = ({ 
-    group, 
-    checklist, 
-    onAddItem, 
+const SortableChecklistGroup = ({
+    group,
+    checklist,
+    onAddItem,
     isFullScreen = false,
     userRole,
     handleUpdateChecklistGroup,
@@ -264,9 +264,9 @@ const SortableChecklistGroup = ({
             <SortableContext items={groupItems.map(i => i.id)} strategy={verticalListSortingStrategy}>
                 <div className="space-y-1">
                     {groupItems.filter(i => !i.is_completed).map(item => (
-                        <SortableChecklistItem 
-                            key={item.id} 
-                            item={item} 
+                        <SortableChecklistItem
+                            key={item.id}
+                            item={item}
                             isFullScreen={isFullScreen}
                             userRole={userRole}
                             currentUserApprover={currentUserApprover}
@@ -308,10 +308,10 @@ const SortableChecklistGroup = ({
                         <div className="px-2 pb-2 pt-2 animate-in slide-in-from-top-2 duration-200 space-y-1">
                             <SortableContext items={groupItems.filter(i => i.is_completed).map(i => i.id)} strategy={verticalListSortingStrategy}>
                                 {groupItems.filter(i => i.is_completed).map(item => (
-                                    <SortableChecklistItem 
-                                        key={item.id} 
-                                        item={item} 
-                                        isFullScreen={isFullScreen} 
+                                    <SortableChecklistItem
+                                        key={item.id}
+                                        item={item}
+                                        isFullScreen={isFullScreen}
                                         userRole={userRole}
                                         currentUserApprover={currentUserApprover}
                                         handleToggleChecklist={handleToggleChecklist}
@@ -345,6 +345,7 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onRefresh
     const [category, setCategory] = useState('');
     const [subcategory, setSubcategory] = useState('');
     const [clientId, setClientId] = useState(defaultClientId || '');
+    const [parentId, setParentId] = useState<string | null>(null);
 
     const [checklist, setChecklist] = useState<any[]>([]);
     const [checklistGroups, setChecklistGroups] = useState<any[]>([{ id: 'default', title: 'Checklist Principal' }]);
@@ -732,7 +733,7 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onRefresh
         try {
             const { data: cardData } = await supabase
                 .from('kanban_cards')
-                .select('*')
+                .select('*, kanban_card_tags(tag_id)')
                 .eq('id', cardId)
                 .single();
 
@@ -751,6 +752,10 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onRefresh
                 setSubcategory(cardData.subcategory || '');
                 setClientId(cardData.client_id || '');
                 setCurrentColumnId(cardData.column_id || '');
+                setParentId(cardData.parent_id || null);
+
+                const cardTags = (cardData as any).kanban_card_tags?.map((t: any) => t.tag_id) || [];
+                setSelectedTags(cardTags);
             }
         } catch (error) {
             console.error('Error fetching card details:', error);
@@ -846,7 +851,7 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onRefresh
                 .select('*, kanban_card_tags(tag_id)')
                 .eq('parent_id', cardId)
                 .order('position');
-            
+
             if (subData) {
                 const formattedSubtasks = subData.map(task => ({
                     ...task,
@@ -1163,25 +1168,25 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onRefresh
                                     {task.title}
                                 </span>
                                 <div className="flex items-center gap-1 opacity-0 group-hover/title:opacity-100 transition-opacity whitespace-nowrap ml-auto">
-                                    <button 
+                                    <button
                                         onClick={(e) => {
                                             e.stopPropagation();
                                             if (userRole === 'visualizador') return;
                                             setEditingSubtaskId(task.id);
                                             setEditingSubtaskTitle(task.title);
-                                        }} 
+                                        }}
                                         className="text-gray-600 hover:text-blue-400 p-1.5 hover:bg-white/10 rounded-lg transition-colors"
                                         title="Renomear"
                                     >
                                         <Pencil size={14} />
                                     </button>
                                     <div className="relative">
-                                        <button 
+                                        <button
                                             onClick={(e) => {
                                                 e.stopPropagation();
                                                 if (userRole === 'visualizador') return;
                                                 setShowSubtaskTagSelectId(showSubtaskTagSelectId === task.id ? null : task.id);
-                                            }} 
+                                            }}
                                             className="text-gray-600 hover:text-emerald-400 p-1.5 hover:bg-white/10 rounded-lg transition-colors"
                                             title="Tags"
                                         >
@@ -1212,8 +1217,8 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onRefresh
                                 {task.tags && task.tags.length > 0 && (
                                     <div className="flex flex-wrap gap-1 ml-3 shrink-0">
                                         {tags.filter(t => task.tags.includes(t.id)).slice(0, 3).map(tag => (
-                                            <div 
-                                                key={tag.id} 
+                                            <div
+                                                key={tag.id}
                                                 className="flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-medium border border-white/5 whitespace-nowrap"
                                                 style={{ backgroundColor: `${tag.color}15`, color: tag.color }}
                                             >
@@ -1451,20 +1456,20 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onRefresh
                                 {task.title}
                             </span>
                             <div className="flex items-center gap-0.5 opacity-0 group-hover/title:opacity-100 transition-opacity whitespace-nowrap ml-auto">
-                                <button 
+                                <button
                                     onClick={(e) => {
                                         e.stopPropagation();
                                         if (userRole === 'visualizador') return;
                                         setEditingSubtaskId(task.id);
                                         setEditingSubtaskTitle(task.title);
-                                    }} 
+                                    }}
                                     className="text-gray-600 hover:text-blue-400 p-1 hover:bg-white/5 rounded transition-colors"
                                     title="Renomear"
                                 >
                                     <Pencil size={12} />
                                 </button>
                                 <div className="relative">
-                                    <button 
+                                    <button
                                         onClick={(e) => {
                                             e.stopPropagation();
                                             if (userRole === 'visualizador') return;
@@ -1472,7 +1477,7 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onRefresh
                                             setShowSubtaskPrioritySelect(null);
                                             setShowSubtaskStatusSelect(null);
                                             setShowSubtaskTagSelectId(showSubtaskTagSelectId === task.id ? null : task.id);
-                                        }} 
+                                        }}
                                         className="text-gray-600 hover:text-emerald-400 p-1 hover:bg-white/5 rounded transition-colors"
                                         title="Tags"
                                     >
@@ -1503,8 +1508,8 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onRefresh
                             {task.tags && task.tags.length > 0 && (
                                 <div className="flex gap-1 ml-2 shrink-0">
                                     {tags.filter(t => task.tags.includes(t.id)).slice(0, 3).map(tag => (
-                                        <div 
-                                            key={tag.id} 
+                                        <div
+                                            key={tag.id}
                                             className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-medium border border-white/5 whitespace-nowrap"
                                             style={{ backgroundColor: `${tag.color}15`, color: tag.color }}
                                         >
@@ -1645,12 +1650,12 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onRefresh
 
                 {/* Ações */}
                 <div className="flex justify-end pr-2 opacity-0 group-hover:opacity-100 transition-all">
-                    <button 
+                    <button
                         onClick={(e) => {
                             e.stopPropagation();
                             if (userRole === 'visualizador') return;
                             handleUnlinkSubtask(task.id);
-                        }} 
+                        }}
                         className="text-gray-600 hover:text-red-400 transition-all p-1 hover:bg-white/5 rounded"
                         title="Excluir"
                     >
@@ -1734,8 +1739,8 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onRefresh
                 const { error: deleteError } = await supabase.from('kanban_card_tags').delete().match({ card_id: subtaskId, tag_id: tagId });
                 if (deleteError) throw deleteError;
             }
-            
-            const newTags = isAdding 
+
+            const newTags = isAdding
                 ? [...currentTags, tagId]
                 : currentTags.filter((id: string) => id !== tagId);
 
@@ -2710,6 +2715,16 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onRefresh
                                     <div className="pr-32"> {/* Padding right para nao sobrepor bot\u00F5es */}
                                         {/* Breadcrumbs / ID */}
                                         <div className="flex items-center gap-3 mb-3">
+                                            {parentId && onOpenCard && (
+                                                <button
+                                                    onClick={() => onOpenCard(parentId)}
+                                                    className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-primary/10 hover:bg-primary/20 text-primary transition-colors text-[10px] font-bold tracking-wider"
+                                                    title="Voltar para a Task Pai"
+                                                >
+                                                    <ChevronUp size={12} className="-rotate-90" strokeWidth={3} />
+                                                    Task Pai
+                                                </button>
+                                            )}
                                             <span className="text-[10px] bg-white/[0.05] border border-white/5 text-gray-400 px-2 py-0.5 rounded-full font-mono tracking-wider">
                                                 {isNew ? 'NOVA TAREFA' : `TASK-${cardId.slice(0, 6)}`}
                                             </span>
