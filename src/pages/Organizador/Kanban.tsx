@@ -780,7 +780,7 @@ const OrganizadorKanban = () => {
                 allSubtasksMap={parentToSubtasksMap}
                 expandedCards={expandedCards}
                 onToggleExpanded={toggleCardExpanded}
-                onCardClick={(card) => setSelectedCardId(card.id)}
+                onCardClick={(card) => setSelectedCardId({ id: card.id, columnId: card.column_id })}
                 onDeleteColumn={handleDeleteColumn}
                 onAddCard={handleAddCard}
                 onDeleteCard={handleDeleteCard}

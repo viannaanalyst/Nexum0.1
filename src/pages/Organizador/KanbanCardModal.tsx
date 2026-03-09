@@ -70,11 +70,12 @@ interface KanbanCardModalProps {
     columnId?: string; // If cardId is 'new', this is required
     defaultClientId?: string; // Pre-fill client from board filter
     onClose: () => void;
+    onRefresh?: () => void;
     onOpenCard?: (cardId: string) => void;
     mode?: 'task' | 'event';
 }
 
-const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onOpenCard, mode = 'task' }: KanbanCardModalProps) => {
+const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onRefresh, onOpenCard, mode = 'task' }: KanbanCardModalProps) => {
     const { selectedCompany } = useCompany();
     const { toast, confirm } = useUI();
     const [activeTab, setActiveTab] = useState<'details' | 'checklist' | 'comments' | 'files' | 'tags'>('details');
@@ -296,7 +297,7 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onOpenCar
         if (selectedCompany) {
             fetchColumns();
         }
-    }, [clientId, selectedCompany]);
+    }, [clientId, selectedCompany, loading]);
 
     const fetchColumns = async () => {
         if (!selectedCompany) return;
@@ -333,7 +334,8 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onOpenCar
                         if (!currentColumnId || currentColumnId === columnId || !isCurrentValid) {
                             setCurrentColumnId(columnId as string);
                         }
-                    } else if (!isCurrentValid) {
+                    } else if (!loading && !isCurrentValid) {
+                        // For existing cards, only fallback if we finished loading details and the status is still invalid
                         if (isPropValid) {
                             setCurrentColumnId(columnId as string);
                         } else {
@@ -1536,6 +1538,7 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onOpenCar
             }
 
 
+            if (onRefresh) onRefresh();
             onClose(); // Close modal on success (and trigger refresh in parent)
         } catch (error) {
             console.error('Error saving:', error);
