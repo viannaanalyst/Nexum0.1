@@ -4,7 +4,7 @@ import { createPortal } from 'react-dom';
 import {
     X, Paperclip,
     CheckSquare, MessageSquare, FileText, Plus,
-    ChevronDown, ChevronUp, Lock, Send, MoreVertical, Trash2,
+    ChevronDown, ChevronUp, Lock, Send, MoreVertical, Trash2, Pencil,
     File, FileCode, FileImage, FileArchive, Download, GitBranch, Info, Video,
     // Mantendo icones Lucide que ainda podem ser usados em outros lugares ou como fallback
     Calendar as LucideCalendar, Clock as LucideClock, User as LucideUser, Tag as LucideTag, Share2
@@ -74,6 +74,259 @@ interface KanbanCardModalProps {
     onOpenCard?: (cardId: string) => void;
     mode?: 'task' | 'event';
 }
+
+// Sub-componentes do Checklist movidos para fora para evitar perda de foco ao digitar
+interface SortableChecklistItemProps {
+    item: any;
+    isFullScreen?: boolean;
+    currentUserApprover: boolean;
+    userRole: string | null;
+    handleToggleChecklist: (itemId: string, currentStatus: boolean, needsApproval: boolean, approverId: string | null) => void;
+    handleToggleApprovalReq: (e: React.MouseEvent, itemId: string, currentNeedsApproval: boolean) => void;
+    handleDeleteChecklist: (itemId: string) => void;
+}
+
+const SortableChecklistItem = ({ 
+    item, 
+    isFullScreen = false,
+    currentUserApprover,
+    userRole,
+    handleToggleChecklist,
+    handleToggleApprovalReq,
+    handleDeleteChecklist
+}: SortableChecklistItemProps) => {
+    const {
+        attributes,
+        listeners,
+        setNodeRef,
+        transform,
+        transition,
+        isDragging
+    } = useSortable({ id: item.id });
+
+    const style = {
+        transform: CSS.Transform.toString(transform),
+        transition,
+        opacity: isDragging ? 0.5 : 1,
+        zIndex: isDragging ? 100 : 'auto',
+        position: 'relative' as const,
+    };
+
+    const isApprover = currentUserApprover || (userRole === 'admin' || userRole === 'proprietario');
+
+    return (
+        <div
+            ref={setNodeRef}
+            style={style}
+            className={`group flex items-start gap-3 rounded-lg transition-all relative ${isDragging ? 'bg-white/5 shadow-lg' : ''} ${isFullScreen ? 'p-4 py-3 hover:bg-white/[0.03] text-base' : 'p-3 py-2 hover:bg-gradient-to-r hover:from-primary/5 hover:to-transparent text-sm'}`}
+        >
+            <div {...attributes} {...listeners} className="mt-1 cursor-grab active:cursor-grabbing text-gray-700 hover:text-gray-500 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center shrink-0 w-4">
+                <IconGripVertical size={isFullScreen ? 16 : 14} />
+            </div>
+
+            <div className="flex-1 flex flex-col gap-1 min-w-0">
+                <div className="flex items-start gap-3 min-w-0">
+                    <button
+                        onClick={() => handleToggleChecklist(item.id, item.is_completed, item.needs_approval, item.approver_id)}
+                        className={`rounded border flex items-center justify-center transition-all shrink-0 ${isFullScreen ? 'mt-1 w-5 h-5' : 'mt-0.5 w-4 h-4'} ${item.is_completed ? 'border-emerald-500 bg-emerald-500 text-white' : 'border-gray-600 hover:border-gray-400'}`}
+                    >
+                        {item.is_completed && <CheckSquare size={isFullScreen ? 12 : 10} strokeWidth={3} />}
+                    </button>
+
+                    <span
+                        className={`flex-1 transition-colors font-medium leading-relaxed break-words ${item.is_completed ? 'text-gray-500 line-through' : 'text-gray-200'} cursor-pointer ${isFullScreen ? 'text-base' : 'text-sm'}`}
+                        onClick={() => handleToggleChecklist(item.id, item.is_completed, item.needs_approval, item.approver_id)}
+                    >
+                        {item.description}
+                    </span>
+
+                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                        {isApprover && (
+                            <button
+                                onClick={(e) => handleToggleApprovalReq(e, item.id, item.needs_approval)}
+                                className={`p-1.5 rounded hover:bg-white/10 transition-colors ${item.needs_approval ? 'text-primary' : 'text-gray-600 hover:text-gray-400'}`}
+                                title="Configurar Aprovacao"
+                            >
+                                <Lock size={isFullScreen ? 16 : 14} />
+                            </button>
+                        )}
+                        <button
+                            onClick={() => handleDeleteChecklist(item.id)}
+                            className="p-1.5 rounded hover:bg-white/10 text-gray-600 hover:text-red-400 transition-colors"
+                            title="Excluir"
+                        >
+                            <Trash2 size={isFullScreen ? 16 : 14} />
+                        </button>
+                    </div>
+                </div>
+
+                {item.needs_approval && (
+                    <div className="flex flex-wrap gap-2 ml-7 mt-1">
+                        {item.is_approved ? (
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-emerald-500/10 text-emerald-400 text-[10px] font-bold border border-emerald-500/20">
+                                <CheckSquare size={10} />
+                                APROVADO
+                            </span>
+                        ) : (
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-amber-500/10 text-amber-400 text-[10px] font-bold border border-amber-500/20">
+                                <Lock size={10} />
+                                AGUARDANDO APROVA\u00C7\u00C3O
+                            </span>
+                        )}
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+};
+
+interface SortableChecklistGroupProps {
+    group: any;
+    checklist: any[];
+    onAddItem: (groupId: string) => void;
+    isFullScreen?: boolean;
+    userRole: string | null;
+    handleUpdateChecklistGroup: (groupId: string, title: string) => void;
+    handleDeleteChecklistGroup: (groupId: string) => void;
+    newChecklistItems: Record<string, string>;
+    setNewChecklistItems: React.Dispatch<React.SetStateAction<Record<string, string>>>;
+    handleAddChecklistItem: (groupId: string) => void;
+    currentUserApprover: boolean;
+    handleToggleChecklist: (itemId: string, currentStatus: boolean, needsApproval: boolean, approverId: string | null) => void;
+    handleToggleApprovalReq: (e: React.MouseEvent, itemId: string, currentNeedsApproval: boolean) => void;
+    handleDeleteChecklist: (itemId: string) => void;
+}
+
+const SortableChecklistGroup = ({ 
+    group, 
+    checklist, 
+    onAddItem, 
+    isFullScreen = false,
+    userRole,
+    handleUpdateChecklistGroup,
+    handleDeleteChecklistGroup,
+    newChecklistItems,
+    setNewChecklistItems,
+    handleAddChecklistItem,
+    currentUserApprover,
+    handleToggleChecklist,
+    handleToggleApprovalReq,
+    handleDeleteChecklist
+}: SortableChecklistGroupProps) => {
+    const {
+        attributes,
+        listeners,
+        setNodeRef,
+        transform,
+        transition,
+        isDragging
+    } = useSortable({ id: group.id });
+
+    const style = {
+        transform: CSS.Transform.toString(transform),
+        transition,
+        opacity: isDragging ? 0.5 : 1,
+        zIndex: isDragging ? 50 : 'auto',
+        position: 'relative' as const,
+    };
+
+    const groupItems = checklist.filter(i => i.group_id === group.id || (group.id === 'default' && !i.group_id));
+    const completedCount = groupItems.filter(i => i.is_completed).length;
+    const totalCount = groupItems.length;
+
+    return (
+        <div ref={setNodeRef} style={style} className={`space-y-3 border border-white/10 rounded-xl group/group ${isFullScreen ? 'p-6 bg-white/[0.02] shadow-xl' : 'p-4 shadow-sm'}`}>
+            <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3 flex-1">
+                    <div {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing text-gray-600 hover:text-gray-400 opacity-0 group-hover/group:opacity-100 transition-opacity">
+                        <IconGripVertical size={isFullScreen ? 18 : 16} />
+                    </div>
+                    <input
+                        className={`font-bold text-white bg-transparent border-none focus:outline-none w-full placeholder:text-gray-500 hover:text-gray-200 transition-colors ${isFullScreen ? 'text-lg' : 'text-sm'}`}
+                        value={group.title}
+                        onChange={(e) => handleUpdateChecklistGroup(group.id, e.target.value)}
+                        placeholder="Nome do Checklist"
+                        disabled={userRole === 'visualizador'}
+                    />
+                    <div className="flex items-center gap-2 shrink-0">
+                        <span className="text-xs text-gray-500 font-medium px-2 py-0.5 rounded-full bg-white/5">
+                            {completedCount} de {totalCount}
+                        </span>
+                        {group.id !== 'default' && (
+                            <button onClick={() => handleDeleteChecklistGroup(group.id)} className="opacity-0 group-hover/group:opacity-100 p-2 rounded-lg hover:bg-red-500/10 text-gray-500 hover:text-red-400 transition-all">
+                                <Trash2 size={isFullScreen ? 18 : 16} />
+                            </button>
+                        )}
+                    </div>
+                </div>
+            </div>
+
+            <SortableContext items={groupItems.map(i => i.id)} strategy={verticalListSortingStrategy}>
+                <div className="space-y-1">
+                    {groupItems.filter(i => !i.is_completed).map(item => (
+                        <SortableChecklistItem 
+                            key={item.id} 
+                            item={item} 
+                            isFullScreen={isFullScreen}
+                            userRole={userRole}
+                            currentUserApprover={currentUserApprover}
+                            handleToggleChecklist={handleToggleChecklist}
+                            handleToggleApprovalReq={handleToggleApprovalReq}
+                            handleDeleteChecklist={handleDeleteChecklist}
+                        />
+                    ))}
+                </div>
+            </SortableContext>
+
+            {/* Input de Adicionar Item (Estilo Botao Texto) */}
+            {userRole !== 'visualizador' && (
+                <div className="px-3 py-2 mt-1">
+                    <div className="flex items-center gap-2 text-gray-500 hover:text-gray-300 transition-colors cursor-pointer group" onClick={() => onAddItem(group.id)}>
+                        <Plus size={isFullScreen ? 18 : 14} className="group-hover:text-primary transition-colors" />
+                        <input
+                            id={`new-checklist-input-${isFullScreen ? 'full-' : ''}${group.id}`}
+                            value={newChecklistItems[group.id] || ''}
+                            onChange={(e) => setNewChecklistItems({ ...newChecklistItems, [group.id]: e.target.value })}
+                            onKeyDown={(e) => e.key === 'Enter' && handleAddChecklistItem(group.id)}
+                            className={`bg-transparent focus:outline-none w-full placeholder:text-gray-500 text-gray-300 font-medium ${isFullScreen ? 'text-base h-10' : 'text-sm h-6'}`}
+                            placeholder="Adicionar item"
+                            onClick={(e) => e.stopPropagation()}
+                        />
+                    </div>
+                </div>
+            )}
+
+            {/* Secao de Concluidos */}
+            {groupItems.filter(i => i.is_completed).length > 0 && (
+                <div className="mt-4 pt-4 border-t border-white/5">
+                    <details className="group/details">
+                        <summary className="px-4 py-2 flex items-center gap-3 cursor-pointer hover:bg-white/[0.02] transition-colors list-none text-xs font-medium text-gray-500 select-none">
+                            <ChevronDown size={isFullScreen ? 14 : 12} className="transition-transform group-open/details:rotate-180" />
+                            <span>Mostrar {groupItems.filter(i => i.is_completed).length} item(ns) concluido(s)</span>
+                        </summary>
+
+                        <div className="px-2 pb-2 pt-2 animate-in slide-in-from-top-2 duration-200 space-y-1">
+                            <SortableContext items={groupItems.filter(i => i.is_completed).map(i => i.id)} strategy={verticalListSortingStrategy}>
+                                {groupItems.filter(i => i.is_completed).map(item => (
+                                    <SortableChecklistItem 
+                                        key={item.id} 
+                                        item={item} 
+                                        isFullScreen={isFullScreen} 
+                                        userRole={userRole}
+                                        currentUserApprover={currentUserApprover}
+                                        handleToggleChecklist={handleToggleChecklist}
+                                        handleToggleApprovalReq={handleToggleApprovalReq}
+                                        handleDeleteChecklist={handleDeleteChecklist}
+                                    />
+                                ))}
+                            </SortableContext>
+                        </div>
+                    </details>
+                </div>
+            )}
+        </div>
+    );
+};
 
 const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onRefresh, onOpenCard, mode = 'task' }: KanbanCardModalProps) => {
     const { selectedCompany } = useCompany();
@@ -590,10 +843,19 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onRefresh
         try {
             const { data: subData } = await supabase
                 .from('kanban_cards')
-                .select('*')
+                .select('*, kanban_card_tags(tag_id)')
                 .eq('parent_id', cardId)
                 .order('position');
-            setSubtasks(subData || []);
+            
+            if (subData) {
+                const formattedSubtasks = subData.map(task => ({
+                    ...task,
+                    tags: (task as any).kanban_card_tags?.map((t: any) => t.tag_id) || []
+                }));
+                setSubtasks(formattedSubtasks);
+            } else {
+                setSubtasks([]);
+            }
         } catch (error) {
             console.error('Error fetching subtasks:', error);
         }
@@ -891,16 +1153,80 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onRefresh
                                 }}
                             />
                         ) : (
-                            <span
-                                className="text-gray-200 group-hover:text-white truncate transition-colors cursor-pointer font-medium flex-1"
-                                onClick={() => {
-                                    if (userRole === 'visualizador') return;
-                                    setEditingSubtaskId(task.id);
-                                    setEditingSubtaskTitle(task.title);
-                                }}
-                            >
-                                {task.title}
-                            </span>
+                            <div className="flex items-center group/title flex-1 min-w-0 pr-12">
+                                <span
+                                    className="text-gray-200 group-hover:text-white truncate transition-colors cursor-pointer font-medium flex-1"
+                                    onClick={() => {
+                                        if (onOpenCard) onOpenCard(task.id);
+                                    }}
+                                >
+                                    {task.title}
+                                </span>
+                                <div className="flex items-center gap-1 opacity-0 group-hover/title:opacity-100 transition-opacity whitespace-nowrap ml-auto">
+                                    <button 
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            if (userRole === 'visualizador') return;
+                                            setEditingSubtaskId(task.id);
+                                            setEditingSubtaskTitle(task.title);
+                                        }} 
+                                        className="text-gray-600 hover:text-blue-400 p-1.5 hover:bg-white/10 rounded-lg transition-colors"
+                                        title="Renomear"
+                                    >
+                                        <Pencil size={14} />
+                                    </button>
+                                    <div className="relative">
+                                        <button 
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                if (userRole === 'visualizador') return;
+                                                setShowSubtaskTagSelectId(showSubtaskTagSelectId === task.id ? null : task.id);
+                                            }} 
+                                            className="text-gray-600 hover:text-emerald-400 p-1.5 hover:bg-white/10 rounded-lg transition-colors"
+                                            title="Tags"
+                                        >
+                                            <IconTag size={14} />
+                                        </button>
+                                        {showSubtaskTagSelectId === task.id && (
+                                            <div className="absolute top-full right-0 mt-1 w-48 bg-[#1a1a2e] border border-white/10 rounded-lg shadow-xl z-[100] p-1">
+                                                <div className="max-h-40 overflow-y-auto custom-scrollbar">
+                                                    {tags.map(tag => (
+                                                        <button
+                                                            key={tag.id}
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                handleToggleSubtaskTag(task.id, tag.id);
+                                                            }}
+                                                            className={`w-full flex items-center gap-2 px-2 py-1.5 rounded text-[10px] text-gray-300 hover:bg-white/5 transition-colors text-left ${task.tags?.includes(tag.id) ? 'bg-primary/10 text-primary' : ''}`}
+                                                        >
+                                                            <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: tag.color }} />
+                                                            <span className="truncate">{tag.name}</span>
+                                                        </button>
+                                                    ))}
+                                                    {tags.length === 0 && <p className="text-[10px] text-gray-500 p-2 text-center font-medium">Nenhuma etiqueta</p>}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                                {task.tags && task.tags.length > 0 && (
+                                    <div className="flex flex-wrap gap-1 ml-3 shrink-0">
+                                        {tags.filter(t => task.tags.includes(t.id)).slice(0, 3).map(tag => (
+                                            <div 
+                                                key={tag.id} 
+                                                className="flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-medium border border-white/5 whitespace-nowrap"
+                                                style={{ backgroundColor: `${tag.color}15`, color: tag.color }}
+                                            >
+                                                <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: tag.color }} />
+                                                <span>{tag.name}</span>
+                                            </div>
+                                        ))}
+                                        {task.tags.length > 3 && (
+                                            <span className="text-[10px] text-gray-500 font-bold self-center">+{task.tags.length - 3}</span>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
                         )}
                     </div>
 
@@ -928,7 +1254,7 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onRefresh
                                     <span className="text-xs text-gray-400 group-hover:text-gray-200 transition-colors">{members.find(m => m.id === task.assigned_to)?.name?.split(' ')[0]}</span>
                                 </div>
                             ) : (
-                                <div className="w-7 h-7 rounded-full border border-dashed border-gray-700 flex items-center justify-center text-gray-600 hover:text-gray-400 hover:border-gray-500 hover:bg-white/5 transition-all">
+                                <div className="w-7 h-7 flex items-center justify-center text-gray-600 hover:text-gray-400 hover:bg-white/5 transition-all">
                                     <IconUser size={14} />
                                 </div>
                             )}
@@ -1030,8 +1356,9 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onRefresh
                     </div>
 
                     {/* Ações */}
-                    <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button onClick={() => {
+                    <div className="flex justify-end pr-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button onClick={(e) => {
+                            e.stopPropagation();
                             if (userRole === 'visualizador') return;
                             handleUnlinkSubtask(task.id);
                         }} className="text-gray-600 hover:text-red-400 transition-colors p-2 hover:bg-white/10 rounded-lg">
@@ -1046,10 +1373,11 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onRefresh
             <div
                 ref={setNodeRef}
                 style={style}
-                className="group flex flex-col items-stretch relative"
+                className={`group grid grid-cols-[1fr_100px_100px_140px_40px] gap-4 items-center px-4 py-2 hover:bg-white/[0.02] transition-all relative text-sm ${(showSubtaskStatusSelect === task.id || showSubtaskMemberSelect === task.id || showSubtaskPrioritySelect === task.id || showSubtaskTagSelectId === task.id) ? 'z-[999]' : 'z-auto'}`}
             >
-                <div className="flex items-center gap-3 px-4 py-2 hover:bg-white/[0.02] transition-colors group/row">
-                    <div {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing text-gray-700 hover:text-gray-500 opacity-0 group-hover/row:opacity-100 transition-opacity flex items-center justify-center shrink-0 w-4">
+                {/* Nome e Status */}
+                <div className="flex items-center gap-3 min-w-0">
+                    <div {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing text-gray-700 hover:text-gray-500 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center shrink-0 w-4">
                         <IconGripVertical size={14} />
                     </div>
                     <div className="relative shrink-0">
@@ -1058,6 +1386,9 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onRefresh
                                 if (userRole === 'visualizador') return;
                                 setActiveSubtaskId(task.id);
                                 setShowSubtaskStatusSelect(showSubtaskStatusSelect === task.id ? null : task.id);
+                                setShowSubtaskMemberSelect(null);
+                                setShowSubtaskPrioritySelect(null);
+                                setShowSubtaskDateSelect(null);
                             }}
                             className="w-4 h-4 rounded-full border border-gray-600 hover:border-gray-400 flex items-center justify-center transition-colors shadow-sm"
                             style={{ borderColor: task.column_id ? columns.find(c => c.id === task.column_id)?.color : '#4b5563' }}
@@ -1067,16 +1398,262 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onRefresh
                                 style={{ backgroundColor: task.column_id ? (columns.find(c => c.id === task.column_id)?.color) : 'transparent' }}
                             />
                         </button>
+
+                        {showSubtaskStatusSelect === task.id && (
+                            <div className="absolute top-full left-0 mt-2 w-56 bg-[#1a1a2e] border border-white/10 rounded-xl shadow-2xl z-50 overflow-hidden py-2">
+                                {columns.map(col => (
+                                    <button
+                                        key={col.id}
+                                        onClick={() => {
+                                            handleUpdateSubtask(task.id, { column_id: col.id });
+                                            setShowSubtaskStatusSelect(null);
+                                        }}
+                                        className="w-full text-left px-4 py-2 text-xs hover:bg-white/5 flex items-center gap-3 group/item transition-colors"
+                                    >
+                                        <div className="w-2.5 h-2.5 rounded-full shadow-sm" style={{ backgroundColor: col.color }} />
+                                        <span className="text-gray-300 group-hover/item:text-white transition-colors">{col.title}</span>
+                                        {task.column_id === col.id && <CheckSquare size={12} className="ml-auto text-primary" />}
+                                    </button>
+                                ))}
+                            </div>
+                        )}
                     </div>
-                    <span
-                        className="text-gray-300 group-hover:text-white truncate flex-1 text-sm font-medium cursor-pointer"
+                    {editingSubtaskId === task.id ? (
+                        <input
+                            autoFocus
+                            className="bg-white/10 border border-primary/50 rounded px-2 py-0.5 text-xs text-white focus:outline-none flex-1 min-w-0"
+                            value={editingSubtaskTitle}
+                            onChange={(e) => setEditingSubtaskTitle(e.target.value)}
+                            onBlur={() => {
+                                if (editingSubtaskTitle.trim() && editingSubtaskTitle !== task.title) {
+                                    handleUpdateSubtask(task.id, { title: editingSubtaskTitle });
+                                }
+                                setEditingSubtaskId(null);
+                            }}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                    if (editingSubtaskTitle.trim() && editingSubtaskTitle !== task.title) {
+                                        handleUpdateSubtask(task.id, { title: editingSubtaskTitle });
+                                    }
+                                    setEditingSubtaskId(null);
+                                }
+                                if (e.key === 'Escape') setEditingSubtaskId(null);
+                            }}
+                        />
+                    ) : (
+                        <div className="flex items-center group/title flex-1 min-w-0 pr-8">
+                            <span
+                                className="text-gray-300 group-hover:text-white truncate text-sm font-medium cursor-pointer flex-1"
+                                onClick={() => {
+                                    if (onOpenCard) onOpenCard(task.id);
+                                }}
+                            >
+                                {task.title}
+                            </span>
+                            <div className="flex items-center gap-0.5 opacity-0 group-hover/title:opacity-100 transition-opacity whitespace-nowrap ml-auto">
+                                <button 
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        if (userRole === 'visualizador') return;
+                                        setEditingSubtaskId(task.id);
+                                        setEditingSubtaskTitle(task.title);
+                                    }} 
+                                    className="text-gray-600 hover:text-blue-400 p-1 hover:bg-white/5 rounded transition-colors"
+                                    title="Renomear"
+                                >
+                                    <Pencil size={12} />
+                                </button>
+                                <div className="relative">
+                                    <button 
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            if (userRole === 'visualizador') return;
+                                            setShowSubtaskMemberSelect(null);
+                                            setShowSubtaskPrioritySelect(null);
+                                            setShowSubtaskStatusSelect(null);
+                                            setShowSubtaskTagSelectId(showSubtaskTagSelectId === task.id ? null : task.id);
+                                        }} 
+                                        className="text-gray-600 hover:text-emerald-400 p-1 hover:bg-white/5 rounded transition-colors"
+                                        title="Tags"
+                                    >
+                                        <IconTag size={12} />
+                                    </button>
+                                    {showSubtaskTagSelectId === task.id && (
+                                        <div className="absolute top-full right-0 mt-1 w-48 bg-[#1a1a2e] border border-white/10 rounded-lg shadow-xl z-[100] p-1">
+                                            <div className="max-h-40 overflow-y-auto custom-scrollbar">
+                                                {tags.map(tag => (
+                                                    <button
+                                                        key={tag.id}
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            handleToggleSubtaskTag(task.id, tag.id);
+                                                        }}
+                                                        className={`w-full flex items-center gap-2 px-2 py-1.5 rounded text-[10px] text-gray-300 hover:bg-white/5 transition-colors text-left ${task.tags?.includes(tag.id) ? 'bg-primary/10 text-primary' : ''}`}
+                                                    >
+                                                        <div className="w-2 h-2 rounded-full" style={{ backgroundColor: tag.color }} />
+                                                        <span className="truncate">{tag.name}</span>
+                                                    </button>
+                                                ))}
+                                                {tags.length === 0 && <p className="text-[10px] text-gray-500 p-2 text-center">Nenhuma etiqueta</p>}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                            {task.tags && task.tags.length > 0 && (
+                                <div className="flex gap-1 ml-2 shrink-0">
+                                    {tags.filter(t => task.tags.includes(t.id)).slice(0, 3).map(tag => (
+                                        <div 
+                                            key={tag.id} 
+                                            className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-medium border border-white/5 whitespace-nowrap"
+                                            style={{ backgroundColor: `${tag.color}15`, color: tag.color }}
+                                        >
+                                            <div className="w-1 h-1 rounded-full" style={{ backgroundColor: tag.color }} />
+                                            <span>{tag.name}</span>
+                                        </div>
+                                    ))}
+                                    {task.tags.length > 3 && (
+                                        <span className="text-[9px] text-gray-500 font-bold self-center">+{task.tags.length - 3}</span>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </div>
+
+                {/* Responsavel */}
+                <div className="flex justify-start relative">
+                    <button
                         onClick={() => {
-                            if (onOpenCard) onOpenCard(task.id);
+                            if (userRole === 'visualizador') return;
+                            setActiveSubtaskId(task.id);
+                            setShowSubtaskMemberSelect(showSubtaskMemberSelect === task.id ? null : task.id);
+                            setShowSubtaskPrioritySelect(null);
+                            setShowSubtaskDateSelect(null);
                         }}
+                        className="group/member flex items-center"
                     >
-                        {task.title}
-                    </span>
-                    <button onClick={() => handleUnlinkSubtask(task.id)} className="opacity-0 group-hover:opacity-100 text-gray-600 hover:text-red-400 transition-all p-1">
+                        {task.assigned_to ? (
+                            <div className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center text-[10px] font-bold text-primary shrink-0 border border-primary/30 ring-1 ring-[#0a0a1a] overflow-hidden shadow-lg">
+                                {members.find(m => m.id === task.assigned_to)?.avatar_url ? (
+                                    <img src={members.find(m => m.id === task.assigned_to).avatar_url} alt="" className="w-full h-full object-cover" />
+                                ) : (
+                                    members.find(m => m.id === task.assigned_to)?.name?.charAt(0) || 'U'
+                                )}
+                            </div>
+                        ) : (
+                            <div className="w-6 h-6 flex items-center justify-center text-gray-600 hover:text-gray-400 hover:bg-white/5 transition-all">
+                                <IconUser size={12} />
+                            </div>
+                        )}
+                    </button>
+
+                    {showSubtaskMemberSelect === task.id && (
+                        <div className="absolute top-full left-0 mt-2 w-56 bg-[#1a1a2e] border border-white/10 rounded-xl shadow-2xl z-50 overflow-hidden py-1">
+                            <div className="max-h-48 overflow-y-auto custom-scrollbar p-1">
+                                {members.map(m => (
+                                    <button
+                                        key={m.id}
+                                        onClick={() => {
+                                            handleUpdateSubtask(task.id, { assigned_to: m.id });
+                                            setShowSubtaskMemberSelect(null);
+                                        }}
+                                        className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs text-gray-300 hover:bg-white/5 hover:text-white transition-colors text-left ${task.assigned_to === m.id ? 'bg-primary/10 text-primary' : ''}`}
+                                    >
+                                        <div className="w-6 h-6 rounded-full bg-white/10 flex items-center justify-center text-[10px] font-bold overflow-hidden shadow-sm">
+                                            {m.avatar_url ? (
+                                                <img src={m.avatar_url} alt="" className="w-full h-full object-cover" />
+                                            ) : (
+                                                m.name.charAt(0)
+                                            )}
+                                        </div>
+                                        <span className="truncate">{m.name}</span>
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+                </div>
+
+                {/* Prioridade */}
+                <div className="flex justify-start relative">
+                    <button
+                        onClick={() => {
+                            if (userRole === 'visualizador') return;
+                            setActiveSubtaskId(task.id);
+                            setShowSubtaskPrioritySelect(showSubtaskPrioritySelect === task.id ? null : task.id);
+                            setShowSubtaskMemberSelect(null);
+                            setShowSubtaskDateSelect(null);
+                        }}
+                        className="flex items-center gap-1.5 px-1.5 py-1 rounded hover:bg-white/5 transition-colors"
+                    >
+                        <IconFlag
+                            size={16}
+                            className={`${task.priority === 'urgent' ? 'text-red-500' : task.priority === 'high' ? 'text-orange-500' : task.priority === 'medium' ? 'text-blue-500' : 'text-gray-600'} transition-colors`}
+                            fill={task.priority && task.priority !== 'low' ? "currentColor" : "none"}
+                            stroke={1.5}
+                        />
+                        <span className={`text-[10px] capitalize ${task.priority === 'urgent' ? 'text-red-500/80' : task.priority === 'high' ? 'text-orange-500/80' : task.priority === 'medium' ? 'text-blue-500/80' : 'text-gray-600'}`}>
+                            {(task.priority === 'urgent' ? 'Urgente' : task.priority === 'high' ? 'Alta' : task.priority === 'medium' ? 'Média' : 'Baixa')}
+                        </span>
+                    </button>
+
+                    {showSubtaskPrioritySelect === task.id && (
+                        <div className="absolute top-full left-0 mt-2 w-40 bg-[#1a1a2e] border border-white/10 rounded-xl shadow-2xl z-50 overflow-hidden p-1">
+                            {[
+                                { value: 'urgent', label: 'Urgente', text: 'text-red-500' },
+                                { value: 'high', label: 'Alta', text: 'text-orange-500' },
+                                { value: 'medium', label: 'Média', text: 'text-blue-500' },
+                                { value: 'low', label: 'Baixa', text: 'text-gray-500' }
+                            ].map(p => (
+                                <button
+                                    key={p.value}
+                                    onClick={() => {
+                                        handleUpdateSubtask(task.id, { priority: p.value });
+                                        setShowSubtaskPrioritySelect(null);
+                                    }}
+                                    className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs hover:bg-white/5 transition-colors text-left ${task.priority === p.value ? 'bg-white/10' : ''}`}
+                                >
+                                    <IconFlag size={14} className={p.text} fill="currentColor" />
+                                    <span className="text-gray-300">{p.label}</span>
+                                </button>
+                            ))}
+                        </div>
+                    )}
+                </div>
+
+                {/* Data */}
+                <div className="text-left text-xs relative flex justify-start">
+                    <div className="relative min-w-[60px] h-7 flex items-center group/date px-1.5 rounded hover:bg-white/5 transition-colors">
+                        {task.due_date ? (
+                            <span className="cursor-pointer hover:text-white transition-colors text-[11px] text-gray-300 font-medium">
+                                {new Date(task.due_date.substring(0, 10) + 'T12:00:00').toLocaleDateString('pt-BR').slice(0, 5)}
+                            </span>
+                        ) : (
+                            <IconCalendar size={16} className="text-gray-600 hover:text-gray-400" />
+                        )}
+                        <input
+                            type="date"
+                            className="absolute inset-0 opacity-0 cursor-pointer w-full h-full z-10"
+                            value={task.due_date ? task.due_date.substring(0, 10) : ''}
+                            onChange={(e) => handleUpdateSubtask(task.id, { due_date: e.target.value })}
+                            disabled={userRole === 'visualizador'}
+                            onClick={(e) => (e.target as HTMLInputElement).showPicker && (e.target as HTMLInputElement).showPicker()}
+                        />
+                    </div>
+                </div>
+
+                {/* Ações */}
+                <div className="flex justify-end pr-2 opacity-0 group-hover:opacity-100 transition-all">
+                    <button 
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            if (userRole === 'visualizador') return;
+                            handleUnlinkSubtask(task.id);
+                        }} 
+                        className="text-gray-600 hover:text-red-400 transition-all p-1 hover:bg-white/5 rounded"
+                        title="Excluir"
+                    >
                         <Trash2 size={14} />
                     </button>
                 </div>
@@ -1084,188 +1661,7 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onRefresh
         );
     };
 
-    const SortableChecklistItem = ({ item, isFullScreen = false }: { item: any, isFullScreen?: boolean }) => {
-        const {
-            attributes,
-            listeners,
-            setNodeRef,
-            transform,
-            transition,
-            isDragging
-        } = useSortable({ id: item.id });
 
-        const style = {
-            transform: CSS.Transform.toString(transform),
-            transition,
-            opacity: isDragging ? 0.5 : 1,
-            zIndex: isDragging ? 100 : 'auto',
-            position: 'relative' as const,
-        };
-
-        const isApprover = currentUserApprover || (userRole === 'admin' || userRole === 'proprietario');
-
-        return (
-            <div
-                ref={setNodeRef}
-                style={style}
-                className={`group flex items-start gap-3 rounded-lg transition-all relative ${isDragging ? 'bg-white/5 shadow-lg' : ''} ${isFullScreen ? 'p-4 py-3 hover:bg-white/[0.03] text-base' : 'p-3 py-2 hover:bg-gradient-to-r hover:from-primary/5 hover:to-transparent text-sm'}`}
-            >
-                <div {...attributes} {...listeners} className="mt-1 cursor-grab active:cursor-grabbing text-gray-700 hover:text-gray-500 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center shrink-0 w-4">
-                    <IconGripVertical size={isFullScreen ? 16 : 14} />
-                </div>
-
-                <div className="flex-1 flex flex-col gap-1 min-w-0">
-                    <div className="flex items-start gap-3 min-w-0">
-                        <button
-                            onClick={() => handleToggleChecklist(item.id, item.is_completed, item.needs_approval, item.approver_id)}
-                            className={`rounded border flex items-center justify-center transition-all shrink-0 ${isFullScreen ? 'mt-1 w-5 h-5' : 'mt-0.5 w-4 h-4'} ${item.is_completed ? 'border-emerald-500 bg-emerald-500 text-white' : 'border-gray-600 hover:border-gray-400'}`}
-                        >
-                            {item.is_completed && <CheckSquare size={isFullScreen ? 12 : 10} strokeWidth={3} />}
-                        </button>
-
-                        <span
-                            className={`flex-1 transition-colors font-medium leading-relaxed break-words ${item.is_completed ? 'text-gray-500 line-through' : 'text-gray-200'} cursor-pointer ${isFullScreen ? 'text-base' : 'text-sm'}`}
-                            onClick={() => handleToggleChecklist(item.id, item.is_completed, item.needs_approval, item.approver_id)}
-                        >
-                            {item.description}
-                        </span>
-
-                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-                            {isApprover && (
-                                <button
-                                    onClick={(e) => handleToggleApprovalReq(e, item.id, item.needs_approval)}
-                                    className={`p-1.5 rounded hover:bg-white/10 transition-colors ${item.needs_approval ? 'text-primary' : 'text-gray-600 hover:text-gray-400'}`}
-                                    title="Configurar Aprovacao"
-                                >
-                                    <Lock size={isFullScreen ? 16 : 14} />
-                                </button>
-                            )}
-                            <button
-                                onClick={() => handleDeleteChecklist(item.id)}
-                                className="p-1.5 rounded hover:bg-white/10 text-gray-600 hover:text-red-400 transition-colors"
-                                title="Excluir"
-                            >
-                                <Trash2 size={isFullScreen ? 16 : 14} />
-                            </button>
-                        </div>
-                    </div>
-
-                    {item.needs_approval && (
-                        <div className="flex flex-wrap gap-2 ml-7 mt-1">
-                            {item.is_approved ? (
-                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-emerald-500/10 text-emerald-400 text-[10px] font-bold border border-emerald-500/20">
-                                    <CheckSquare size={10} />
-                                    APROVADO
-                                </span>
-                            ) : (
-                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-amber-500/10 text-amber-400 text-[10px] font-bold border border-amber-500/20">
-                                    <Lock size={10} />
-                                    AGUARDANDO APROVA\u00C7\u00C3O
-                                </span>
-                            )}
-                        </div>
-                    )}
-                </div>
-            </div>
-        );
-    };
-
-    const SortableChecklistGroup = ({ group, checklist, onAddItem, isFullScreen = false }: { group: any, checklist: any[], onAddItem: (groupId: string) => void, isFullScreen?: boolean }) => {
-        const {
-            attributes,
-            listeners,
-            setNodeRef,
-            transform,
-            transition,
-            isDragging
-        } = useSortable({ id: group.id });
-
-        const style = {
-            transform: CSS.Transform.toString(transform),
-            transition,
-            opacity: isDragging ? 0.5 : 1,
-            zIndex: isDragging ? 50 : 'auto',
-            position: 'relative' as const,
-        };
-
-        const groupItems = checklist.filter(i => i.group_id === group.id || (group.id === 'default' && !i.group_id));
-        const completedCount = groupItems.filter(i => i.is_completed).length;
-        const totalCount = groupItems.length;
-
-        return (
-            <div ref={setNodeRef} style={style} className={`space-y-3 border border-white/10 rounded-xl group/group ${isFullScreen ? 'p-6 bg-white/[0.02] shadow-xl' : 'p-4 shadow-sm'}`}>
-                <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3 flex-1">
-                        <div {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing text-gray-600 hover:text-gray-400 opacity-0 group-hover/group:opacity-100 transition-opacity">
-                            <IconGripVertical size={isFullScreen ? 18 : 16} />
-                        </div>
-                        <input
-                            className={`font-bold text-white bg-transparent border-none focus:outline-none w-full placeholder:text-gray-500 hover:text-gray-200 transition-colors ${isFullScreen ? 'text-lg' : 'text-sm'}`}
-                            value={group.title}
-                            onChange={(e) => handleUpdateChecklistGroup(group.id, e.target.value)}
-                            placeholder="Nome do Checklist"
-                            disabled={userRole === 'visualizador'}
-                        />
-                        <div className="flex items-center gap-2 shrink-0">
-                            <span className="text-xs text-gray-500 font-medium px-2 py-0.5 rounded-full bg-white/5">
-                                {completedCount} de {totalCount}
-                            </span>
-                            {group.id !== 'default' && (
-                                <button onClick={() => handleDeleteChecklistGroup(group.id)} className="opacity-0 group-hover/group:opacity-100 p-2 rounded-lg hover:bg-red-500/10 text-gray-500 hover:text-red-400 transition-all">
-                                    <Trash2 size={isFullScreen ? 18 : 16} />
-                                </button>
-                            )}
-                        </div>
-                    </div>
-                </div>
-
-                <SortableContext items={groupItems.map(i => i.id)} strategy={verticalListSortingStrategy}>
-                    <div className="space-y-1">
-                        {groupItems.filter(i => !i.is_completed).map(item => (
-                            <SortableChecklistItem key={item.id} item={item} isFullScreen={isFullScreen} />
-                        ))}
-                    </div>
-                </SortableContext>
-
-                {/* Input de Adicionar Item (Estilo Botao Texto) */}
-                {userRole !== 'visualizador' && (
-                    <div className="px-3 py-2 mt-1">
-                        <div className="flex items-center gap-2 text-gray-500 hover:text-gray-300 transition-colors cursor-pointer group" onClick={() => onAddItem(group.id)}>
-                            <Plus size={isFullScreen ? 18 : 14} className="group-hover:text-primary transition-colors" />
-                            <input
-                                id={`new-checklist-input-${isFullScreen ? 'full-' : ''}${group.id}`}
-                                value={newChecklistItems[group.id] || ''}
-                                onChange={(e) => setNewChecklistItems({ ...newChecklistItems, [group.id]: e.target.value })}
-                                onKeyDown={(e) => e.key === 'Enter' && handleAddChecklistItem(group.id)}
-                                className={`bg-transparent focus:outline-none w-full placeholder:text-gray-500 text-gray-300 font-medium ${isFullScreen ? 'text-base h-10' : 'text-sm h-6'}`}
-                                placeholder="Adicionar item"
-                            />
-                        </div>
-                    </div>
-                )}
-
-                {/* Secao de Concluidos */}
-                {groupItems.filter(i => i.is_completed).length > 0 && (
-                    <div className="mt-4 pt-4 border-t border-white/5">
-                        <details className="group/details">
-                            <summary className="px-4 py-2 flex items-center gap-3 cursor-pointer hover:bg-white/[0.02] transition-colors list-none text-xs font-medium text-gray-500 select-none">
-                                <ChevronDown size={isFullScreen ? 14 : 12} className="transition-transform group-open/details:rotate-180" />
-                                <span>Mostrar {groupItems.filter(i => i.is_completed).length} item(ns) concluido(s)</span>
-                            </summary>
-
-                            <div className="px-2 pb-2 pt-2 animate-in slide-in-from-top-2 duration-200 space-y-1">
-                                <SortableContext items={groupItems.filter(i => i.is_completed).map(i => i.id)} strategy={verticalListSortingStrategy}>
-                                    {groupItems.filter(i => i.is_completed).map(item => (
-                                        <SortableChecklistItem key={item.id} item={item} isFullScreen={isFullScreen} />
-                                    ))}
-                                </SortableContext>
-                            </div>
-                        </details>
-                    </div>
-                )}
-            </div>
-        );
-    };
 
     // Helper for Audit Logs
     const createAuditLog = async (action: string, entityType: string, entityId: string, details: any) => {
@@ -1316,10 +1712,37 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onRefresh
             }).select().single();
 
             if (error) throw error;
-            setSubtasks([...subtasks, data]);
+            setSubtasks([...subtasks, { ...data, tags: [] }]);
         } catch (error) {
             console.error('Error creating subtask:', error);
             toast.error('Erro ao criar subtarefa.', 'Erro');
+        }
+    };
+
+    const handleToggleSubtaskTag = async (subtaskId: string, tagId: string) => {
+        const subtask = subtasks.find(t => t.id === subtaskId);
+        if (!subtask) return;
+
+        const currentTags = subtask.tags || [];
+        const isAdding = !currentTags.includes(tagId);
+
+        try {
+            if (isAdding) {
+                const { error: insertError } = await supabase.from('kanban_card_tags').insert({ card_id: subtaskId, tag_id: tagId });
+                if (insertError) throw insertError;
+            } else {
+                const { error: deleteError } = await supabase.from('kanban_card_tags').delete().match({ card_id: subtaskId, tag_id: tagId });
+                if (deleteError) throw deleteError;
+            }
+            
+            const newTags = isAdding 
+                ? [...currentTags, tagId]
+                : currentTags.filter((id: string) => id !== tagId);
+
+            setSubtasks(subtasks.map(t => t.id === subtaskId ? { ...t, tags: newTags } : t));
+        } catch (error) {
+            console.error('Error toggling subtask tag:', error);
+            toast.error('Erro ao atualizar tags da subtarefa.', 'Erro');
         }
     };
 
@@ -2235,6 +2658,16 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onRefresh
                                                         checklist={checklist}
                                                         onAddItem={(groupId) => document.getElementById(`new-checklist-input-full-${groupId}`)?.focus()}
                                                         isFullScreen={true}
+                                                        userRole={userRole}
+                                                        handleUpdateChecklistGroup={handleUpdateChecklistGroup}
+                                                        handleDeleteChecklistGroup={handleDeleteChecklistGroup}
+                                                        newChecklistItems={newChecklistItems}
+                                                        setNewChecklistItems={setNewChecklistItems}
+                                                        handleAddChecklistItem={handleAddChecklistItem}
+                                                        currentUserApprover={currentUserApprover}
+                                                        handleToggleChecklist={handleToggleChecklist}
+                                                        handleToggleApprovalReq={handleToggleApprovalReq}
+                                                        handleDeleteChecklist={handleDeleteChecklist}
                                                     />
                                                 ))}
                                             </SortableContext>
@@ -3005,6 +3438,16 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onRefresh
                                                             checklist={checklist}
                                                             onAddItem={(groupId) => document.getElementById(`new-checklist-input-${groupId}`)?.focus()}
                                                             isFullScreen={false}
+                                                            userRole={userRole}
+                                                            handleUpdateChecklistGroup={handleUpdateChecklistGroup}
+                                                            handleDeleteChecklistGroup={handleDeleteChecklistGroup}
+                                                            newChecklistItems={newChecklistItems}
+                                                            setNewChecklistItems={setNewChecklistItems}
+                                                            handleAddChecklistItem={handleAddChecklistItem}
+                                                            currentUserApprover={currentUserApprover}
+                                                            handleToggleChecklist={handleToggleChecklist}
+                                                            handleToggleApprovalReq={handleToggleApprovalReq}
+                                                            handleDeleteChecklist={handleDeleteChecklist}
                                                         />
                                                     ))}
                                                 </SortableContext>
