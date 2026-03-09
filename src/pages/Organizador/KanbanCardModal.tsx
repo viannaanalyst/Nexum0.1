@@ -90,7 +90,7 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onOpenCar
     const [showOnCalendar, setShowOnCalendar] = useState(false);
     const [category, setCategory] = useState('');
     const [subcategory, setSubcategory] = useState('');
-    const [clientId, setClientId] = useState('');
+    const [clientId, setClientId] = useState(defaultClientId || '');
 
     const [checklist, setChecklist] = useState<any[]>([]);
     const [checklistGroups, setChecklistGroups] = useState<any[]>([{ id: 'default', title: 'Checklist Principal' }]);
@@ -101,7 +101,7 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onOpenCar
     const [subtasks, setSubtasks] = useState<any[]>([]); // New: Subtasks
     const [columnsMap, setColumnsMap] = useState<Record<string, string>>({}); // Helper for subtask status
     const [columns, setColumns] = useState<any[]>([]); // New: Columns list for dropdown
-    const [currentColumnId, setCurrentColumnId] = useState<string>(''); // For status badge
+    const [currentColumnId, setCurrentColumnId] = useState<string>(columnId || ''); // For status badge
 
     // Auxiliary Data
     const [members, setMembers] = useState<any[]>([]);
@@ -269,7 +269,6 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onOpenCar
         fetchMembers();
         fetchClients();
         fetchTags();
-        fetchColumns(); // Fetch columns for subtasks status
         fetchApprovers(); // Fetch approvers list
         checkCurrentUserRole(); // Check role
         fetchTimeEntries(); // Fetch time entries
@@ -293,19 +292,55 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onOpenCar
         }
     }, [cardId, selectedCompany]);
 
+    useEffect(() => {
+        if (selectedCompany) {
+            fetchColumns();
+        }
+    }, [clientId, selectedCompany]);
+
     const fetchColumns = async () => {
         if (!selectedCompany) return;
         try {
-            const { data } = await supabase
+            const { data, error } = await supabase
                 .from('kanban_columns')
-                .select('id, title, color')
-                .eq('company_id', selectedCompany.id)
-                .order('position');
+                .select('id, title, color, client_id, is_done_column, position')
+                .eq('company_id', selectedCompany.id);
+
+            if (error) throw error;
 
             if (data) {
-                const map = data.reduce((acc, col) => ({ ...acc, [col.id]: col.title }), {});
+                const filtered = data.filter(col =>
+                    col.client_id === null || (clientId && col.client_id === clientId)
+                );
+
+                const sortedCols = [...filtered].sort((a, b) => {
+                    if (a.is_done_column && !b.is_done_column) return 1;
+                    if (!a.is_done_column && b.is_done_column) return -1;
+                    if (a.client_id === null && b.client_id !== null) return 1;
+                    if (a.client_id !== null && b.client_id === null) return -1;
+                    return (a.position || 0) - (b.position || 0);
+                });
+
+                const map = sortedCols.reduce((acc, col) => ({ ...acc, [col.id]: col.title }), {});
                 setColumnsMap(map);
-                setColumns(data);
+                setColumns(sortedCols);
+
+                if (sortedCols.length > 0) {
+                    const isPropValid = columnId && sortedCols.some(c => c.id === columnId);
+                    const isCurrentValid = currentColumnId && sortedCols.some(c => c.id === currentColumnId);
+                    
+                    if (cardId === 'new' && isPropValid) {
+                        if (!currentColumnId || currentColumnId === columnId || !isCurrentValid) {
+                            setCurrentColumnId(columnId as string);
+                        }
+                    } else if (!isCurrentValid) {
+                        if (isPropValid) {
+                            setCurrentColumnId(columnId as string);
+                        } else {
+                            setCurrentColumnId(sortedCols[0].id);
+                        }
+                    }
+                }
             }
         } catch (error) {
             console.error("Error fetching columns", error);
@@ -727,7 +762,7 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onOpenCar
             const oldIndex = checklist.findIndex(i => i.id === active.id);
             const newItems = [...checklist];
             const [movedItem] = newItems.splice(oldIndex, 1);
-            
+
             const targetGroupId = overGroup ? overGroup.id : (overItem ? overItem.group_id : (movedItem.group_id || 'default'));
             movedItem.group_id = targetGroupId;
 
@@ -737,7 +772,7 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onOpenCar
             } else {
                 newItems.push(movedItem);
             }
-            
+
             setChecklist(newItems);
 
             try {
@@ -748,7 +783,7 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onOpenCar
                 }));
                 for (const update of updates) {
                     if (update.id.startsWith('temp-')) continue;
-                    await supabase.from('kanban_checklists').update({ 
+                    await supabase.from('kanban_checklists').update({
                         position: update.position,
                         group_id: update.group_id
                     }).eq('id', update.id);
@@ -781,15 +816,15 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onOpenCar
 
         if (isFullScreen) {
             return (
-                <div 
-                    ref={setNodeRef} 
-                    style={style} 
+                <div
+                    ref={setNodeRef}
+                    style={style}
                     className={`group grid grid-cols-[30px_1fr_140px_140px_180px_60px] gap-6 items-center px-6 py-4 hover:bg-white/[0.04] transition-all relative text-sm ${(showSubtaskStatusSelect === task.id || showSubtaskMemberSelect === task.id || showSubtaskPrioritySelect === task.id || showSubtaskTagSelectId === task.id) ? 'z-[999]' : 'z-auto'}`}
                 >
                     <div {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing text-gray-600 hover:text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center shrink-0">
                         <IconGripVertical size={16} />
                     </div>
-                    
+
                     {/* Nome e Status */}
                     <div className="flex items-center gap-4 min-w-0">
                         <div className="relative shrink-0">
@@ -854,7 +889,7 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onOpenCar
                                 }}
                             />
                         ) : (
-                            <span 
+                            <span
                                 className="text-gray-200 group-hover:text-white truncate transition-colors cursor-pointer font-medium flex-1"
                                 onClick={() => {
                                     if (userRole === 'visualizador') return;
@@ -1006,9 +1041,9 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onOpenCar
         }
 
         return (
-            <div 
-                ref={setNodeRef} 
-                style={style} 
+            <div
+                ref={setNodeRef}
+                style={style}
                 className="group flex flex-col items-stretch relative"
             >
                 <div className="flex items-center gap-3 px-4 py-2 hover:bg-white/[0.02] transition-colors group/row">
@@ -1031,7 +1066,7 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onOpenCar
                             />
                         </button>
                     </div>
-                    <span 
+                    <span
                         className="text-gray-300 group-hover:text-white truncate flex-1 text-sm font-medium cursor-pointer"
                         onClick={() => {
                             if (onOpenCard) onOpenCard(task.id);
@@ -1068,9 +1103,9 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onOpenCar
         const isApprover = currentUserApprover || (userRole === 'admin' || userRole === 'proprietario');
 
         return (
-            <div 
-                ref={setNodeRef} 
-                style={style} 
+            <div
+                ref={setNodeRef}
+                style={style}
                 className={`group flex items-start gap-3 rounded-lg transition-all relative ${isDragging ? 'bg-white/5 shadow-lg' : ''} ${isFullScreen ? 'p-4 py-3 hover:bg-white/[0.03] text-base' : 'p-3 py-2 hover:bg-gradient-to-r hover:from-primary/5 hover:to-transparent text-sm'}`}
             >
                 <div {...attributes} {...listeners} className="mt-1 cursor-grab active:cursor-grabbing text-gray-700 hover:text-gray-500 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center shrink-0 w-4">
@@ -1086,7 +1121,7 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onOpenCar
                             {item.is_completed && <CheckSquare size={isFullScreen ? 12 : 10} strokeWidth={3} />}
                         </button>
 
-                        <span 
+                        <span
                             className={`flex-1 transition-colors font-medium leading-relaxed break-words ${item.is_completed ? 'text-gray-500 line-through' : 'text-gray-200'} cursor-pointer ${isFullScreen ? 'text-base' : 'text-sm'}`}
                             onClick={() => handleToggleChecklist(item.id, item.is_completed, item.needs_approval, item.approver_id)}
                         >
@@ -1095,17 +1130,17 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onOpenCar
 
                         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
                             {isApprover && (
-                                <button 
-                                    onClick={(e) => handleToggleApprovalReq(e, item.id, item.needs_approval)} 
+                                <button
+                                    onClick={(e) => handleToggleApprovalReq(e, item.id, item.needs_approval)}
                                     className={`p-1.5 rounded hover:bg-white/10 transition-colors ${item.needs_approval ? 'text-primary' : 'text-gray-600 hover:text-gray-400'}`}
                                     title="Configurar Aprovacao"
                                 >
                                     <Lock size={isFullScreen ? 16 : 14} />
                                 </button>
                             )}
-                            <button 
-                                onClick={() => handleDeleteChecklist(item.id)} 
-                                className="p-1.5 rounded hover:bg-white/10 text-gray-600 hover:text-red-400 transition-colors" 
+                            <button
+                                onClick={() => handleDeleteChecklist(item.id)}
+                                className="p-1.5 rounded hover:bg-white/10 text-gray-600 hover:text-red-400 transition-colors"
                                 title="Excluir"
                             >
                                 <Trash2 size={isFullScreen ? 16 : 14} />
@@ -1312,7 +1347,7 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onOpenCar
                 toast.error('Nenhuma coluna encontrada.', 'Erro');
                 return;
             }
-            
+
             const { data: newCard, error: createError } = await supabase.from('kanban_cards').insert({
                 company_id: selectedCompany.id,
                 client_id: clientId || null,
@@ -1664,7 +1699,7 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onOpenCar
         if (!currentStatus) {
             const rect = e.currentTarget.getBoundingClientRect();
             let left = rect.left;
-            const popoverWidth = 256; 
+            const popoverWidth = 256;
             if (left + popoverWidth > window.innerWidth - 20) {
                 left = window.innerWidth - popoverWidth - 20;
             }
@@ -2084,22 +2119,22 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onOpenCar
                                         <div className="flex items-center justify-between">
                                             <div className="flex items-center gap-4">
                                                 <h2 className="text-3xl font-bold text-white tracking-tight">Subtarefas</h2>
-                                            <div className="flex items-center gap-2 bg-white/5 px-3 py-1 rounded-full border border-white/10">
-                                                <div className="h-1.5 w-24 bg-white/10 rounded-full overflow-hidden">
-                                                    <div
-                                                        className="h-full bg-blue-500 rounded-full transition-all duration-500"
-                                                        style={{ width: `${subtasks.length > 0 ? (subtasks.filter(t => t.column_id && columnsMap[t.column_id]?.toLowerCase() === 'concluído').length / subtasks.length) * 100 : 0}%` }}
-                                                    ></div>
+                                                <div className="flex items-center gap-2 bg-white/5 px-3 py-1 rounded-full border border-white/10">
+                                                    <div className="h-1.5 w-24 bg-white/10 rounded-full overflow-hidden">
+                                                        <div
+                                                            className="h-full bg-blue-500 rounded-full transition-all duration-500"
+                                                            style={{ width: `${subtasks.length > 0 ? (subtasks.filter(t => t.column_id && columnsMap[t.column_id]?.toLowerCase() === 'concluído').length / subtasks.length) * 100 : 0}%` }}
+                                                        ></div>
+                                                    </div>
+                                                    <span className="text-xs text-blue-500 font-bold">
+                                                        {subtasks.filter(t => t.column_id && columnsMap[t.column_id]?.toLowerCase() === 'concluído').length}/{subtasks.length}
+                                                    </span>
                                                 </div>
-                                                <span className="text-xs text-blue-500 font-bold">
-                                                    {subtasks.filter(t => t.column_id && columnsMap[t.column_id]?.toLowerCase() === 'concluído').length}/{subtasks.length}
-                                                </span>
                                             </div>
                                         </div>
                                     </div>
-                                </div>
 
-                                <div className="rounded-2xl border border-white/10 bg-white/[0.02] overflow-hidden shadow-2xl">
+                                    <div className="rounded-2xl border border-white/10 bg-white/[0.02] overflow-hidden shadow-2xl">
                                         {/* Tabela Header - ClickUp Style Minimal */}
                                         <div className="grid grid-cols-[1fr_140px_140px_180px_60px] gap-6 px-6 py-4 text-xs font-bold text-gray-500 bg-white/[0.03] border-b border-white/10 uppercase tracking-wider">
                                             <div className="pl-10">Nome</div>
@@ -2127,23 +2162,23 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onOpenCar
                                             </DndContext>
                                         </div>
 
-                                            {/* New Task Input Inline */}
-                                            {userRole !== 'visualizador' && (
-                                                <div className="flex items-center gap-4 px-6 py-4 text-gray-500 hover:text-gray-300 transition-colors cursor-text group hover:bg-white/[0.03]" onClick={() => document.getElementById('new-subtask-input-full')?.focus()}>
-                                                    <div className="w-6 flex justify-center opacity-0"><div className="w-1.5 h-1.5 rounded-full bg-gray-600"></div></div>
-                                                    <input
-                                                        id="new-subtask-input-full"
-                                                        className="bg-transparent text-sm focus:outline-none w-full placeholder:text-gray-600 text-gray-300 h-8 font-medium"
-                                                        placeholder="Adicionar nova subtarefa..."
-                                                        onKeyDown={(e) => {
-                                                            if (e.key === 'Enter') {
-                                                                handleCreateSubtask(e.currentTarget.value);
-                                                                e.currentTarget.value = '';
-                                                            }
-                                                        }}
-                                                    />
-                                                </div>
-                                            )}
+                                        {/* New Task Input Inline */}
+                                        {userRole !== 'visualizador' && (
+                                            <div className="flex items-center gap-4 px-6 py-4 text-gray-500 hover:text-gray-300 transition-colors cursor-text group hover:bg-white/[0.03]" onClick={() => document.getElementById('new-subtask-input-full')?.focus()}>
+                                                <div className="w-6 flex justify-center opacity-0"><div className="w-1.5 h-1.5 rounded-full bg-gray-600"></div></div>
+                                                <input
+                                                    id="new-subtask-input-full"
+                                                    className="bg-transparent text-sm focus:outline-none w-full placeholder:text-gray-600 text-gray-300 h-8 font-medium"
+                                                    placeholder="Adicionar nova subtarefa..."
+                                                    onKeyDown={(e) => {
+                                                        if (e.key === 'Enter') {
+                                                            handleCreateSubtask(e.currentTarget.value);
+                                                            e.currentTarget.value = '';
+                                                        }
+                                                    }}
+                                                />
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                             ) : showChecklistOnly ? (
@@ -2181,21 +2216,21 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onOpenCar
                                     </div>
 
                                     <div className="grid grid-cols-1 gap-6">
-                                        <DndContext 
-                                            sensors={sensors} 
-                                            collisionDetection={closestCenter} 
+                                        <DndContext
+                                            sensors={sensors}
+                                            collisionDetection={closestCenter}
                                             onDragEnd={handleChecklistDragEnd}
                                         >
-                                            <SortableContext 
-                                                items={checklistGroups.map(g => g.id)} 
+                                            <SortableContext
+                                                items={checklistGroups.map(g => g.id)}
                                                 strategy={verticalListSortingStrategy}
                                             >
                                                 {checklistGroups.map(group => (
-                                                    <SortableChecklistGroup 
-                                                        key={group.id} 
-                                                        group={group} 
-                                                        checklist={checklist} 
-                                                        onAddItem={(groupId) => document.getElementById(`new-checklist-input-full-${groupId}`)?.focus()} 
+                                                    <SortableChecklistGroup
+                                                        key={group.id}
+                                                        group={group}
+                                                        checklist={checklist}
+                                                        onAddItem={(groupId) => document.getElementById(`new-checklist-input-full-${groupId}`)?.focus()}
                                                         isFullScreen={true}
                                                     />
                                                 ))}
@@ -2237,844 +2272,844 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onOpenCar
                                 <>
                                     {/* Cabecalho (Agora parte do fluxo) */}
                                     <div className="pr-32"> {/* Padding right para nao sobrepor botÃµes */}
-                                {/* Breadcrumbs / ID */}
-                                <div className="flex items-center gap-3 mb-3">
-                                    <span className="text-[10px] bg-white/[0.05] border border-white/5 text-gray-400 px-2 py-0.5 rounded-full font-mono tracking-wider">
-                                        {isNew ? 'NOVA TAREFA' : `TASK-${cardId.slice(0, 6)}`}
-                                    </span>
-                                    {/* Status/Coluna Badge */}
-                                    <div className="flex items-center gap-2">
-                                        <div className={`w-2 h-2 rounded-full ${currentColumnId || columnId ? 'bg-blue-500' : 'bg-gray-500'}`} />
-                                        <span className="text-[13px] text-[#6e6e6e] tracking-wide font-medium">
-                                            {columnsMap[currentColumnId || columnId || ''] || 'Sem Status'}
-                                        </span>
-                                    </div>
-                                </div>
-
-                                {/* Titulo Grande */}
-                                <input
-                                    className="text-4xl font-bold text-white bg-transparent border-none focus:outline-none w-full placeholder:text-gray-600/50 leading-tight tracking-tight"
-                                    value={title}
-                                    onChange={e => setTitle(e.target.value)}
-                                    placeholder="Titulo da Tarefa"
-                                    disabled={userRole === 'visualizador'}
-                                />
-                            </div>
-
-                            {/* 1. Propriedades (Lista Estilo ClickUp) */}
-                            <div className="grid grid-cols-2 gap-x-12 gap-y-1">
-
-                                {/* === COLUNA ESQUERDA === */}
-                                <div className="space-y-4">
-
-                                    {/* 1. Status */}
-                                    <div className="flex items-center justify-between group h-8">
-                                        <div
-                                            className="flex items-center gap-2 text-[#EEEEEE] min-w-[140px] cursor-pointer"
-                                            onClick={() => userRole !== 'visualizador' && setShowStatusSelect(!showStatusSelect)}
-                                        >
-                                            <div className="p-1 rounded hover:bg-white/5 transition-colors">
-                                                <IconTarget size={16} stroke={2} color="#6e6e6e" />
+                                        {/* Breadcrumbs / ID */}
+                                        <div className="flex items-center gap-3 mb-3">
+                                            <span className="text-[10px] bg-white/[0.05] border border-white/5 text-gray-400 px-2 py-0.5 rounded-full font-mono tracking-wider">
+                                                {isNew ? 'NOVA TAREFA' : `TASK-${cardId.slice(0, 6)}`}
+                                            </span>
+                                            {/* Status/Coluna Badge */}
+                                            <div className="flex items-center gap-2">
+                                                <div className={`w-2 h-2 rounded-full ${currentColumnId || columnId ? 'bg-blue-500' : 'bg-gray-500'}`} />
+                                                <span className="text-[13px] text-[#6e6e6e] tracking-wide font-medium">
+                                                    {columnsMap[currentColumnId || columnId || ''] || 'Sem Status'}
+                                                </span>
                                             </div>
-                                            <span className="text-sm font-medium text-[#EEEEEE] group-hover:text-white transition-colors">Status</span>
                                         </div>
 
-                                        <div className="relative flex-1 flex justify-start">
-                                            <button
-                                                onClick={() => userRole !== 'visualizador' && setShowStatusSelect(!showStatusSelect)}
-                                                className="flex items-center"
-                                            >
+                                        {/* Titulo Grande */}
+                                        <input
+                                            className="text-4xl font-bold text-white bg-transparent border-none focus:outline-none w-full placeholder:text-gray-600/50 leading-tight tracking-tight"
+                                            value={title}
+                                            onChange={e => setTitle(e.target.value)}
+                                            placeholder="Titulo da Tarefa"
+                                            disabled={userRole === 'visualizador'}
+                                        />
+                                    </div>
+
+                                    {/* 1. Propriedades (Lista Estilo ClickUp) */}
+                                    <div className="grid grid-cols-2 gap-x-12 gap-y-1">
+
+                                        {/* === COLUNA ESQUERDA === */}
+                                        <div className="space-y-4">
+
+                                            {/* 1. Status */}
+                                            <div className="flex items-center justify-between group h-8">
                                                 <div
-                                                    className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-medium tracking-wide text-white transition-all hover:opacity-90 shadow-sm"
-                                                    style={{ backgroundColor: columns.find(c => c.id === currentColumnId)?.color || '#3b82f6' }}
+                                                    className="flex items-center gap-2 text-[#EEEEEE] min-w-[140px] cursor-pointer"
+                                                    onClick={() => userRole !== 'visualizador' && setShowStatusSelect(!showStatusSelect)}
                                                 >
-                                                    <span className="truncate max-w-[100px]">{columnsMap[currentColumnId] || 'PENDENTE'}</span>
-                                                    <ChevronDown size={10} strokeWidth={3} />
+                                                    <div className="p-1 rounded hover:bg-white/5 transition-colors">
+                                                        <IconTarget size={16} stroke={2} color="#6e6e6e" />
+                                                    </div>
+                                                    <span className="text-sm font-medium text-[#EEEEEE] group-hover:text-white transition-colors">Status</span>
                                                 </div>
-                                                <div className="w-6 h-6 flex items-center justify-center ml-1 rounded hover:bg-white/10 text-gray-500 hover:text-green-500 transition-colors cursor-pointer">
-                                                    <CheckSquare size={14} />
-                                                </div>
-                                            </button>
 
-                                            {/* Popover Status */}
-                                            {showStatusSelect && (
-                                                <div className="absolute top-full left-0 mt-1 w-48 bg-[#1a1a2e] border border-white/10 rounded-lg shadow-xl z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-200 py-1">
-                                                    {columns.map(col => (
-                                                        <button
-                                                            key={col.id}
-                                                            onClick={() => {
-                                                                setCurrentColumnId(col.id);
-                                                                setShowStatusSelect(false);
-                                                            }}
-                                                            className="w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-white/5 transition-colors text-left"
-                                                        >
-                                                            <div className={`w-2 h-2 rounded-full ${col.color || 'bg-gray-500'}`} />
-                                                            <span className="text-gray-300">{col.title}</span>
-                                                        </button>
-                                                    ))}
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
-
-                                    {/* 2. Datas */}
-                                    <div className="flex items-center justify-between group h-8">
-                                        <div
-                                            className="flex items-center gap-2 text-[#EEEEEE] min-w-[140px] cursor-pointer"
-                                            onClick={() => userRole !== 'visualizador' && dueDatePickerRef.current?.showPicker()}
-                                        >
-                                            <div className="p-1 rounded hover:bg-white/5 transition-colors">
-                                                <IconCalendar size={16} stroke={1.5} color="#6e6e6e" />
-                                            </div>
-                                            <span className="text-sm font-medium text-[#EEEEEE] group-hover:text-white transition-colors">Datas</span>
-                                        </div>
-
-                                        <div className="relative flex-1 flex items-center gap-2 justify-start">
-                                            {/* Data Inicio */}
-                                            <div className="relative flex items-center gap-1 hover:bg-white/5 px-1.5 py-1 rounded cursor-pointer transition-colors group/start">
-                                                <span className={`text-sm ${startDate ? 'text-gray-300' : 'text-[#6e6e6e]'}`}>
-                                                    {startDate ? new Date(startDate + 'T12:00:00').toLocaleDateString('pt-BR').slice(0, 5) : 'Inicio'}
-                                                </span>
-                                                <input
-                                                    ref={startDatePickerRef}
-                                                    type="date"
-                                                    className="absolute inset-0 opacity-0 cursor-pointer w-full h-full z-10"
-                                                    value={startDate}
-                                                    onChange={(e) => setStartDate(e.target.value)}
-                                                    disabled={userRole === 'visualizador'}
-                                                    onClick={(e) => (e.target as HTMLInputElement).showPicker && (e.target as HTMLInputElement).showPicker()}
-                                                />
-                                            </div>
-
-                                            <span className="text-gray-700">â†’</span>
-
-                                            {/* Data Prevista */}
-                                            <div className="relative flex items-center gap-1 hover:bg-white/5 px-1.5 py-1 rounded cursor-pointer transition-colors group/due">
-                                                <span className={`text-sm ${dueDate ? 'text-gray-300' : 'text-[#6e6e6e]'}`}>
-                                                    {dueDate ? new Date(dueDate + 'T12:00:00').toLocaleDateString('pt-BR').slice(0, 5) : 'Prevista'}
-                                                </span>
-                                                <input
-                                                    ref={dueDatePickerRef}
-                                                    type="date"
-                                                    className="absolute inset-0 opacity-0 cursor-pointer w-full h-full z-10"
-                                                    value={dueDate}
-                                                    onChange={(e) => {
-                                                        setDueDate(e.target.value);
-                                                        if (e.target.value) setShowOnCalendar(true);
-                                                    }}
-                                                    disabled={userRole === 'visualizador'}
-                                                    onClick={(e) => (e.target as HTMLInputElement).showPicker && (e.target as HTMLInputElement).showPicker()}
-                                                />
-                                            </div>
-
-                                            {/* Botao limpar (so aparece se tiver datas) */}
-                                            {(startDate || dueDate) && (
-                                                <button
-                                                    className="ml-1 text-gray-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        setDueDate('');
-                                                        setStartDate('');
-                                                        setShowOnCalendar(false);
-                                                    }}
-                                                >
-                                                    <X size={12} />
-                                                </button>
-                                            )}
-                                        </div>
-                                    </div>
-
-                                    {/* 3. Data da entrega */}
-                                    <div className="flex items-center justify-between group h-8">
-                                        <div
-                                            className="flex items-center gap-2 text-[#EEEEEE] min-w-[140px] cursor-pointer"
-                                            onClick={() => userRole !== 'visualizador' && deliveryDatePickerRef.current?.showPicker()}
-                                        >
-                                            <div className="p-1 rounded hover:bg-white/5 transition-colors">
-                                                <IconCalendar size={16} stroke={1.5} color="#6e6e6e" />
-                                            </div>
-                                            <span className="text-sm font-medium text-[#EEEEEE] group-hover:text-white transition-colors">Data da entrega</span>
-                                        </div>
-
-                                        <div className="relative flex-1 flex justify-start">
-                                            <div className="relative flex items-center gap-1 hover:bg-white/5 px-1.5 py-1 rounded cursor-pointer transition-colors group/delivery">
-                                                <span className={`text-sm ${deliveryDate ? 'text-gray-300' : 'text-[#6e6e6e]'}`}>
-                                                    {deliveryDate ? new Date(deliveryDate + 'T12:00:00').toLocaleDateString('pt-BR').slice(0, 5) : 'Vazio'}
-                                                </span>
-                                                <input
-                                                    ref={deliveryDatePickerRef}
-                                                    type="date"
-                                                    className="absolute inset-0 opacity-0 cursor-pointer w-full h-full z-10"
-                                                    value={deliveryDate}
-                                                    onChange={(e) => setDeliveryDate(e.target.value)}
-                                                    disabled={userRole === 'visualizador'}
-                                                    onClick={(e) => (e.target as HTMLInputElement).showPicker && (e.target as HTMLInputElement).showPicker()}
-                                                />
-                                                {deliveryDate && (
+                                                <div className="relative flex-1 flex justify-start">
                                                     <button
-                                                        className="ml-1 text-gray-600 hover:text-red-400 opacity-0 group-hover/delivery:opacity-100 transition-opacity z-20"
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            setDeliveryDate('');
-                                                        }}
+                                                        onClick={() => userRole !== 'visualizador' && setShowStatusSelect(!showStatusSelect)}
+                                                        className="flex items-center"
                                                     >
-                                                        <X size={12} />
-                                                    </button>
-                                                )}
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    {/* 4. Etiquetas */}
-                                    <div className="flex items-center justify-between group h-8">
-                                        <div
-                                            className="flex items-center gap-2 text-[#EEEEEE] min-w-[140px] cursor-pointer"
-                                            onClick={() => userRole !== 'visualizador' && setShowTagInput(!showTagInput)}
-                                        >
-                                            <div className="p-1 rounded hover:bg-white/5 transition-colors">
-                                                <IconTag size={16} stroke={1.5} color="#6e6e6e" />
-                                            </div>
-                                            <span className="text-sm font-medium text-[#EEEEEE] group-hover:text-white transition-colors">Etiquetas</span>
-                                        </div>
-
-                                        <div className="relative flex-1 flex justify-start">
-                                            {tags.length > 0 && selectedTags.length > 0 ? (
-                                                <div className="flex flex-wrap gap-1 items-center">
-                                                    {tags.filter(t => selectedTags.includes(t.id)).map(tag => (
-                                                        <button
-                                                            key={tag.id}
-                                                            onClick={() => toggleTag(tag.id)}
-                                                            className="px-2 py-0.5 rounded text-[10px] font-bold text-white hover:opacity-80 transition-opacity"
-                                                            style={{ backgroundColor: tag.color }}
+                                                        <div
+                                                            className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-medium tracking-wide text-white transition-all hover:opacity-90 shadow-sm"
+                                                            style={{ backgroundColor: columns.find(c => c.id === currentColumnId)?.color || '#3b82f6' }}
                                                         >
-                                                            {tag.name}
-                                                        </button>
-                                                    ))}
-                                                    <button
-                                                        onClick={() => setShowTagInput(!showTagInput)}
-                                                        className="w-5 h-5 flex items-center justify-center rounded-full bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white transition-colors ml-1"
-                                                    >
-                                                        <Plus size={10} />
+                                                            <span className="truncate max-w-[100px]">{columnsMap[currentColumnId] || 'PENDENTE'}</span>
+                                                            <ChevronDown size={10} strokeWidth={3} />
+                                                        </div>
+                                                        <div className="w-6 h-6 flex items-center justify-center ml-1 rounded hover:bg-white/10 text-gray-500 hover:text-green-500 transition-colors cursor-pointer">
+                                                            <CheckSquare size={14} />
+                                                        </div>
                                                     </button>
-                                                </div>
-                                            ) : (
-                                                <button
-                                                    onClick={() => setShowTagInput(!showTagInput)}
-                                                    className="text-sm text-[#6e6e6e] hover:text-gray-400 cursor-pointer transition-colors"
-                                                >
-                                                    Vazio
-                                                </button>
-                                            )}
 
-                                            {/* Popover Tags */}
-                                            {showTagInput && (
-                                                <div className="absolute top-full left-0 mt-2 bg-[#1a1a2e] border border-white/10 rounded-xl p-3 shadow-xl z-50 w-64 animate-in fade-in zoom-in-95 duration-200">
-                                                    <div className="flex flex-col gap-3">
-                                                        <div className="space-y-1 max-h-40 overflow-y-auto custom-scrollbar pr-1">
-                                                            {tags.map(tag => (
+                                                    {/* Popover Status */}
+                                                    {showStatusSelect && (
+                                                        <div className="absolute top-full left-0 mt-1 w-48 bg-[#1a1a2e] border border-white/10 rounded-lg shadow-xl z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-200 py-1">
+                                                            {columns.map(col => (
                                                                 <button
-                                                                    key={tag.id}
-                                                                    onClick={() => toggleTag(tag.id)}
-                                                                    className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs transition-colors group ${selectedTags.includes(tag.id) ? 'bg-white/10' : 'hover:bg-white/5'}`}
+                                                                    key={col.id}
+                                                                    onClick={() => {
+                                                                        setCurrentColumnId(col.id);
+                                                                        setShowStatusSelect(false);
+                                                                    }}
+                                                                    className="w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-white/5 transition-colors text-left"
                                                                 >
-                                                                    <div className="w-3 h-3 rounded-full border border-white/20" style={{ backgroundColor: tag.color }} />
-                                                                    <span className={`flex-1 text-left truncate ${selectedTags.includes(tag.id) ? 'text-white' : 'text-gray-400'}`}>{tag.name}</span>
-                                                                    {selectedTags.includes(tag.id) && <CheckSquare size={12} className="text-primary shrink-0" />}
+                                                                    <div className={`w-2 h-2 rounded-full ${col.color || 'bg-gray-500'}`} />
+                                                                    <span className="text-gray-300">{col.title}</span>
                                                                 </button>
                                                             ))}
                                                         </div>
-                                                        <div className="h-px bg-white/10 w-full" />
-                                                        <div className="flex items-center gap-2">
-                                                            <input
-                                                                value={newTagName}
-                                                                onChange={e => setNewTagName(e.target.value)}
-                                                                placeholder="Nova etiqueta..."
-                                                                className="bg-white/5 border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white focus:border-primary/50 outline-none w-full"
-                                                                onKeyDown={e => e.key === 'Enter' && handleCreateTag()}
-                                                            />
-                                                            <div className="relative w-6 h-6 rounded overflow-hidden border border-white/10 shrink-0">
-                                                                <input type="color" value={newTagColor} onChange={e => setNewTagColor(e.target.value)} className="absolute -top-2 -left-2 w-[150%] h-[150%] p-0 cursor-pointer border-none" />
-                                                            </div>
-                                                            <button onClick={handleCreateTag} className="bg-primary text-white p-1.5 rounded-lg"><Plus size={12} /></button>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
-
-                                </div>
-
-                                {/* === COLUNA DIREITA === */}
-                                <div className="space-y-4">
-
-                                    {/* 1. Responsaveis */}
-                                    <div className="flex items-center justify-between group h-8">
-                                        <div
-                                            className="flex items-center gap-2 text-[#EEEEEE] min-w-[140px] cursor-pointer"
-                                            onClick={() => userRole !== 'visualizador' && setShowMemberSelect(!showMemberSelect)}
-                                        >
-                                            <div className="p-1 rounded hover:bg-white/5 transition-colors">
-                                                <IconUser size={16} stroke={1.5} color="#6e6e6e" />
-                                            </div>
-                                            <span className="text-sm font-medium text-[#EEEEEE] group-hover:text-white transition-colors">Responsaveis</span>
-                                        </div>
-
-                                        <div className="relative flex-1 flex justify-start">
-                                            <button
-                                                onClick={() => userRole !== 'visualizador' && setShowMemberSelect(!showMemberSelect)}
-                                                className="flex items-center"
-                                            >
-                                                {assignedTo ? (
-                                                    <div className="flex items-center gap-2 group/assigned">
-                                                        <div className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center text-[10px] font-bold text-primary shrink-0 border border-primary/30 overflow-hidden">
-                                                            {members.find(m => m.id === assignedTo)?.avatar_url ? (
-                                                                <img src={members.find(m => m.id === assignedTo).avatar_url} alt="" className="w-full h-full object-cover" />
-                                                            ) : (
-                                                                members.find(m => m.id === assignedTo)?.name.charAt(0) || 'U'
-                                                            )}
-                                                        </div>
-                                                        <span className="text-sm text-gray-300 group-hover/assigned:text-white transition-colors truncate max-w-[120px]">
-                                                            {members.find(m => m.id === assignedTo)?.name}
-                                                        </span>
-                                                        <X
-                                                            size={12}
-                                                            className="text-gray-500 hover:text-red-400 opacity-0 group-hover/assigned:opacity-100 transition-opacity ml-1"
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                setAssignedTo('');
-                                                            }}
-                                                        />
-                                                    </div>
-                                                ) : (
-                                                    <span className="text-sm text-[#6e6e6e] hover:text-gray-400 transition-colors">Vazio</span>
-                                                )}
-                                            </button>
-
-                                            {/* Popover Membros */}
-                                            {showMemberSelect && (
-                                                <div className="absolute top-full left-0 mt-2 w-64 bg-[#1a1a2e] border border-white/10 rounded-xl shadow-xl z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-                                                    <div className="p-2 border-b border-white/5">
-                                                        <input
-                                                            autoFocus
-                                                            placeholder="Buscar membro..."
-                                                            className="w-full bg-white/5 border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white focus:border-primary/50 outline-none"
-                                                            onClick={(e) => e.stopPropagation()}
-                                                        />
-                                                    </div>
-                                                    <div className="max-h-48 overflow-y-auto custom-scrollbar p-1">
-                                                        {members.map(m => (
-                                                            <button
-                                                                key={m.id}
-                                                                onClick={() => {
-                                                                    setAssignedTo(m.id);
-                                                                    setShowMemberSelect(false);
-                                                                }}
-                                                                className={`w-full flex items-center gap-2 px-2 py-2 rounded-lg text-sm text-gray-300 hover:bg-white/5 hover:text-white transition-colors text-left ${assignedTo === m.id ? 'bg-primary/10 text-primary' : ''}`}
-                                                            >
-                                                                <div className="w-6 h-6 rounded-full bg-white/10 flex items-center justify-center text-[10px] font-bold overflow-hidden">
-                                                                    {m.avatar_url ? (
-                                                                        <img src={m.avatar_url} alt="" className="w-full h-full object-cover" />
-                                                                    ) : (
-                                                                        m.name.charAt(0)
-                                                                    )}
-                                                                </div>
-                                                                <span className="truncate">{m.name}</span>
-                                                                {assignedTo === m.id && <CheckSquare size={12} className="ml-auto text-primary" />}
-                                                            </button>
-                                                        ))}
-                                                    </div>
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
-
-                                    {/* 2. Prioridade */}
-                                    <div className="flex items-center justify-between group h-8">
-                                        <div
-                                            className="flex items-center gap-2 text-[#EEEEEE] min-w-[140px] cursor-pointer"
-                                            onClick={() => userRole !== 'visualizador' && setShowPrioritySelect(!showPrioritySelect)}
-                                        >
-                                            <div className="p-1 rounded hover:bg-white/5 transition-colors">
-                                                <IconFlag size={16} stroke={1.5} color="#6e6e6e" />
-                                            </div>
-                                            <span className="text-sm font-medium text-[#EEEEEE] group-hover:text-white transition-colors">Prioridade</span>
-                                        </div>
-
-                                        <div className="relative flex-1 flex justify-start">
-                                            <button
-                                                onClick={() => userRole !== 'visualizador' && setShowPrioritySelect(!showPrioritySelect)}
-                                                className="flex items-center"
-                                            >
-                                                {priority ? (
-                                                    <div className="flex items-center gap-2">
-                                                        <IconFlag
-                                                            size={14}
-                                                            fill="currentColor"
-                                                            className={`${priority === 'urgent' ? 'text-red-500' : priority === 'high' ? 'text-orange-500' : priority === 'medium' ? 'text-blue-500' : 'text-gray-500'}`}
-                                                        />
-                                                        <span className="text-sm text-gray-300 capitalize">
-                                                            {priority === 'urgent' ? 'Urgente' : priority === 'high' ? 'Alta' : priority === 'medium' ? 'Media' : 'Baixa'}
-                                                        </span>
-                                                    </div>
-                                                ) : (
-                                                    <span className="text-sm text-[#6e6e6e] hover:text-gray-400 transition-colors">Vazio</span>
-                                                )}
-                                            </button>
-
-                                            {/* Popover Prioridade */}
-                                            {showPrioritySelect && (
-                                                <div className="absolute top-full left-0 mt-2 w-40 bg-[#1a1a2e] border border-white/10 rounded-xl shadow-xl z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-200 p-1">
-                                                    {[
-                                                        { value: 'urgent', label: 'Urgente', text: 'text-red-500' },
-                                                        { value: 'high', label: 'Alta', text: 'text-orange-500' },
-                                                        { value: 'medium', label: 'Media', text: 'text-blue-500' },
-                                                        { value: 'low', label: 'Baixa', text: 'text-gray-500' }
-                                                    ].map(p => (
-                                                        <button
-                                                            key={p.value}
-                                                            onClick={() => {
-                                                                setPriority(p.value as any);
-                                                                setShowPrioritySelect(false);
-                                                            }}
-                                                            className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm hover:bg-white/5 transition-colors text-left ${priority === p.value ? 'bg-white/5' : ''}`}
-                                                        >
-                                                            <IconFlag size={14} className={p.text} fill="currentColor" />
-                                                            <span className="text-gray-300">{p.label}</span>
-                                                        </button>
-                                                    ))}
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
-
-                                    {/* 3. Tempo Rastreado (Visual) */}
-                                    <div className="flex items-center justify-between group h-8">
-                                        <div
-                                            className="flex items-center gap-2 text-[#EEEEEE] min-w-[140px] cursor-pointer"
-                                            onClick={() => setShowTimePopover(!showTimePopover)}
-                                        >
-                                            <div className="p-1 rounded hover:bg-white/5 transition-colors">
-                                                <IconPlayerPlay size={16} stroke={1.5} color="#6e6e6e" />
-                                            </div>
-                                            <span className="text-sm font-medium text-[#EEEEEE] group-hover:text-white transition-colors">Tempo rastreado</span>
-                                        </div>
-                                        <div className="flex-1 flex justify-start">
-                                            <button
-                                                onClick={() => setShowTimePopover(!showTimePopover)}
-                                                className={`flex items-center gap-2 transition-colors px-2 py-0.5 rounded-full ${isRunning ? 'bg-primary/20 text-primary border border-primary/30 animate-pulse' : 'text-gray-500 hover:text-white bg-white/5 hover:bg-white/10'}`}
-                                            >
-                                                <div className={`w-4 h-4 rounded-full flex items-center justify-center ${isRunning ? 'bg-primary text-white' : 'bg-white/10'}`}>
-                                                    {isRunning ? (
-                                                        <div className="w-1.5 h-1.5 bg-white rounded-sm" />
-                                                    ) : (
-                                                        <div className="w-0 h-0 border-t-[3px] border-t-transparent border-l-[5px] border-l-white border-b-[3px] border-b-transparent ml-0.5"></div>
                                                     )}
                                                 </div>
-                                                <span className="text-xs font-bold">
-                                                    {isRunning ? timerDisplay : totalMinutes > 0 ? formatDuration(totalMinutes) : <span className="text-[#6e6e6e]">Adicionar hora</span>}
-                                                </span>
-                                            </button>
-                                        </div>
-                                    </div>
-
-                                    {/* 4. Cliente (Relacionamentos) */}
-                                    <div className="flex items-center justify-between group h-8">
-                                        <div
-                                            className="flex items-center gap-2 text-[#EEEEEE] min-w-[140px] cursor-pointer"
-                                            onClick={() => userRole !== 'visualizador' && setShowClientSelect(!showClientSelect)}
-                                        >
-                                            <div className="p-1 rounded hover:bg-white/5 transition-colors">
-                                                <IconBriefcase size={16} stroke={1.5} color="#6e6e6e" />
                                             </div>
-                                            <span className="text-sm font-medium text-[#EEEEEE] group-hover:text-white transition-colors">Cliente</span>
-                                        </div>
 
-                                        <div className="relative flex-1 flex justify-start">
-                                            <button
-                                                onClick={() => userRole !== 'visualizador' && setShowClientSelect(!showClientSelect)}
-                                                className="flex items-center"
-                                            >
-                                                {clientId ? (
-                                                    <div className="flex items-center gap-2 group/client">
-                                                        <div className="w-5 h-5 rounded-full bg-indigo-500/20 flex items-center justify-center text-[10px] font-bold text-indigo-400 shrink-0">
-                                                            {clients.find(c => c.id === clientId)?.name.charAt(0) || 'C'}
-                                                        </div>
-                                                        <span className="text-sm text-gray-300 group-hover/client:text-white transition-colors truncate max-w-[120px]">
-                                                            {clients.find(c => c.id === clientId)?.name}
+                                            {/* 2. Datas */}
+                                            <div className="flex items-center justify-between group h-8">
+                                                <div
+                                                    className="flex items-center gap-2 text-[#EEEEEE] min-w-[140px] cursor-pointer"
+                                                    onClick={() => userRole !== 'visualizador' && dueDatePickerRef.current?.showPicker()}
+                                                >
+                                                    <div className="p-1 rounded hover:bg-white/5 transition-colors">
+                                                        <IconCalendar size={16} stroke={1.5} color="#6e6e6e" />
+                                                    </div>
+                                                    <span className="text-sm font-medium text-[#EEEEEE] group-hover:text-white transition-colors">Datas</span>
+                                                </div>
+
+                                                <div className="relative flex-1 flex items-center gap-2 justify-start">
+                                                    {/* Data Inicio */}
+                                                    <div className="relative flex items-center gap-1 hover:bg-white/5 px-1.5 py-1 rounded cursor-pointer transition-colors group/start">
+                                                        <span className={`text-sm ${startDate ? 'text-gray-300' : 'text-[#6e6e6e]'}`}>
+                                                            {startDate ? new Date(startDate + 'T12:00:00').toLocaleDateString('pt-BR').slice(0, 5) : 'Inicio'}
                                                         </span>
-                                                        <X
-                                                            size={12}
-                                                            className="text-gray-500 hover:text-red-400 opacity-0 group-hover/client:opacity-100 transition-opacity ml-1"
+                                                        <input
+                                                            ref={startDatePickerRef}
+                                                            type="date"
+                                                            className="absolute inset-0 opacity-0 cursor-pointer w-full h-full z-10"
+                                                            value={startDate}
+                                                            onChange={(e) => setStartDate(e.target.value)}
+                                                            disabled={userRole === 'visualizador'}
+                                                            onClick={(e) => (e.target as HTMLInputElement).showPicker && (e.target as HTMLInputElement).showPicker()}
+                                                        />
+                                                    </div>
+
+                                                    <span className="text-gray-700">â†’</span>
+
+                                                    {/* Data Prevista */}
+                                                    <div className="relative flex items-center gap-1 hover:bg-white/5 px-1.5 py-1 rounded cursor-pointer transition-colors group/due">
+                                                        <span className={`text-sm ${dueDate ? 'text-gray-300' : 'text-[#6e6e6e]'}`}>
+                                                            {dueDate ? new Date(dueDate + 'T12:00:00').toLocaleDateString('pt-BR').slice(0, 5) : 'Prevista'}
+                                                        </span>
+                                                        <input
+                                                            ref={dueDatePickerRef}
+                                                            type="date"
+                                                            className="absolute inset-0 opacity-0 cursor-pointer w-full h-full z-10"
+                                                            value={dueDate}
+                                                            onChange={(e) => {
+                                                                setDueDate(e.target.value);
+                                                                if (e.target.value) setShowOnCalendar(true);
+                                                            }}
+                                                            disabled={userRole === 'visualizador'}
+                                                            onClick={(e) => (e.target as HTMLInputElement).showPicker && (e.target as HTMLInputElement).showPicker()}
+                                                        />
+                                                    </div>
+
+                                                    {/* Botao limpar (so aparece se tiver datas) */}
+                                                    {(startDate || dueDate) && (
+                                                        <button
+                                                            className="ml-1 text-gray-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
                                                             onClick={(e) => {
                                                                 e.stopPropagation();
-                                                                setClientId('');
+                                                                setDueDate('');
+                                                                setStartDate('');
+                                                                setShowOnCalendar(false);
                                                             }}
-                                                        />
-                                                    </div>
-                                                ) : (
-                                                    <span className="text-sm text-[#6e6e6e] hover:text-gray-400 transition-colors">Vazio</span>
-                                                )}
-                                            </button>
+                                                        >
+                                                            <X size={12} />
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            </div>
 
-                                            {/* Popover Clientes */}
-                                            {showClientSelect && (
-                                                <div className="absolute top-full left-0 mt-2 w-64 bg-[#1a1a2e] border border-white/10 rounded-xl shadow-xl z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-                                                    <div className="p-2 border-b border-white/5">
-                                                        <input
-                                                            autoFocus
-                                                            placeholder="Buscar cliente..."
-                                                            className="w-full bg-white/5 border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white focus:border-primary/50 outline-none"
-                                                            onClick={(e) => e.stopPropagation()}
-                                                        />
+                                            {/* 3. Data da entrega */}
+                                            <div className="flex items-center justify-between group h-8">
+                                                <div
+                                                    className="flex items-center gap-2 text-[#EEEEEE] min-w-[140px] cursor-pointer"
+                                                    onClick={() => userRole !== 'visualizador' && deliveryDatePickerRef.current?.showPicker()}
+                                                >
+                                                    <div className="p-1 rounded hover:bg-white/5 transition-colors">
+                                                        <IconCalendar size={16} stroke={1.5} color="#6e6e6e" />
                                                     </div>
-                                                    <div className="max-h-48 overflow-y-auto custom-scrollbar p-1">
-                                                        {clients.map(c => (
+                                                    <span className="text-sm font-medium text-[#EEEEEE] group-hover:text-white transition-colors">Data da entrega</span>
+                                                </div>
+
+                                                <div className="relative flex-1 flex justify-start">
+                                                    <div className="relative flex items-center gap-1 hover:bg-white/5 px-1.5 py-1 rounded cursor-pointer transition-colors group/delivery">
+                                                        <span className={`text-sm ${deliveryDate ? 'text-gray-300' : 'text-[#6e6e6e]'}`}>
+                                                            {deliveryDate ? new Date(deliveryDate + 'T12:00:00').toLocaleDateString('pt-BR').slice(0, 5) : 'Vazio'}
+                                                        </span>
+                                                        <input
+                                                            ref={deliveryDatePickerRef}
+                                                            type="date"
+                                                            className="absolute inset-0 opacity-0 cursor-pointer w-full h-full z-10"
+                                                            value={deliveryDate}
+                                                            onChange={(e) => setDeliveryDate(e.target.value)}
+                                                            disabled={userRole === 'visualizador'}
+                                                            onClick={(e) => (e.target as HTMLInputElement).showPicker && (e.target as HTMLInputElement).showPicker()}
+                                                        />
+                                                        {deliveryDate && (
                                                             <button
-                                                                key={c.id}
-                                                                onClick={() => {
-                                                                    setClientId(c.id);
-                                                                    setShowClientSelect(false);
+                                                                className="ml-1 text-gray-600 hover:text-red-400 opacity-0 group-hover/delivery:opacity-100 transition-opacity z-20"
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    setDeliveryDate('');
                                                                 }}
-                                                                className={`w-full flex items-center gap-2 px-2 py-2 rounded-lg text-sm text-gray-300 hover:bg-white/5 hover:text-white transition-colors text-left ${clientId === c.id ? 'bg-primary/10 text-primary' : ''}`}
                                                             >
-                                                                <div className="w-6 h-6 rounded-full bg-white/10 flex items-center justify-center text-[10px] font-bold">
-                                                                    {c.name.charAt(0)}
-                                                                </div>
-                                                                <span className="truncate">{c.name}</span>
-                                                                {clientId === c.id && <CheckSquare size={12} className="ml-auto text-primary" />}
+                                                                <X size={12} />
                                                             </button>
-                                                        ))}
+                                                        )}
                                                     </div>
                                                 </div>
-                                            )}
-                                        </div>
-                                    </div>
-
-                                </div>
-
-                            </div>
-
-                            <div className="h-px bg-white/5 w-full" />
-
-                            {/* 2. Descricao */}
-                            <div className="space-y-3 group">
-                                {(!description && !isEditingDescription) ? (
-                                    <button
-                                        onClick={() => setIsEditingDescription(true)}
-                                        className="flex items-center gap-2 px-3 py-2 rounded-xl text-white hover:bg-white/5 transition-all group/btn"
-                                    >
-                                        <span className="text-base font-medium">Adicionar descricao</span>
-                                    </button>
-                                ) : (
-                                    <>
-                                        <div className="flex items-center justify-between text-white pr-2">
-                                            <div className="flex items-center gap-2">
-                                                <h3 className="text-base font-semibold tracking-tight text-[#EEEEEE]">Descricao</h3>
                                             </div>
-                                            <div className="flex items-center gap-2">
-                                                {description && (
-                                                    <button 
-                                                        onClick={() => setShowDescriptionOnly(true)}
-                                                        className="p-1.5 rounded hover:bg-white/10 text-gray-400 hover:text-white transition-colors"
-                                                        title="Ver em tela cheia"
-                                                    >
-                                                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="icon icon-tabler icons-tabler-outline icon-tabler-arrows-diagonal-minimize-2"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M18 10h-4v-4" /><path d="M20 4l-6 6" /><path d="M6 14h4v4" /><path d="M10 14l-6 6" /></svg>
-                                                    </button>
-                                                )}
-                                                {description && (
-                                                    <button
-                                                        onClick={() => setIsExpandedDescription(!isExpandedDescription)}
-                                                        className="p-1.5 rounded hover:bg-white/10 text-gray-400 hover:text-white transition-colors flex items-center justify-center"
-                                                        title={isExpandedDescription ? "Recolher" : "Expandir"}
-                                                    >
-                                                        {isExpandedDescription ? (
-                                                            <ChevronUp size={14} />
-                                                        ) : (
-                                                            <ChevronDown size={14} />
-                                                        )}
-                                                    </button>
-                                                )}
-                                            </div>
-                                        </div>
-                                        <div className={`relative transition-all duration-300 overflow-hidden ${!isExpandedDescription ? 'max-h-[100px] mb-2' : 'max-h-none'} border border-white/10 rounded-xl p-4`}>
-                                            <textarea
-                                                ref={descriptionRef}
-                                                className="w-full bg-transparent text-gray-300 resize-none overflow-hidden focus:outline-none placeholder:text-gray-600/50 leading-relaxed text-sm font-light border-none p-0 transition-all"
-                                                placeholder="Escreva, pressione a barra de espaco para usar a IA ou '/' para usar comandos"
-                                                value={description}
-                                                onChange={(e) => setDescription(e.target.value)}
-                                                onBlur={() => !description && setIsEditingDescription(false)}
-                                                autoFocus={isEditingDescription && !description}
-                                            />
-                                            {!isExpandedDescription && description.length > 50 && (
-                                                <div className="absolute bottom-0 left-0 right-0 h-10 bg-gradient-to-t from-[#0a0a1a] to-transparent pointer-events-none" />
-                                            )}
-                                        </div>
-                                    </>
-                                )}
-                            </div>
 
-                            {/* 3. Subtarefas (Estilo ClickUp) */}
-                            <div className="space-y-2">
-                                {/* Cabecalho e Filtros */}
-                                <div className="flex items-center justify-between pb-2 mb-2">
-                                    <div className="flex items-center gap-4">
-                                        <div className="flex items-center gap-2 text-white">
-                                            <h3 className="text-base font-semibold tracking-tight text-[#EEEEEE]">Subtarefas</h3>
-                                        </div>
-
-                                        {/* Barra de Progresso Subtarefas (Igual Checklist) */}
-                                        <div className="flex items-center gap-2">
-                                            <div className="h-1.5 w-16 bg-white/10 rounded-full overflow-hidden">
+                                            {/* 4. Etiquetas */}
+                                            <div className="flex items-center justify-between group h-8">
                                                 <div
-                                                    className="h-full bg-blue-500 rounded-full transition-all duration-500"
-                                                    style={{ width: `${subtasks.length > 0 ? (subtasks.filter(t => t.column_id && columnsMap[t.column_id]?.toLowerCase() === 'concluido').length / subtasks.length) * 100 : 0}%` }}
-                                                ></div>
-                                            </div>
-                                            <span className="text-xs text-blue-500 font-medium">
-                                                {subtasks.filter(t => t.column_id && columnsMap[t.column_id]?.toLowerCase() === 'concluido').length}/{subtasks.length}
-                                            </span>
-                                        </div>
-                                    </div>
-                                    <div className="flex gap-2">
-                                        <button
-                                            onClick={() => setShowSubtasksOnly(true)}
-                                            className="text-xs font-medium text-gray-400 hover:text-white transition-colors flex items-center gap-1.5 px-2 py-1 rounded hover:bg-white/5"
-                                            title="Ver em tela cheia"
-                                        >
-                                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="icon icon-tabler icons-tabler-outline icon-tabler-arrows-diagonal-minimize-2"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M18 10h-4v-4" /><path d="M20 4l-6 6" /><path d="M6 14h4v4" /><path d="M10 14l-6 6" /></svg>
-                                        </button>
-                                        <button
-                                            onClick={() => setIsSubtasksCollapsed(!isSubtasksCollapsed)}
-                                            className="text-xs font-medium text-gray-400 hover:text-white transition-colors flex items-center gap-1.5 px-2 py-1 rounded hover:bg-white/5"
-                                        >
-                                            {isSubtasksCollapsed ? (
-                                                <ChevronDown size={14} />
-                                            ) : (
-                                                <ChevronUp size={14} />
-                                            )}
-                                        </button>
-                                    </div>
-                                </div>
+                                                    className="flex items-center gap-2 text-[#EEEEEE] min-w-[140px] cursor-pointer"
+                                                    onClick={() => userRole !== 'visualizador' && setShowTagInput(!showTagInput)}
+                                                >
+                                                    <div className="p-1 rounded hover:bg-white/5 transition-colors">
+                                                        <IconTag size={16} stroke={1.5} color="#6e6e6e" />
+                                                    </div>
+                                                    <span className="text-sm font-medium text-[#EEEEEE] group-hover:text-white transition-colors">Etiquetas</span>
+                                                </div>
 
-                                <div className="rounded-xl border border-white/5">
-                                    {/* Tabela Header - ClickUp Style Minimal */}
-                                    <div className="grid grid-cols-[1fr_100px_100px_140px_40px] gap-4 px-4 py-2 text-[11px] font-medium text-gray-500 bg-[#0a0a1a]/40 border-b border-white/5 rounded-t-xl">
-                                        <div className="pl-8">Nome</div> {/* pl-8 para alinhar com o texto da task, pulando o icone de status */}
-                                        <div className="text-left">Responsavel</div>
-                                        <div className="text-left">Prioridade</div>
-                                        <div className="text-left">Data de vencimento</div>
-                                        <div></div>
-                                    </div>
-
-                                    {/* Lista - ClickUp Style */}
-                                    <div className={`divide-y divide-white/5 ${isSubtasksCollapsed ? 'max-h-0 overflow-hidden text-transparent opacity-0 duration-300 transition-all' : 'overflow-visible'}`}>
-                                        <DndContext
-                                            sensors={sensors}
-                                            collisionDetection={closestCenter}
-                                            onDragEnd={handleSubtaskDragEnd}
-                                        >
-                                            <SortableContext
-                                                items={subtasks.map(t => t.id)}
-                                                strategy={verticalListSortingStrategy}
-                                            >
-                                                {subtasks.map(task => (
-                                                    <SortableSubtaskItem key={task.id} task={task} isFullScreen={false} />
-                                                ))}
-                                            </SortableContext>
-                                        </DndContext>
-
-                                        {/* New Task Input Inline - ClickUp Style */}
-                                        {userRole !== 'visualizador' && (
-                                            <div className="flex items-center gap-3 px-4 py-2 text-gray-500 hover:text-gray-300 transition-colors cursor-text group hover:bg-white/[0.02] rounded-b-xl" onClick={() => document.getElementById('new-subtask-input')?.focus()}>
-                                                <div className="w-4 flex justify-center opacity-0"><div className="w-1 h-1 rounded-full bg-gray-600"></div></div> {/* Spacer */}
-                                                <Plus size={14} className="text-gray-600 group-hover:text-primary transition-colors shrink-0" />
-                                                <input
-                                                    id="new-subtask-input"
-                                                    className="bg-transparent text-sm focus:outline-none w-full placeholder:text-gray-600 text-gray-300 h-6"
-                                                    placeholder="Adicionar nova subtarefa..."
-                                                    onKeyDown={(e) => {
-                                                        if (e.key === 'Enter') {
-                                                            handleCreateSubtask(e.currentTarget.value);
-                                                            e.currentTarget.value = '';
-                                                        }
-                                                    }}
-                                                />
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* 4. Checklists (ClickUp Style) */}
-                            <div className="space-y-4">
-                                {/* Header Geral da Secao */}
-                                <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-4">
-                                        <h3 className="text-base font-semibold tracking-tight text-[#EEEEEE]">Checklists</h3>
-                                        {/* Barra de Progresso Global (Pill Style) */}
-                                        <div className="flex items-center gap-2">
-                                            <div className="h-1.5 w-16 bg-white/10 rounded-full overflow-hidden">
-                                                <div
-                                                    className="h-full bg-emerald-500 rounded-full transition-all duration-500"
-                                                    style={{ width: `${checklist.length > 0 ? (checklist.filter(i => i.is_completed).length / checklist.length) * 100 : 0}%` }}
-                                                ></div>
-                                            </div>
-                                            <span className="text-xs text-emerald-500 font-medium">
-                                                {checklist.filter(i => i.is_completed).length}/{checklist.length}
-                                            </span>
-                                        </div>
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                        <button 
-                                            onClick={() => setShowChecklistOnly(true)}
-                                            className="p-1.5 rounded hover:bg-white/10 text-gray-400 hover:text-white transition-colors"
-                                            title="Ver em tela cheia"
-                                        >
-                                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="icon icon-tabler icons-tabler-outline icon-tabler-arrows-diagonal-minimize-2"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M18 10h-4v-4" /><path d="M20 4l-6 6" /><path d="M6 14h4v4" /><path d="M10 14l-6 6" /></svg>
-                                        </button>
-                                        <button
-                                            onClick={() => setIsChecklistCollapsed(!isChecklistCollapsed)}
-                                            className="p-1.5 rounded hover:bg-white/10 text-gray-400 hover:text-white transition-colors flex items-center justify-center"
-                                            title={isChecklistCollapsed ? "Expandir" : "Recolher"}
-                                        >
-                                            {isChecklistCollapsed ? (
-                                                <ChevronDown size={14} />
-                                            ) : (
-                                                <ChevronUp size={14} />
-                                            )}
-                                        </button>
-                                        <button onClick={handleAddChecklistGroup} className="p-1.5 rounded hover:bg-white/10 text-gray-400 hover:text-white transition-colors" title="Adicionar grupo">
-                                            <Plus size={16} />
-                                        </button>
-                                    </div>
-                                </div>
-                                <div className={`space-y-4 transition-all duration-300 ${isChecklistCollapsed ? 'max-h-0 overflow-hidden opacity-0 text-transparent' : 'max-h-[2000px] opacity-100 overflow-visible'}`}>
-                                    <DndContext
-                                        sensors={sensors}
-                                        collisionDetection={closestCenter}
-                                        onDragEnd={handleChecklistDragEnd}
-                                    >
-                                        <SortableContext
-                                            items={checklistGroups.map(g => g.id)}
-                                            strategy={verticalListSortingStrategy}
-                                        >
-                                            {checklistGroups.map(group => (
-                                                <SortableChecklistGroup
-                                                    key={group.id}
-                                                    group={group}
-                                                    checklist={checklist}
-                                                    onAddItem={(groupId) => document.getElementById(`new-checklist-input-${groupId}`)?.focus()}
-                                                    isFullScreen={false}
-                                                />
-                                            ))}
-                                        </SortableContext>
-                                    </DndContext>
-                                </div>
-                            </div>
-
-                            {/* 5. Anexos */}
-                            <div className="space-y-4">
-                                <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-2">
-                                        <h3 className="text-base font-semibold tracking-tight text-[#EEEEEE]">Anexos ({files.length})</h3>
-                                    </div>
-                                    <button onClick={handleAddFile} className="text-xs text-primary hover:text-white transition-colors">
-                                        + Adicionar
-                                    </button>
-                                </div>
-
-                                <div className="flex flex-wrap gap-4">
-                                    {files.map(file => {
-                                        const fileExt = file.file_name.split('.').pop()?.toLowerCase() || '';
-                                        const isImage = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'].includes(fileExt);
-                                        const uploader = members.find(m => m.id === file.uploader_id);
-                                        const uploaderName = uploader?.name || 'Sistema';
-
-                                        let uploaderInitials = 'US';
-                                        if (uploader) {
-                                            const parts = uploader.name.trim().split(' ');
-                                            uploaderInitials = parts.length > 1 ? (parts[0][0] + parts[parts.length - 1][0]).toUpperCase() : parts[0].substring(0, 2).toUpperCase();
-                                        }
-
-                                        const formatAttachmentDate = (dateString: string) => {
-                                            const d = new Date(dateString);
-                                            const today = new Date();
-                                            const isToday = d.getDate() === today.getDate() && d.getMonth() === today.getMonth() && d.getFullYear() === today.getFullYear();
-
-                                            const yesterday = new Date(today);
-                                            yesterday.setDate(yesterday.getDate() - 1);
-                                            const isYesterday = d.getDate() === yesterday.getDate() && d.getMonth() === yesterday.getMonth() && d.getFullYear() === yesterday.getFullYear();
-
-                                            let timeStr = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }).toLowerCase();
-
-                                            if (isToday) return `Hoje Ã s ${timeStr}`;
-                                            if (isYesterday) return `Ontem Ã s ${timeStr}`;
-                                            return `${d.toLocaleDateString([], { month: 'short', day: 'numeric' })} Ã s ${timeStr}`;
-                                        };
-
-                                        return (
-                                            <div key={file.id} className="w-[206px] h-[180px] shrink-0 bg-[#0a0a1a] border border-white/5 rounded-xl flex flex-col hover:border-white/20 transition-colors group relative overflow-hidden">
-
-                                                {/* Botao flutuante de Excluir */}
-                                                <button onClick={() => handleDeleteFile(file.id, file.file_url, file.file_name)} className="absolute top-2 right-2 p-1.5 rounded-lg bg-black/60 backdrop-blur-md text-gray-400 hover:text-white hover:bg-red-500/80 opacity-0 group-hover:opacity-100 transition-all transform translate-y-1 group-hover:translate-y-0 z-20 shadow-md">
-                                                    <Trash2 size={14} />
-                                                </button>
-
-                                                <a href={file.file_url} target="_blank" rel="noopener noreferrer" className="flex-1 flex flex-col min-h-0 relative">
-                                                    {/* Top Area - Preview */}
-                                                        <div className="flex-1 flex items-center justify-center bg-[#050510] relative overflow-hidden min-h-0">
-                                                            {isImage ? (
-                                                                <img src={file.file_url} alt={file.file_name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
-                                                            ) : (
-                                                                <div className="text-primary/70 transform group-hover:scale-110 transition-transform duration-300 scale-[2]">
-                                                                    {getFileIcon(file.file_name)}
-                                                                </div>
-                                                            )}
-                                                            
-                                                            {/* Fullscreen Overlay Button - Now for all files */}
-                                                            <div 
-                                                                className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer z-10"
-                                                                onClick={(e) => {
-                                                                    e.preventDefault();
-                                                                    e.stopPropagation();
-                                                                    setPreviewUrl(file.file_url);
-                                                                    setPreviewName(file.file_name);
-                                                                }}
+                                                <div className="relative flex-1 flex justify-start">
+                                                    {tags.length > 0 && selectedTags.length > 0 ? (
+                                                        <div className="flex flex-wrap gap-1 items-center">
+                                                            {tags.filter(t => selectedTags.includes(t.id)).map(tag => (
+                                                                <button
+                                                                    key={tag.id}
+                                                                    onClick={() => toggleTag(tag.id)}
+                                                                    className="px-2 py-0.5 rounded text-[10px] font-bold text-white hover:opacity-80 transition-opacity"
+                                                                    style={{ backgroundColor: tag.color }}
+                                                                >
+                                                                    {tag.name}
+                                                                </button>
+                                                            ))}
+                                                            <button
+                                                                onClick={() => setShowTagInput(!showTagInput)}
+                                                                className="w-5 h-5 flex items-center justify-center rounded-full bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white transition-colors ml-1"
                                                             >
-                                                                <div className="p-2.5 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-white transform scale-90 group-hover:scale-100 transition-transform duration-300">
-                                                                    <IconArrowsDiagonal size={20} stroke={2} />
+                                                                <Plus size={10} />
+                                                            </button>
+                                                        </div>
+                                                    ) : (
+                                                        <button
+                                                            onClick={() => setShowTagInput(!showTagInput)}
+                                                            className="text-sm text-[#6e6e6e] hover:text-gray-400 cursor-pointer transition-colors"
+                                                        >
+                                                            Vazio
+                                                        </button>
+                                                    )}
+
+                                                    {/* Popover Tags */}
+                                                    {showTagInput && (
+                                                        <div className="absolute top-full left-0 mt-2 bg-[#1a1a2e] border border-white/10 rounded-xl p-3 shadow-xl z-50 w-64 animate-in fade-in zoom-in-95 duration-200">
+                                                            <div className="flex flex-col gap-3">
+                                                                <div className="space-y-1 max-h-40 overflow-y-auto custom-scrollbar pr-1">
+                                                                    {tags.map(tag => (
+                                                                        <button
+                                                                            key={tag.id}
+                                                                            onClick={() => toggleTag(tag.id)}
+                                                                            className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs transition-colors group ${selectedTags.includes(tag.id) ? 'bg-white/10' : 'hover:bg-white/5'}`}
+                                                                        >
+                                                                            <div className="w-3 h-3 rounded-full border border-white/20" style={{ backgroundColor: tag.color }} />
+                                                                            <span className={`flex-1 text-left truncate ${selectedTags.includes(tag.id) ? 'text-white' : 'text-gray-400'}`}>{tag.name}</span>
+                                                                            {selectedTags.includes(tag.id) && <CheckSquare size={12} className="text-primary shrink-0" />}
+                                                                        </button>
+                                                                    ))}
+                                                                </div>
+                                                                <div className="h-px bg-white/10 w-full" />
+                                                                <div className="flex items-center gap-2">
+                                                                    <input
+                                                                        value={newTagName}
+                                                                        onChange={e => setNewTagName(e.target.value)}
+                                                                        placeholder="Nova etiqueta..."
+                                                                        className="bg-white/5 border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white focus:border-primary/50 outline-none w-full"
+                                                                        onKeyDown={e => e.key === 'Enter' && handleCreateTag()}
+                                                                    />
+                                                                    <div className="relative w-6 h-6 rounded overflow-hidden border border-white/10 shrink-0">
+                                                                        <input type="color" value={newTagColor} onChange={e => setNewTagColor(e.target.value)} className="absolute -top-2 -left-2 w-[150%] h-[150%] p-0 cursor-pointer border-none" />
+                                                                    </div>
+                                                                    <button onClick={handleCreateTag} className="bg-primary text-white p-1.5 rounded-lg"><Plus size={12} /></button>
                                                                 </div>
                                                             </div>
                                                         </div>
+                                                    )}
+                                                </div>
+                                            </div>
 
-                                                    {/* Bottom Strip */}
-                                                    <div className="h-16 shrink-0 bg-white/[0.02] border-t border-white/5 p-3 flex flex-row items-center justify-between relative z-10 w-full gap-2 text-left">
-                                                        <div className="flex flex-col min-w-0 pr-1 flex-1">
-                                                            <p className="text-xs font-semibold text-white truncate" title={file.file_name}>{file.file_name}</p>
-                                                            <p className="text-[10px] text-gray-500 mt-1 truncate">{formatAttachmentDate(file.created_at)}</p>
+                                        </div>
+
+                                        {/* === COLUNA DIREITA === */}
+                                        <div className="space-y-4">
+
+                                            {/* 1. Responsaveis */}
+                                            <div className="flex items-center justify-between group h-8">
+                                                <div
+                                                    className="flex items-center gap-2 text-[#EEEEEE] min-w-[140px] cursor-pointer"
+                                                    onClick={() => userRole !== 'visualizador' && setShowMemberSelect(!showMemberSelect)}
+                                                >
+                                                    <div className="p-1 rounded hover:bg-white/5 transition-colors">
+                                                        <IconUser size={16} stroke={1.5} color="#6e6e6e" />
+                                                    </div>
+                                                    <span className="text-sm font-medium text-[#EEEEEE] group-hover:text-white transition-colors">Responsáveis</span>
+                                                </div>
+
+                                                <div className="relative flex-1 flex justify-start">
+                                                    <button
+                                                        onClick={() => userRole !== 'visualizador' && setShowMemberSelect(!showMemberSelect)}
+                                                        className="flex items-center"
+                                                    >
+                                                        {assignedTo ? (
+                                                            <div className="flex items-center gap-2 group/assigned">
+                                                                <div className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center text-[10px] font-bold text-primary shrink-0 border border-primary/30 overflow-hidden">
+                                                                    {members.find(m => m.id === assignedTo)?.avatar_url ? (
+                                                                        <img src={members.find(m => m.id === assignedTo).avatar_url} alt="" className="w-full h-full object-cover" />
+                                                                    ) : (
+                                                                        members.find(m => m.id === assignedTo)?.name.charAt(0) || 'U'
+                                                                    )}
+                                                                </div>
+                                                                <span className="text-sm text-gray-300 group-hover/assigned:text-white transition-colors truncate max-w-[120px]">
+                                                                    {members.find(m => m.id === assignedTo)?.name}
+                                                                </span>
+                                                                <X
+                                                                    size={12}
+                                                                    className="text-gray-500 hover:text-red-400 opacity-0 group-hover/assigned:opacity-100 transition-opacity ml-1"
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        setAssignedTo('');
+                                                                    }}
+                                                                />
+                                                            </div>
+                                                        ) : (
+                                                            <span className="text-sm text-[#6e6e6e] hover:text-gray-400 transition-colors">Vazio</span>
+                                                        )}
+                                                    </button>
+
+                                                    {/* Popover Membros */}
+                                                    {showMemberSelect && (
+                                                        <div className="absolute top-full left-0 mt-2 w-64 bg-[#1a1a2e] border border-white/10 rounded-xl shadow-xl z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+                                                            <div className="p-2 border-b border-white/5">
+                                                                <input
+                                                                    autoFocus
+                                                                    placeholder="Buscar membro..."
+                                                                    className="w-full bg-white/5 border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white focus:border-primary/50 outline-none"
+                                                                    onClick={(e) => e.stopPropagation()}
+                                                                />
+                                                            </div>
+                                                            <div className="max-h-48 overflow-y-auto custom-scrollbar p-1">
+                                                                {members.map(m => (
+                                                                    <button
+                                                                        key={m.id}
+                                                                        onClick={() => {
+                                                                            setAssignedTo(m.id);
+                                                                            setShowMemberSelect(false);
+                                                                        }}
+                                                                        className={`w-full flex items-center gap-2 px-2 py-2 rounded-lg text-sm text-gray-300 hover:bg-white/5 hover:text-white transition-colors text-left ${assignedTo === m.id ? 'bg-primary/10 text-primary' : ''}`}
+                                                                    >
+                                                                        <div className="w-6 h-6 rounded-full bg-white/10 flex items-center justify-center text-[10px] font-bold overflow-hidden">
+                                                                            {m.avatar_url ? (
+                                                                                <img src={m.avatar_url} alt="" className="w-full h-full object-cover" />
+                                                                            ) : (
+                                                                                m.name.charAt(0)
+                                                                            )}
+                                                                        </div>
+                                                                        <span className="truncate">{m.name}</span>
+                                                                        {assignedTo === m.id && <CheckSquare size={12} className="ml-auto text-primary" />}
+                                                                    </button>
+                                                                ))}
+                                                            </div>
                                                         </div>
+                                                    )}
+                                                </div>
+                                            </div>
 
-                                                        <div className="w-7 h-7 rounded-full bg-white/10 flex items-center justify-center text-[10px] font-bold text-gray-300 shrink-0 border border-white/5 overflow-hidden ring-2 ring-[#0a0a1a]" title={uploaderName}>
-                                                            {uploader?.avatar_url ? (
-                                                                <img src={uploader.avatar_url} alt={uploaderName} className="w-full h-full object-cover" />
+                                            {/* 2. Prioridade */}
+                                            <div className="flex items-center justify-between group h-8">
+                                                <div
+                                                    className="flex items-center gap-2 text-[#EEEEEE] min-w-[140px] cursor-pointer"
+                                                    onClick={() => userRole !== 'visualizador' && setShowPrioritySelect(!showPrioritySelect)}
+                                                >
+                                                    <div className="p-1 rounded hover:bg-white/5 transition-colors">
+                                                        <IconFlag size={16} stroke={1.5} color="#6e6e6e" />
+                                                    </div>
+                                                    <span className="text-sm font-medium text-[#EEEEEE] group-hover:text-white transition-colors">Prioridade</span>
+                                                </div>
+
+                                                <div className="relative flex-1 flex justify-start">
+                                                    <button
+                                                        onClick={() => userRole !== 'visualizador' && setShowPrioritySelect(!showPrioritySelect)}
+                                                        className="flex items-center"
+                                                    >
+                                                        {priority ? (
+                                                            <div className="flex items-center gap-2">
+                                                                <IconFlag
+                                                                    size={14}
+                                                                    fill="currentColor"
+                                                                    className={`${priority === 'urgent' ? 'text-red-500' : priority === 'high' ? 'text-orange-500' : priority === 'medium' ? 'text-blue-500' : 'text-gray-500'}`}
+                                                                />
+                                                                <span className="text-sm text-gray-300 capitalize">
+                                                                    {priority === 'urgent' ? 'Urgente' : priority === 'high' ? 'Alta' : priority === 'medium' ? 'Media' : 'Baixa'}
+                                                                </span>
+                                                            </div>
+                                                        ) : (
+                                                            <span className="text-sm text-[#6e6e6e] hover:text-gray-400 transition-colors">Vazio</span>
+                                                        )}
+                                                    </button>
+
+                                                    {/* Popover Prioridade */}
+                                                    {showPrioritySelect && (
+                                                        <div className="absolute top-full left-0 mt-2 w-40 bg-[#1a1a2e] border border-white/10 rounded-xl shadow-xl z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-200 p-1">
+                                                            {[
+                                                                { value: 'urgent', label: 'Urgente', text: 'text-red-500' },
+                                                                { value: 'high', label: 'Alta', text: 'text-orange-500' },
+                                                                { value: 'medium', label: 'Media', text: 'text-blue-500' },
+                                                                { value: 'low', label: 'Baixa', text: 'text-gray-500' }
+                                                            ].map(p => (
+                                                                <button
+                                                                    key={p.value}
+                                                                    onClick={() => {
+                                                                        setPriority(p.value as any);
+                                                                        setShowPrioritySelect(false);
+                                                                    }}
+                                                                    className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm hover:bg-white/5 transition-colors text-left ${priority === p.value ? 'bg-white/5' : ''}`}
+                                                                >
+                                                                    <IconFlag size={14} className={p.text} fill="currentColor" />
+                                                                    <span className="text-gray-300">{p.label}</span>
+                                                                </button>
+                                                            ))}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+
+                                            {/* 3. Tempo Rastreado (Visual) */}
+                                            <div className="flex items-center justify-between group h-8">
+                                                <div
+                                                    className="flex items-center gap-2 text-[#EEEEEE] min-w-[140px] cursor-pointer"
+                                                    onClick={() => setShowTimePopover(!showTimePopover)}
+                                                >
+                                                    <div className="p-1 rounded hover:bg-white/5 transition-colors">
+                                                        <IconPlayerPlay size={16} stroke={1.5} color="#6e6e6e" />
+                                                    </div>
+                                                    <span className="text-sm font-medium text-[#EEEEEE] group-hover:text-white transition-colors">Tempo rastreado</span>
+                                                </div>
+                                                <div className="flex-1 flex justify-start">
+                                                    <button
+                                                        onClick={() => setShowTimePopover(!showTimePopover)}
+                                                        className={`flex items-center gap-2 transition-colors px-2 py-0.5 rounded-full ${isRunning ? 'bg-primary/20 text-primary border border-primary/30 animate-pulse' : 'text-gray-500 hover:text-white bg-white/5 hover:bg-white/10'}`}
+                                                    >
+                                                        <div className={`w-4 h-4 rounded-full flex items-center justify-center ${isRunning ? 'bg-primary text-white' : 'bg-white/10'}`}>
+                                                            {isRunning ? (
+                                                                <div className="w-1.5 h-1.5 bg-white rounded-sm" />
                                                             ) : (
-                                                                uploaderInitials
+                                                                <div className="w-0 h-0 border-t-[3px] border-t-transparent border-l-[5px] border-l-white border-b-[3px] border-b-transparent ml-0.5"></div>
                                                             )}
                                                         </div>
-                                                    </div>
-                                                </a>
+                                                        <span className="text-xs font-bold">
+                                                            {isRunning ? timerDisplay : totalMinutes > 0 ? formatDuration(totalMinutes) : <span className="text-[#6e6e6e]">Adicionar hora</span>}
+                                                        </span>
+                                                    </button>
+                                                </div>
                                             </div>
-                                        );
-                                    })}
-                                </div>
-                                <input type="file" ref={fileInputRef} className="hidden" onChange={handleFileUpload} />
-                            </div>
-                                    </>
-                                )}
-                            </div>
+
+                                            {/* 4. Cliente (Relacionamentos) */}
+                                            <div className="flex items-center justify-between group h-8">
+                                                <div
+                                                    className="flex items-center gap-2 text-[#EEEEEE] min-w-[140px] cursor-pointer"
+                                                    onClick={() => userRole !== 'visualizador' && setShowClientSelect(!showClientSelect)}
+                                                >
+                                                    <div className="p-1 rounded hover:bg-white/5 transition-colors">
+                                                        <IconBriefcase size={16} stroke={1.5} color="#6e6e6e" />
+                                                    </div>
+                                                    <span className="text-sm font-medium text-[#EEEEEE] group-hover:text-white transition-colors">Cliente</span>
+                                                </div>
+
+                                                <div className="relative flex-1 flex justify-start">
+                                                    <button
+                                                        onClick={() => userRole !== 'visualizador' && setShowClientSelect(!showClientSelect)}
+                                                        className="flex items-center"
+                                                    >
+                                                        {clientId ? (
+                                                            <div className="flex items-center gap-2 group/client">
+                                                                <div className="w-5 h-5 rounded-full bg-indigo-500/20 flex items-center justify-center text-[10px] font-bold text-indigo-400 shrink-0">
+                                                                    {clients.find(c => c.id === clientId)?.name.charAt(0) || 'C'}
+                                                                </div>
+                                                                <span className="text-sm text-gray-300 group-hover/client:text-white transition-colors truncate max-w-[120px]">
+                                                                    {clients.find(c => c.id === clientId)?.name}
+                                                                </span>
+                                                                <X
+                                                                    size={12}
+                                                                    className="text-gray-500 hover:text-red-400 opacity-0 group-hover/client:opacity-100 transition-opacity ml-1"
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        setClientId('');
+                                                                    }}
+                                                                />
+                                                            </div>
+                                                        ) : (
+                                                            <span className="text-sm text-[#6e6e6e] hover:text-gray-400 transition-colors">Vazio</span>
+                                                        )}
+                                                    </button>
+
+                                                    {/* Popover Clientes */}
+                                                    {showClientSelect && (
+                                                        <div className="absolute top-full left-0 mt-2 w-64 bg-[#1a1a2e] border border-white/10 rounded-xl shadow-xl z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+                                                            <div className="p-2 border-b border-white/5">
+                                                                <input
+                                                                    autoFocus
+                                                                    placeholder="Buscar cliente..."
+                                                                    className="w-full bg-white/5 border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white focus:border-primary/50 outline-none"
+                                                                    onClick={(e) => e.stopPropagation()}
+                                                                />
+                                                            </div>
+                                                            <div className="max-h-48 overflow-y-auto custom-scrollbar p-1">
+                                                                {clients.map(c => (
+                                                                    <button
+                                                                        key={c.id}
+                                                                        onClick={() => {
+                                                                            setClientId(c.id);
+                                                                            setShowClientSelect(false);
+                                                                        }}
+                                                                        className={`w-full flex items-center gap-2 px-2 py-2 rounded-lg text-sm text-gray-300 hover:bg-white/5 hover:text-white transition-colors text-left ${clientId === c.id ? 'bg-primary/10 text-primary' : ''}`}
+                                                                    >
+                                                                        <div className="w-6 h-6 rounded-full bg-white/10 flex items-center justify-center text-[10px] font-bold">
+                                                                            {c.name.charAt(0)}
+                                                                        </div>
+                                                                        <span className="truncate">{c.name}</span>
+                                                                        {clientId === c.id && <CheckSquare size={12} className="ml-auto text-primary" />}
+                                                                    </button>
+                                                                ))}
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+
+                                        </div>
+
+                                    </div>
+
+                                    <div className="h-px bg-white/5 w-full" />
+
+                                    {/* 2. Descricao */}
+                                    <div className="space-y-3 group">
+                                        {(!description && !isEditingDescription) ? (
+                                            <button
+                                                onClick={() => setIsEditingDescription(true)}
+                                                className="flex items-center gap-2 px-3 py-2 rounded-xl text-white hover:bg-white/5 transition-all group/btn"
+                                            >
+                                                <span className="text-base font-medium">Adicionar descricao</span>
+                                            </button>
+                                        ) : (
+                                            <>
+                                                <div className="flex items-center justify-between text-white pr-2">
+                                                    <div className="flex items-center gap-2">
+                                                        <h3 className="text-base font-semibold tracking-tight text-[#EEEEEE]">Descricao</h3>
+                                                    </div>
+                                                    <div className="flex items-center gap-2">
+                                                        {description && (
+                                                            <button
+                                                                onClick={() => setShowDescriptionOnly(true)}
+                                                                className="p-1.5 rounded hover:bg-white/10 text-gray-400 hover:text-white transition-colors"
+                                                                title="Ver em tela cheia"
+                                                            >
+                                                                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="icon icon-tabler icons-tabler-outline icon-tabler-arrows-diagonal-minimize-2"><path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M18 10h-4v-4" /><path d="M20 4l-6 6" /><path d="M6 14h4v4" /><path d="M10 14l-6 6" /></svg>
+                                                            </button>
+                                                        )}
+                                                        {description && (
+                                                            <button
+                                                                onClick={() => setIsExpandedDescription(!isExpandedDescription)}
+                                                                className="p-1.5 rounded hover:bg-white/10 text-gray-400 hover:text-white transition-colors flex items-center justify-center"
+                                                                title={isExpandedDescription ? "Recolher" : "Expandir"}
+                                                            >
+                                                                {isExpandedDescription ? (
+                                                                    <ChevronUp size={14} />
+                                                                ) : (
+                                                                    <ChevronDown size={14} />
+                                                                )}
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                                <div className={`relative transition-all duration-300 overflow-hidden ${!isExpandedDescription ? 'max-h-[100px] mb-2' : 'max-h-none'} border border-white/10 rounded-xl p-4`}>
+                                                    <textarea
+                                                        ref={descriptionRef}
+                                                        className="w-full bg-transparent text-gray-300 resize-none overflow-hidden focus:outline-none placeholder:text-gray-600/50 leading-relaxed text-sm font-light border-none p-0 transition-all"
+                                                        placeholder="Escreva, pressione a barra de espaco para usar a IA ou '/' para usar comandos"
+                                                        value={description}
+                                                        onChange={(e) => setDescription(e.target.value)}
+                                                        onBlur={() => !description && setIsEditingDescription(false)}
+                                                        autoFocus={isEditingDescription && !description}
+                                                    />
+                                                    {!isExpandedDescription && description.length > 50 && (
+                                                        <div className="absolute bottom-0 left-0 right-0 h-10 bg-gradient-to-t from-[#0a0a1a] to-transparent pointer-events-none" />
+                                                    )}
+                                                </div>
+                                            </>
+                                        )}
+                                    </div>
+
+                                    {/* 3. Subtarefas (Estilo ClickUp) */}
+                                    <div className="space-y-2">
+                                        {/* Cabecalho e Filtros */}
+                                        <div className="flex items-center justify-between pb-2 mb-2">
+                                            <div className="flex items-center gap-4">
+                                                <div className="flex items-center gap-2 text-white">
+                                                    <h3 className="text-base font-semibold tracking-tight text-[#EEEEEE]">Subtarefas</h3>
+                                                </div>
+
+                                                {/* Barra de Progresso Subtarefas (Igual Checklist) */}
+                                                <div className="flex items-center gap-2">
+                                                    <div className="h-1.5 w-16 bg-white/10 rounded-full overflow-hidden">
+                                                        <div
+                                                            className="h-full bg-blue-500 rounded-full transition-all duration-500"
+                                                            style={{ width: `${subtasks.length > 0 ? (subtasks.filter(t => t.column_id && columnsMap[t.column_id]?.toLowerCase() === 'concluido').length / subtasks.length) * 100 : 0}%` }}
+                                                        ></div>
+                                                    </div>
+                                                    <span className="text-xs text-blue-500 font-medium">
+                                                        {subtasks.filter(t => t.column_id && columnsMap[t.column_id]?.toLowerCase() === 'concluido').length}/{subtasks.length}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                            <div className="flex gap-2">
+                                                <button
+                                                    onClick={() => setShowSubtasksOnly(true)}
+                                                    className="text-xs font-medium text-gray-400 hover:text-white transition-colors flex items-center gap-1.5 px-2 py-1 rounded hover:bg-white/5"
+                                                    title="Ver em tela cheia"
+                                                >
+                                                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="icon icon-tabler icons-tabler-outline icon-tabler-arrows-diagonal-minimize-2"><path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M18 10h-4v-4" /><path d="M20 4l-6 6" /><path d="M6 14h4v4" /><path d="M10 14l-6 6" /></svg>
+                                                </button>
+                                                <button
+                                                    onClick={() => setIsSubtasksCollapsed(!isSubtasksCollapsed)}
+                                                    className="text-xs font-medium text-gray-400 hover:text-white transition-colors flex items-center gap-1.5 px-2 py-1 rounded hover:bg-white/5"
+                                                >
+                                                    {isSubtasksCollapsed ? (
+                                                        <ChevronDown size={14} />
+                                                    ) : (
+                                                        <ChevronUp size={14} />
+                                                    )}
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        <div className="rounded-xl border border-white/5">
+                                            {/* Tabela Header - ClickUp Style Minimal */}
+                                            <div className="grid grid-cols-[1fr_100px_100px_140px_40px] gap-4 px-4 py-2 text-[11px] font-medium text-gray-500 bg-[#0a0a1a]/40 border-b border-white/5 rounded-t-xl">
+                                                <div className="pl-8">Nome</div> {/* pl-8 para alinhar com o texto da task, pulando o icone de status */}
+                                                <div className="text-left">Responsavel</div>
+                                                <div className="text-left">Prioridade</div>
+                                                <div className="text-left">Data de vencimento</div>
+                                                <div></div>
+                                            </div>
+
+                                            {/* Lista - ClickUp Style */}
+                                            <div className={`divide-y divide-white/5 ${isSubtasksCollapsed ? 'max-h-0 overflow-hidden text-transparent opacity-0 duration-300 transition-all' : 'overflow-visible'}`}>
+                                                <DndContext
+                                                    sensors={sensors}
+                                                    collisionDetection={closestCenter}
+                                                    onDragEnd={handleSubtaskDragEnd}
+                                                >
+                                                    <SortableContext
+                                                        items={subtasks.map(t => t.id)}
+                                                        strategy={verticalListSortingStrategy}
+                                                    >
+                                                        {subtasks.map(task => (
+                                                            <SortableSubtaskItem key={task.id} task={task} isFullScreen={false} />
+                                                        ))}
+                                                    </SortableContext>
+                                                </DndContext>
+
+                                                {/* New Task Input Inline - ClickUp Style */}
+                                                {userRole !== 'visualizador' && (
+                                                    <div className="flex items-center gap-3 px-4 py-2 text-gray-500 hover:text-gray-300 transition-colors cursor-text group hover:bg-white/[0.02] rounded-b-xl" onClick={() => document.getElementById('new-subtask-input')?.focus()}>
+                                                        <div className="w-4 flex justify-center opacity-0"><div className="w-1 h-1 rounded-full bg-gray-600"></div></div> {/* Spacer */}
+                                                        <Plus size={14} className="text-gray-600 group-hover:text-primary transition-colors shrink-0" />
+                                                        <input
+                                                            id="new-subtask-input"
+                                                            className="bg-transparent text-sm focus:outline-none w-full placeholder:text-gray-600 text-gray-300 h-6"
+                                                            placeholder="Adicionar nova subtarefa..."
+                                                            onKeyDown={(e) => {
+                                                                if (e.key === 'Enter') {
+                                                                    handleCreateSubtask(e.currentTarget.value);
+                                                                    e.currentTarget.value = '';
+                                                                }
+                                                            }}
+                                                        />
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* 4. Checklists (ClickUp Style) */}
+                                    <div className="space-y-4">
+                                        {/* Header Geral da Secao */}
+                                        <div className="flex items-center justify-between">
+                                            <div className="flex items-center gap-4">
+                                                <h3 className="text-base font-semibold tracking-tight text-[#EEEEEE]">Checklists</h3>
+                                                {/* Barra de Progresso Global (Pill Style) */}
+                                                <div className="flex items-center gap-2">
+                                                    <div className="h-1.5 w-16 bg-white/10 rounded-full overflow-hidden">
+                                                        <div
+                                                            className="h-full bg-emerald-500 rounded-full transition-all duration-500"
+                                                            style={{ width: `${checklist.length > 0 ? (checklist.filter(i => i.is_completed).length / checklist.length) * 100 : 0}%` }}
+                                                        ></div>
+                                                    </div>
+                                                    <span className="text-xs text-emerald-500 font-medium">
+                                                        {checklist.filter(i => i.is_completed).length}/{checklist.length}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                <button
+                                                    onClick={() => setShowChecklistOnly(true)}
+                                                    className="p-1.5 rounded hover:bg-white/10 text-gray-400 hover:text-white transition-colors"
+                                                    title="Ver em tela cheia"
+                                                >
+                                                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="icon icon-tabler icons-tabler-outline icon-tabler-arrows-diagonal-minimize-2"><path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M18 10h-4v-4" /><path d="M20 4l-6 6" /><path d="M6 14h4v4" /><path d="M10 14l-6 6" /></svg>
+                                                </button>
+                                                <button
+                                                    onClick={() => setIsChecklistCollapsed(!isChecklistCollapsed)}
+                                                    className="p-1.5 rounded hover:bg-white/10 text-gray-400 hover:text-white transition-colors flex items-center justify-center"
+                                                    title={isChecklistCollapsed ? "Expandir" : "Recolher"}
+                                                >
+                                                    {isChecklistCollapsed ? (
+                                                        <ChevronDown size={14} />
+                                                    ) : (
+                                                        <ChevronUp size={14} />
+                                                    )}
+                                                </button>
+                                                <button onClick={handleAddChecklistGroup} className="p-1.5 rounded hover:bg-white/10 text-gray-400 hover:text-white transition-colors" title="Adicionar grupo">
+                                                    <Plus size={16} />
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <div className={`space-y-4 transition-all duration-300 ${isChecklistCollapsed ? 'max-h-0 overflow-hidden opacity-0 text-transparent' : 'max-h-[2000px] opacity-100 overflow-visible'}`}>
+                                            <DndContext
+                                                sensors={sensors}
+                                                collisionDetection={closestCenter}
+                                                onDragEnd={handleChecklistDragEnd}
+                                            >
+                                                <SortableContext
+                                                    items={checklistGroups.map(g => g.id)}
+                                                    strategy={verticalListSortingStrategy}
+                                                >
+                                                    {checklistGroups.map(group => (
+                                                        <SortableChecklistGroup
+                                                            key={group.id}
+                                                            group={group}
+                                                            checklist={checklist}
+                                                            onAddItem={(groupId) => document.getElementById(`new-checklist-input-${groupId}`)?.focus()}
+                                                            isFullScreen={false}
+                                                        />
+                                                    ))}
+                                                </SortableContext>
+                                            </DndContext>
+                                        </div>
+                                    </div>
+
+                                    {/* 5. Anexos */}
+                                    <div className="space-y-4">
+                                        <div className="flex items-center justify-between">
+                                            <div className="flex items-center gap-2">
+                                                <h3 className="text-base font-semibold tracking-tight text-[#EEEEEE]">Anexos ({files.length})</h3>
+                                            </div>
+                                            <button onClick={handleAddFile} className="text-xs text-primary hover:text-white transition-colors">
+                                                + Adicionar
+                                            </button>
+                                        </div>
+
+                                        <div className="flex flex-wrap gap-4">
+                                            {files.map(file => {
+                                                const fileExt = file.file_name.split('.').pop()?.toLowerCase() || '';
+                                                const isImage = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'].includes(fileExt);
+                                                const uploader = members.find(m => m.id === file.uploader_id);
+                                                const uploaderName = uploader?.name || 'Sistema';
+
+                                                let uploaderInitials = 'US';
+                                                if (uploader) {
+                                                    const parts = uploader.name.trim().split(' ');
+                                                    uploaderInitials = parts.length > 1 ? (parts[0][0] + parts[parts.length - 1][0]).toUpperCase() : parts[0].substring(0, 2).toUpperCase();
+                                                }
+
+                                                const formatAttachmentDate = (dateString: string) => {
+                                                    const d = new Date(dateString);
+                                                    const today = new Date();
+                                                    const isToday = d.getDate() === today.getDate() && d.getMonth() === today.getMonth() && d.getFullYear() === today.getFullYear();
+
+                                                    const yesterday = new Date(today);
+                                                    yesterday.setDate(yesterday.getDate() - 1);
+                                                    const isYesterday = d.getDate() === yesterday.getDate() && d.getMonth() === yesterday.getMonth() && d.getFullYear() === yesterday.getFullYear();
+
+                                                    let timeStr = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }).toLowerCase();
+
+                                                    if (isToday) return `Hoje Ã s ${timeStr}`;
+                                                    if (isYesterday) return `Ontem Ã s ${timeStr}`;
+                                                    return `${d.toLocaleDateString([], { month: 'short', day: 'numeric' })} Ã s ${timeStr}`;
+                                                };
+
+                                                return (
+                                                    <div key={file.id} className="w-[206px] h-[180px] shrink-0 bg-[#0a0a1a] border border-white/5 rounded-xl flex flex-col hover:border-white/20 transition-colors group relative overflow-hidden">
+
+                                                        {/* Botao flutuante de Excluir */}
+                                                        <button onClick={() => handleDeleteFile(file.id, file.file_url, file.file_name)} className="absolute top-2 right-2 p-1.5 rounded-lg bg-black/60 backdrop-blur-md text-gray-400 hover:text-white hover:bg-red-500/80 opacity-0 group-hover:opacity-100 transition-all transform translate-y-1 group-hover:translate-y-0 z-20 shadow-md">
+                                                            <Trash2 size={14} />
+                                                        </button>
+
+                                                        <a href={file.file_url} target="_blank" rel="noopener noreferrer" className="flex-1 flex flex-col min-h-0 relative">
+                                                            {/* Top Area - Preview */}
+                                                            <div className="flex-1 flex items-center justify-center bg-[#050510] relative overflow-hidden min-h-0">
+                                                                {isImage ? (
+                                                                    <img src={file.file_url} alt={file.file_name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                                                                ) : (
+                                                                    <div className="text-primary/70 transform group-hover:scale-110 transition-transform duration-300 scale-[2]">
+                                                                        {getFileIcon(file.file_name)}
+                                                                    </div>
+                                                                )}
+
+                                                                {/* Fullscreen Overlay Button - Now for all files */}
+                                                                <div
+                                                                    className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer z-10"
+                                                                    onClick={(e) => {
+                                                                        e.preventDefault();
+                                                                        e.stopPropagation();
+                                                                        setPreviewUrl(file.file_url);
+                                                                        setPreviewName(file.file_name);
+                                                                    }}
+                                                                >
+                                                                    <div className="p-2.5 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-white transform scale-90 group-hover:scale-100 transition-transform duration-300">
+                                                                        <IconArrowsDiagonal size={20} stroke={2} />
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+
+                                                            {/* Bottom Strip */}
+                                                            <div className="h-16 shrink-0 bg-white/[0.02] border-t border-white/5 p-3 flex flex-row items-center justify-between relative z-10 w-full gap-2 text-left">
+                                                                <div className="flex flex-col min-w-0 pr-1 flex-1">
+                                                                    <p className="text-xs font-semibold text-white truncate" title={file.file_name}>{file.file_name}</p>
+                                                                    <p className="text-[10px] text-gray-500 mt-1 truncate">{formatAttachmentDate(file.created_at)}</p>
+                                                                </div>
+
+                                                                <div className="w-7 h-7 rounded-full bg-white/10 flex items-center justify-center text-[10px] font-bold text-gray-300 shrink-0 border border-white/5 overflow-hidden ring-2 ring-[#0a0a1a]" title={uploaderName}>
+                                                                    {uploader?.avatar_url ? (
+                                                                        <img src={uploader.avatar_url} alt={uploaderName} className="w-full h-full object-cover" />
+                                                                    ) : (
+                                                                        uploaderInitials
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                        </a>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                        <input type="file" ref={fileInputRef} className="hidden" onChange={handleFileUpload} />
+                                    </div>
+                                </>
+                            )}
                         </div>
+                    </div>
 
                     {/* ================= DIREITA: ATIVIDADE E CHAT (30%) ================= */}
                     <div className="w-[400px] flex flex-col bg-[#050510]/80 backdrop-blur-xl border-l border-white/5 z-20">
@@ -3172,14 +3207,14 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onOpenCar
 
             {/* Modal de Selecao de Aprovador (Popover Style) */}
             {showApproverModal && popoverPos && (
-                <div 
-                    className="fixed inset-0 z-[100]" 
+                <div
+                    className="fixed inset-0 z-[100]"
                     onClick={() => setShowApproverModal(null)}
                 >
-                    <div 
+                    <div
                         className="absolute z-[101] w-64 bg-[#1a1a2e] border border-white/10 rounded-xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200"
-                        style={{ 
-                            top: popoverPos.top, 
+                        style={{
+                            top: popoverPos.top,
                             left: popoverPos.left
                         }}
                         onClick={e => e.stopPropagation()}
@@ -3207,7 +3242,7 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onOpenCar
 
             {/* ================= MODAL DE PREVIEW DE ANEXO ================= */}
             {previewUrl && (
-                <div 
+                <div
                     className="fixed inset-0 z-[100] flex flex-col bg-[#050510]/95 backdrop-blur-xl animate-in fade-in duration-300"
                     onClick={() => setPreviewUrl(null)}
                 >
@@ -3220,7 +3255,7 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onOpenCar
                             <span className="text-sm font-semibold text-white tracking-tight">{previewName}</span>
                         </div>
                         <div className="flex items-center gap-4">
-                            <button 
+                            <button
                                 onClick={(e) => {
                                     e.stopPropagation();
                                     if (previewUrl && previewName) {
@@ -3232,7 +3267,7 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onOpenCar
                                 <Download size={14} />
                                 Baixar
                             </button>
-                            <button 
+                            <button
                                 onClick={() => setPreviewUrl(null)}
                                 className="p-2 rounded-lg hover:bg-white/10 text-gray-400 hover:text-white transition-colors"
                             >
@@ -3242,83 +3277,83 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onOpenCar
                     </div>
 
                     {/* Área de Conteúdo (Imagem, PDF ou Placeholder) */}
-                        {(() => {
-                            const previewExt = previewName?.split('.').pop()?.toLowerCase() || '';
-                            const isPreviewImage = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'].includes(previewExt);
-                            const isPreviewPdf = previewExt === 'pdf';
-                            const isPreviewText = ['txt', 'csv', 'js', 'ts', 'jsx', 'tsx', 'py'].includes(previewExt);
-                            const isPreviewOffice = ['xlsx', 'xls', 'docx', 'doc', 'pptx', 'ppt'].includes(previewExt);
-                            const isPreviewVideo = ['mp4', 'webm', 'ogg', 'mov'].includes(previewExt);
-                            const isIframePreview = isPreviewPdf || isPreviewText || isPreviewOffice;
+                    {(() => {
+                        const previewExt = previewName?.split('.').pop()?.toLowerCase() || '';
+                        const isPreviewImage = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'].includes(previewExt);
+                        const isPreviewPdf = previewExt === 'pdf';
+                        const isPreviewText = ['txt', 'csv', 'js', 'ts', 'jsx', 'tsx', 'py'].includes(previewExt);
+                        const isPreviewOffice = ['xlsx', 'xls', 'docx', 'doc', 'pptx', 'ppt'].includes(previewExt);
+                        const isPreviewVideo = ['mp4', 'webm', 'ogg', 'mov'].includes(previewExt);
+                        const isIframePreview = isPreviewPdf || isPreviewText || isPreviewOffice;
 
-                            if (isPreviewImage) {
-                                return (
-                                    <div className="flex-1 flex items-center justify-center p-8 w-full h-full">
-                                        <img 
-                                            src={previewUrl} 
-                                            alt={previewName || 'Preview'} 
-                                            className="max-w-full max-h-full object-contain shadow-2xl rounded-sm animate-in zoom-in-95 duration-500"
-                                            onClick={(e) => e.stopPropagation()}
-                                        />
-                                    </div>
-                                );
-                            }
-
-                            if (isPreviewVideo) {
-                                return (
-                                    <div className="flex-1 flex items-center justify-center p-8 w-full h-full">
-                                        <video 
-                                            src={previewUrl} 
-                                            controls 
-                                            autoPlay
-                                            className="max-w-full max-h-full rounded-xl shadow-2xl bg-black"
-                                            onClick={(e) => e.stopPropagation()}
-                                        />
-                                    </div>
-                                );
-                            }
-
-                            if (isIframePreview) {
-                                const finalPreviewUrl = isPreviewOffice 
-                                    ? `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(previewUrl)}`
-                                    : previewUrl;
-
-                                return (
-                                    <div className="w-full h-full bg-white animate-in fade-in duration-500" onClick={(e) => e.stopPropagation()}>
-                                        <iframe 
-                                            src={finalPreviewUrl} 
-                                            className="w-full h-full border-none" 
-                                            title={previewName || 'Preview'}
-                                        />
-                                    </div>
-                                );
-                            }
-
+                        if (isPreviewImage) {
                             return (
                                 <div className="flex-1 flex items-center justify-center p-8 w-full h-full">
-                                    <div className="flex flex-col items-center gap-6 p-12 bg-white/5 rounded-[32px] border border-white/10 backdrop-blur-md shadow-2xl animate-in zoom-in-95 duration-500 max-w-md w-full" onClick={(e) => e.stopPropagation()}>
-                                        <div className="p-8 rounded-2xl bg-primary/10 border border-primary/20 text-primary">
-                                            {previewName ? (
-                                                getFileIcon(previewName, 48)
-                                            ) : (
-                                                <Paperclip size={48} />
-                                            )}
-                                        </div>
-                                        <div className="text-center space-y-2">
-                                            <h3 className="text-lg font-bold text-white tracking-tight px-4 truncate w-full max-w-[300px]" title={previewName || ''}>{previewName}</h3>
-                                            <p className="text-xs text-gray-400">Pré-visualização não disponível</p>
-                                        </div>
-                                        <button 
-                                            onClick={() => previewUrl && previewName && handleDownload(previewUrl, previewName)}
-                                            className="mt-2 w-full px-6 py-3.5 rounded-xl bg-primary hover:bg-primary/80 text-white font-bold transition-all shadow-lg shadow-primary/20 flex items-center justify-center gap-2"
-                                        >
-                                            <Download size={18} />
-                                            Baixar Arquivo
-                                        </button>
-                                    </div>
+                                    <img
+                                        src={previewUrl}
+                                        alt={previewName || 'Preview'}
+                                        className="max-w-full max-h-full object-contain shadow-2xl rounded-sm animate-in zoom-in-95 duration-500"
+                                        onClick={(e) => e.stopPropagation()}
+                                    />
                                 </div>
                             );
-                        })()}
+                        }
+
+                        if (isPreviewVideo) {
+                            return (
+                                <div className="flex-1 flex items-center justify-center p-8 w-full h-full">
+                                    <video
+                                        src={previewUrl}
+                                        controls
+                                        autoPlay
+                                        className="max-w-full max-h-full rounded-xl shadow-2xl bg-black"
+                                        onClick={(e) => e.stopPropagation()}
+                                    />
+                                </div>
+                            );
+                        }
+
+                        if (isIframePreview) {
+                            const finalPreviewUrl = isPreviewOffice
+                                ? `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(previewUrl)}`
+                                : previewUrl;
+
+                            return (
+                                <div className="w-full h-full bg-white animate-in fade-in duration-500" onClick={(e) => e.stopPropagation()}>
+                                    <iframe
+                                        src={finalPreviewUrl}
+                                        className="w-full h-full border-none"
+                                        title={previewName || 'Preview'}
+                                    />
+                                </div>
+                            );
+                        }
+
+                        return (
+                            <div className="flex-1 flex items-center justify-center p-8 w-full h-full">
+                                <div className="flex flex-col items-center gap-6 p-12 bg-white/5 rounded-[32px] border border-white/10 backdrop-blur-md shadow-2xl animate-in zoom-in-95 duration-500 max-w-md w-full" onClick={(e) => e.stopPropagation()}>
+                                    <div className="p-8 rounded-2xl bg-primary/10 border border-primary/20 text-primary">
+                                        {previewName ? (
+                                            getFileIcon(previewName, 48)
+                                        ) : (
+                                            <Paperclip size={48} />
+                                        )}
+                                    </div>
+                                    <div className="text-center space-y-2">
+                                        <h3 className="text-lg font-bold text-white tracking-tight px-4 truncate w-full max-w-[300px]" title={previewName || ''}>{previewName}</h3>
+                                        <p className="text-xs text-gray-400">Pré-visualização não disponível</p>
+                                    </div>
+                                    <button
+                                        onClick={() => previewUrl && previewName && handleDownload(previewUrl, previewName)}
+                                        className="mt-2 w-full px-6 py-3.5 rounded-xl bg-primary hover:bg-primary/80 text-white font-bold transition-all shadow-lg shadow-primary/20 flex items-center justify-center gap-2"
+                                    >
+                                        <Download size={18} />
+                                        Baixar Arquivo
+                                    </button>
+                                </div>
+                            </div>
+                        );
+                    })()}
                 </div>
             )}
         </>,
