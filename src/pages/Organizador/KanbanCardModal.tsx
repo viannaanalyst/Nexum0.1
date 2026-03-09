@@ -3248,9 +3248,9 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onRefresh
                                         {(!description && !isEditingDescription) ? (
                                             <button
                                                 onClick={() => setIsEditingDescription(true)}
-                                                className="flex items-center gap-2 px-3 py-2 rounded-xl text-white hover:bg-white/5 transition-all group/btn"
+                                                className="flex items-center gap-2 px-3 py-2 -ml-3 rounded-xl hover:bg-white/5 transition-all group/btn"
                                             >
-                                                <span className="text-base font-medium">Adicionar descrição</span>
+                                                <span className="text-base font-semibold tracking-tight text-[#EEEEEE] group-hover:text-white transition-colors">Adicionar descrição</span>
                                             </button>
                                         ) : (
                                             <>
@@ -3302,96 +3302,98 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onRefresh
                                     </div>
 
                                     {/* 3. Subtarefas (Estilo ClickUp) */}
-                                    <div className="space-y-2">
-                                        {/* Cabecalho e Filtros */}
-                                        <div className="flex items-center justify-between pb-2 mb-2">
-                                            <div className="flex items-center gap-4">
-                                                <div className="flex items-center gap-2 text-white">
-                                                    <h3 className="text-base font-semibold tracking-tight text-[#EEEEEE]">Subtarefas</h3>
-                                                </div>
-
-                                                {/* Barra de Progresso Subtarefas (Igual Checklist) */}
-                                                <div className="flex items-center gap-2">
-                                                    <div className="h-1.5 w-16 bg-white/10 rounded-full overflow-hidden">
-                                                        <div
-                                                            className="h-full bg-blue-500 rounded-full transition-all duration-500"
-                                                            style={{ width: `${subtasks.length > 0 ? (subtasks.filter(t => t.column_id && columnsMap[t.column_id]?.toLowerCase() === 'concluido').length / subtasks.length) * 100 : 0}%` }}
-                                                        ></div>
+                                    {!parentId && (
+                                        <div className="space-y-2">
+                                            {/* Cabecalho e Filtros */}
+                                            <div className="flex items-center justify-between pb-2 mb-2">
+                                                <div className="flex items-center gap-4">
+                                                    <div className="flex items-center gap-2 text-white">
+                                                        <h3 className="text-base font-semibold tracking-tight text-[#EEEEEE]">Subtarefas</h3>
                                                     </div>
-                                                    <span className="text-xs text-blue-500 font-medium">
-                                                        {subtasks.filter(t => t.column_id && columnsMap[t.column_id]?.toLowerCase() === 'concluido').length}/{subtasks.length}
-                                                    </span>
+
+                                                    {/* Barra de Progresso Subtarefas (Igual Checklist) */}
+                                                    <div className="flex items-center gap-2">
+                                                        <div className="h-1.5 w-16 bg-white/10 rounded-full overflow-hidden">
+                                                            <div
+                                                                className="h-full bg-blue-500 rounded-full transition-all duration-500"
+                                                                style={{ width: `${subtasks.length > 0 ? (subtasks.filter(t => t.column_id && columnsMap[t.column_id]?.toLowerCase() === 'concluido').length / subtasks.length) * 100 : 0}%` }}
+                                                            ></div>
+                                                        </div>
+                                                        <span className="text-xs text-blue-500 font-medium">
+                                                            {subtasks.filter(t => t.column_id && columnsMap[t.column_id]?.toLowerCase() === 'concluido').length}/{subtasks.length}
+                                                        </span>
+                                                    </div>
                                                 </div>
-                                            </div>
-                                            <div className="flex gap-2">
-                                                <button
-                                                    onClick={() => setShowSubtasksOnly(true)}
-                                                    className="text-xs font-medium text-gray-400 hover:text-white transition-colors flex items-center gap-1.5 px-2 py-1 rounded hover:bg-white/5"
-                                                    title="Ver em tela cheia"
-                                                >
-                                                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="icon icon-tabler icons-tabler-outline icon-tabler-arrows-diagonal-minimize-2"><path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M18 10h-4v-4" /><path d="M20 4l-6 6" /><path d="M6 14h4v4" /><path d="M10 14l-6 6" /></svg>
-                                                </button>
-                                                <button
-                                                    onClick={() => setIsSubtasksCollapsed(!isSubtasksCollapsed)}
-                                                    className="text-xs font-medium text-gray-400 hover:text-white transition-colors flex items-center gap-1.5 px-2 py-1 rounded hover:bg-white/5"
-                                                >
-                                                    {isSubtasksCollapsed ? (
-                                                        <ChevronDown size={14} />
-                                                    ) : (
-                                                        <ChevronUp size={14} />
-                                                    )}
-                                                </button>
-                                            </div>
-                                        </div>
-
-                                        <div className="rounded-xl border border-white/5">
-                                            {/* Tabela Header - ClickUp Style Minimal */}
-                                            <div className="grid grid-cols-[1fr_100px_100px_140px_40px] gap-4 px-4 py-2 text-[11px] font-medium text-gray-500 bg-[#0a0a1a]/40 border-b border-white/5 rounded-t-xl">
-                                                <div className="pl-8">Nome</div> {/* pl-8 para alinhar com o texto da task, pulando o icone de status */}
-                                                <div className="text-left">Responsavel</div>
-                                                <div className="text-left">Prioridade</div>
-                                                <div className="text-left">Data de vencimento</div>
-                                                <div></div>
-                                            </div>
-
-                                            {/* Lista - ClickUp Style */}
-                                            <div className={`divide-y divide-white/5 ${isSubtasksCollapsed ? 'max-h-0 overflow-hidden text-transparent opacity-0 duration-300 transition-all' : 'overflow-visible'}`}>
-                                                <DndContext
-                                                    sensors={sensors}
-                                                    collisionDetection={closestCenter}
-                                                    onDragEnd={handleSubtaskDragEnd}
-                                                >
-                                                    <SortableContext
-                                                        items={subtasks.map(t => t.id)}
-                                                        strategy={verticalListSortingStrategy}
+                                                <div className="flex gap-2">
+                                                    <button
+                                                        onClick={() => setShowSubtasksOnly(true)}
+                                                        className="text-xs font-medium text-gray-400 hover:text-white transition-colors flex items-center gap-1.5 px-2 py-1 rounded hover:bg-white/5"
+                                                        title="Ver em tela cheia"
                                                     >
-                                                        {subtasks.map(task => (
-                                                            <SortableSubtaskItem key={task.id} task={task} isFullScreen={false} />
-                                                        ))}
-                                                    </SortableContext>
-                                                </DndContext>
+                                                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="icon icon-tabler icons-tabler-outline icon-tabler-arrows-diagonal-minimize-2"><path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M18 10h-4v-4" /><path d="M20 4l-6 6" /><path d="M6 14h4v4" /><path d="M10 14l-6 6" /></svg>
+                                                    </button>
+                                                    <button
+                                                        onClick={() => setIsSubtasksCollapsed(!isSubtasksCollapsed)}
+                                                        className="text-xs font-medium text-gray-400 hover:text-white transition-colors flex items-center gap-1.5 px-2 py-1 rounded hover:bg-white/5"
+                                                    >
+                                                        {isSubtasksCollapsed ? (
+                                                            <ChevronDown size={14} />
+                                                        ) : (
+                                                            <ChevronUp size={14} />
+                                                        )}
+                                                    </button>
+                                                </div>
+                                            </div>
 
-                                                {/* New Task Input Inline - ClickUp Style */}
-                                                {userRole !== 'visualizador' && (
-                                                    <div className="flex items-center gap-3 px-4 py-2 text-gray-500 hover:text-gray-300 transition-colors cursor-text group hover:bg-white/[0.02] rounded-b-xl" onClick={() => document.getElementById('new-subtask-input')?.focus()}>
-                                                        <div className="w-4 flex justify-center opacity-0"><div className="w-1 h-1 rounded-full bg-gray-600"></div></div> {/* Spacer */}
-                                                        <Plus size={14} className="text-gray-600 group-hover:text-primary transition-colors shrink-0" />
-                                                        <input
-                                                            id="new-subtask-input"
-                                                            className="bg-transparent text-sm focus:outline-none w-full placeholder:text-gray-600 text-gray-300 h-6"
-                                                            placeholder="Adicionar nova subtarefa..."
-                                                            onKeyDown={(e) => {
-                                                                if (e.key === 'Enter') {
-                                                                    handleCreateSubtask(e.currentTarget.value);
-                                                                    e.currentTarget.value = '';
-                                                                }
-                                                            }}
-                                                        />
-                                                    </div>
-                                                )}
+                                            <div className="rounded-xl border border-white/5">
+                                                {/* Tabela Header - ClickUp Style Minimal */}
+                                                <div className="grid grid-cols-[1fr_100px_100px_140px_40px] gap-4 px-4 py-2 text-[11px] font-medium text-gray-500 bg-[#0a0a1a]/40 border-b border-white/5 rounded-t-xl">
+                                                    <div className="pl-8">Nome</div> {/* pl-8 para alinhar com o texto da task, pulando o icone de status */}
+                                                    <div className="text-left">Responsavel</div>
+                                                    <div className="text-left">Prioridade</div>
+                                                    <div className="text-left">Data de vencimento</div>
+                                                    <div></div>
+                                                </div>
+
+                                                {/* Lista - ClickUp Style */}
+                                                <div className={`divide-y divide-white/5 ${isSubtasksCollapsed ? 'max-h-0 overflow-hidden text-transparent opacity-0 duration-300 transition-all' : 'overflow-visible'}`}>
+                                                    <DndContext
+                                                        sensors={sensors}
+                                                        collisionDetection={closestCenter}
+                                                        onDragEnd={handleSubtaskDragEnd}
+                                                    >
+                                                        <SortableContext
+                                                            items={subtasks.map(t => t.id)}
+                                                            strategy={verticalListSortingStrategy}
+                                                        >
+                                                            {subtasks.map(task => (
+                                                                <SortableSubtaskItem key={task.id} task={task} isFullScreen={false} />
+                                                            ))}
+                                                        </SortableContext>
+                                                    </DndContext>
+
+                                                    {/* New Task Input Inline - ClickUp Style */}
+                                                    {userRole !== 'visualizador' && (
+                                                        <div className="flex items-center gap-3 px-4 py-2 text-gray-500 hover:text-gray-300 transition-colors cursor-text group hover:bg-white/[0.02] rounded-b-xl" onClick={() => document.getElementById('new-subtask-input')?.focus()}>
+                                                            <div className="w-4 flex justify-center opacity-0"><div className="w-1 h-1 rounded-full bg-gray-600"></div></div> {/* Spacer */}
+                                                            <Plus size={14} className="text-gray-600 group-hover:text-primary transition-colors shrink-0" />
+                                                            <input
+                                                                id="new-subtask-input"
+                                                                className="bg-transparent text-sm focus:outline-none w-full placeholder:text-gray-600 text-gray-300 h-6"
+                                                                placeholder="Adicionar nova subtarefa..."
+                                                                onKeyDown={(e) => {
+                                                                    if (e.key === 'Enter') {
+                                                                        handleCreateSubtask(e.currentTarget.value);
+                                                                        e.currentTarget.value = '';
+                                                                    }
+                                                                }}
+                                                            />
+                                                        </div>
+                                                    )}
+                                                </div>
                                             </div>
                                         </div>
-                                    </div>
+                                    )}
 
                                     {/* 4. Checklists (ClickUp Style) */}
                                     <div className="space-y-4">

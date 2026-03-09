@@ -62,10 +62,12 @@ const FinanceiroLancamentos = () => {
   const [newTransaction, setNewTransaction] = useState<Partial<Transaction>>({
     type: 'expense',
     status: 'pending',
+    category: 'Outros',
     due_date: new Date().toISOString().split('T')[0],
     recurrence: 'none',
     recurrence_until: null,
-    client_id: undefined
+    client_id: undefined,
+    template_id: null
   });
 
   // Fetch Data (Yearly to support multiple months in memory)
@@ -107,7 +109,12 @@ const FinanceiroLancamentos = () => {
       setNewTransaction({
         type: 'expense',
         status: 'pending',
-        due_date: new Date().toISOString().split('T')[0]
+        category: 'Outros',
+        due_date: new Date().toISOString().split('T')[0],
+        recurrence: 'none',
+        recurrence_until: null,
+        client_id: undefined,
+        template_id: null
       });
       setIsModalOpen(true);
     };
@@ -294,9 +301,10 @@ const FinanceiroLancamentos = () => {
       category: item.category,
       due_date: item.due_date,
       status: item.status,
-      recurrence: item.recurrence,
+      recurrence: (item.recurrence === 'monthly' || (item.recurrence as string) === 'Mensal' || (item.recurrence as string) === 'mensal') ? 'monthly' : 'none',
       recurrence_until: item.recurrence_until,
-      client_id: item.client_id
+      client_id: item.client_id,
+      template_id: item.template_id || null
     });
     setEditingId(item.id);
     setIsModalOpen(true);
@@ -350,10 +358,12 @@ const FinanceiroLancamentos = () => {
       setNewTransaction({
         type: 'expense',
         status: 'pending',
+        category: 'Outros',
         due_date: new Date().toISOString().split('T')[0],
         recurrence: 'none',
         recurrence_until: null,
-        client_id: undefined
+        client_id: undefined,
+        template_id: null
       });
       fetchData();
     } catch (error) {
@@ -516,7 +526,7 @@ const FinanceiroLancamentos = () => {
           {/* 1. Overlay Premium */}
           <div
             className="absolute inset-0 bg-black/60 backdrop-blur-md z-0 animate-in fade-in duration-300"
-            onClick={() => { setIsModalOpen(false); setEditingId(null); setNewTransaction({ type: 'expense', status: 'pending', due_date: new Date().toISOString().split('T')[0], recurrence: 'none', recurrence_until: null, client_id: undefined }); }}
+            onClick={() => { setIsModalOpen(false); setEditingId(null); setNewTransaction({ type: 'expense', status: 'pending', category: 'Outros', due_date: new Date().toISOString().split('T')[0], recurrence: 'none', recurrence_until: null, client_id: undefined, template_id: null }); }}
           >
             <div className="absolute inset-0 opacity-[0.03] bg-[url('https://grainy-gradients.vercel.app/noise.svg')]"></div>
           </div>
@@ -538,7 +548,7 @@ const FinanceiroLancamentos = () => {
                 <p className="text-[#6e6e6e] text-xs mt-1 font-light">Registre suas movimentações financeiras.</p>
               </div>
               <button
-                onClick={() => { setIsModalOpen(false); setEditingId(null); setNewTransaction({ type: 'expense', status: 'pending', due_date: new Date().toISOString().split('T')[0], recurrence: 'none', recurrence_until: null, client_id: undefined }); }}
+                onClick={() => { setIsModalOpen(false); setEditingId(null); setNewTransaction({ type: 'expense', status: 'pending', category: 'Outros', due_date: new Date().toISOString().split('T')[0], recurrence: 'none', recurrence_until: null, client_id: undefined, template_id: null }); }}
                 className="p-1.5 text-gray-500 hover:text-white rounded-lg hover:bg-white/10 transition-colors"
               >
                 <X size={18} />
@@ -627,34 +637,31 @@ const FinanceiroLancamentos = () => {
                 <div className="space-y-1.5">
                   <label className="block text-[11px] font-medium text-gray-500 tracking-wide ml-1">Categoria</label>
                   <div className="relative group">
-                    <select
-                      className="w-full bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.08] rounded-xl px-4 py-3 text-white/90 focus:bg-white/[0.08] focus:border-primary/30 focus:ring-0 outline-none appearance-none cursor-pointer transition-all duration-300 text-sm font-light"
-                      value={newTransaction.category || ''}
-                      onChange={e => setNewTransaction({ ...newTransaction, category: e.target.value })}
-                    >
-                      <option value="" disabled>Selecione...</option>
-                      <option value="Operacional" className="bg-[#0a0a1a]">Operacional</option>
-                      <option value="Marketing" className="bg-[#0a0a1a]">Marketing</option>
-                      <option value="Ferramentas" className="bg-[#0a0a1a]">Ferramentas</option>
-                      <option value="Impostos" className="bg-[#0a0a1a]">Impostos</option>
-                      <option value="Pessoal" className="bg-[#0a0a1a]">Pessoal</option>
-                      <option value="Outros" className="bg-[#0a0a1a]">Outros</option>
-                    </select>
+                    <Select
+                      value={newTransaction.category || 'Outros'}
+                      onChange={v => setNewTransaction({ ...newTransaction, category: String(v) })}
+                      options={[
+                        { value: 'Operacional', label: 'Operacional' },
+                        { value: 'Marketing', label: 'Marketing' },
+                        { value: 'Ferramentas', label: 'Ferramentas' },
+                        { value: 'Impostos', label: 'Impostos' },
+                        { value: 'Pessoal', label: 'Pessoal' },
+                        { value: 'Outros', label: 'Outros' },
+                      ]}
+                    />
                   </div>
                 </div>
                 <div className="space-y-1.5">
                   <label className="block text-[11px] font-medium text-gray-500 tracking-wide ml-1">Vincular cliente</label>
                   <div className="relative group">
-                    <select
-                      className="w-full bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.08] rounded-xl px-4 py-3 text-white/90 focus:bg-white/[0.08] focus:border-primary/30 focus:ring-0 outline-none appearance-none cursor-pointer transition-all duration-300 text-sm font-light"
+                    <Select
                       value={newTransaction.client_id || ''}
-                      onChange={e => setNewTransaction({ ...newTransaction, client_id: e.target.value })}
-                    >
-                      <option value="">Sem vínculo</option>
-                      {clients.map(c => (
-                        <option key={c.id} value={c.id} className="bg-[#0a0a1a]">{c.name}</option>
-                      ))}
-                    </select>
+                      onChange={v => setNewTransaction({ ...newTransaction, client_id: v === '' ? undefined : String(v) })}
+                      options={[
+                        { value: '', label: 'Sem vínculo' },
+                        ...clients.map(c => ({ value: c.id, label: c.name }))
+                      ]}
+                    />
                   </div>
                 </div>
               </div>
@@ -664,17 +671,23 @@ const FinanceiroLancamentos = () => {
                 <div className="space-y-1.5">
                   <label className="block text-[11px] font-medium text-gray-500 tracking-wide ml-1">Recorrência</label>
                   <div className="relative group">
-                    <select
-                      className="w-full bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.08] rounded-xl px-4 py-3 text-white/90 focus:bg-white/[0.08] focus:border-primary/30 focus:ring-0 outline-none appearance-none cursor-pointer transition-all duration-300 text-sm font-light"
-                      value={newTransaction.recurrence || 'none'}
-                      onChange={e => setNewTransaction({ ...newTransaction, recurrence: e.target.value as any })}
-                    >
-                      <option value="none" className="bg-[#0a0a1a]">Nenhuma</option>
-                      <option value="monthly" className="bg-[#0a0a1a]">Mensal</option>
-                    </select>
+                    <Select
+                      className={newTransaction.template_id ? "opacity-50 !cursor-not-allowed pointer-events-none" : ""}
+                      value={newTransaction.template_id ? 'instance' : (newTransaction.recurrence || 'none')}
+                      onChange={v => {
+                          if (!newTransaction.template_id) {
+                              setNewTransaction({ ...newTransaction, recurrence: String(v) as any })
+                          }
+                      }}
+                      options={[
+                        { value: 'none', label: 'Nenhuma' },
+                        { value: 'monthly', label: 'Mensal' },
+                        ...(newTransaction.template_id ? [{ value: 'instance', label: 'Mensal (Instância)' }] : [])
+                      ]}
+                    />
                   </div>
                 </div>
-                {newTransaction.recurrence === 'monthly' && (
+                {newTransaction.recurrence === 'monthly' && !newTransaction.template_id && (
                   <div className="space-y-1.5">
                     <label className="block text-[11px] font-medium text-gray-500 tracking-wide ml-1">Encerrar em (opcional)</label>
                     <input
@@ -710,7 +723,7 @@ const FinanceiroLancamentos = () => {
               <div className="pt-2 flex justify-end gap-2">
                 <button
                   type="button"
-                  onClick={() => { setIsModalOpen(false); setEditingId(null); setNewTransaction({ type: 'expense', status: 'pending', due_date: new Date().toISOString().split('T')[0], recurrence: 'none', recurrence_until: null, client_id: undefined }); }}
+                  onClick={() => { setIsModalOpen(false); setEditingId(null); setNewTransaction({ type: 'expense', status: 'pending', category: 'Outros', due_date: new Date().toISOString().split('T')[0], recurrence: 'none', recurrence_until: null, client_id: undefined, template_id: null }); }}
                   className="px-6 py-2.5 text-sm text-gray-500 hover:text-red-500 transition-colors font-medium flex items-center justify-center"
                 >
                   Cancelar
