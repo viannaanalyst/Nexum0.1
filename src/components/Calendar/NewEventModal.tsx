@@ -225,7 +225,7 @@ export const NewEventModal: React.FC<NewEventModalProps> = ({ isOpen, onClose, o
                     <div className="space-y-4">
                         {/* Título do Evento */}
                         <div className="relative group">
-                            <label className="text-[10px] uppercase tracking-widest font-bold text-[#6e6e6e] ml-1 mb-1 block">Título do Evento</label>
+                            <label className="text-[11px] font-medium text-[#6e6e6e] ml-1 mb-1 block">Título do Evento</label>
                             <input
                                 required
                                 autoFocus
@@ -240,7 +240,7 @@ export const NewEventModal: React.FC<NewEventModalProps> = ({ isOpen, onClose, o
                         <div className="grid grid-cols-2 gap-4">
                             {/* Início */}
                             <div className="relative group">
-                                <label className="text-[10px] uppercase tracking-widest font-bold text-[#6e6e6e] ml-1 mb-1 block">Data do Evento</label>
+                                <label className="text-[11px] font-medium text-[#6e6e6e] ml-1 mb-1 block">Data do Evento</label>
                                 <input
                                     required
                                     type="date"
@@ -251,7 +251,7 @@ export const NewEventModal: React.FC<NewEventModalProps> = ({ isOpen, onClose, o
                             </div>
                             {/* Término */}
                             <div className="relative group">
-                                <label className="text-[10px] uppercase tracking-widest font-bold text-[#6e6e6e] ml-1 mb-1 block">Horário</label>
+                                <label className="text-[11px] font-medium text-[#6e6e6e] ml-1 mb-1 block">Horário</label>
                                 <input
                                     required
                                     type="time"
@@ -265,7 +265,7 @@ export const NewEventModal: React.FC<NewEventModalProps> = ({ isOpen, onClose, o
                         <div className="grid grid-cols-2 gap-4">
                             {/* Local */}
                             <div className="relative group">
-                                <label className="text-[10px] uppercase tracking-widest font-bold text-[#6e6e6e] ml-1 mb-1 block">Local / Link</label>
+                                <label className="text-[11px] font-medium text-[#6e6e6e] ml-1 mb-1 block">Local / Link</label>
                                 <input
                                     type="text"
                                     placeholder="Google Meet, Sala..."
@@ -276,7 +276,7 @@ export const NewEventModal: React.FC<NewEventModalProps> = ({ isOpen, onClose, o
                             </div>
                             {/* Responsável */}
                             <div className="relative group">
-                                <label className="text-[10px] uppercase tracking-widest font-bold text-[#6e6e6e] ml-1 mb-1 block">Responsável</label>
+                                <label className="text-[11px] font-medium text-[#6e6e6e] ml-1 mb-1 block">Responsável</label>
                                 <select
                                     className="w-full bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.08] rounded-xl px-4 py-3 text-white/90 focus:bg-white/[0.08] focus:border-primary/30 focus:ring-0 outline-none appearance-none cursor-pointer transition-all duration-300 text-sm font-light"
                                     value={assignedTo}
@@ -294,7 +294,7 @@ export const NewEventModal: React.FC<NewEventModalProps> = ({ isOpen, onClose, o
 
                         {/* Descrição */}
                         <div className="relative group">
-                            <label className="text-[10px] uppercase tracking-widest font-bold text-[#6e6e6e] ml-1 mb-1 block">Descrição</label>
+                            <label className="text-[11px] font-medium text-[#6e6e6e] ml-1 mb-1 block">Descrição</label>
                             <textarea
                                 placeholder="Pauta da reunião..."
                                 rows={2}

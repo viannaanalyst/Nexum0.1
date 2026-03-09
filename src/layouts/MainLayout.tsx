@@ -686,7 +686,7 @@ const MainLayout = () => {
       {layoutMode !== 'normal' && (
         <button
           onClick={() => { setLayoutMode('normal'); setSidebarOpen(true); }}
-          className="fixed bottom-6 right-6 z-[100] w-12 h-12 rounded-full bg-primary/80 hover:bg-primary text-white flex items-center justify-center shadow-lg shadow-primary/30 backdrop-blur-sm border border-white/10 hover:scale-110 transition-all duration-300 group"
+          className="fixed bottom-9 right-[100px] z-[100] w-12 h-12 rounded-full bg-primary/80 hover:bg-primary text-white flex items-center justify-center shadow-lg shadow-primary/30 backdrop-blur-sm border border-white/10 hover:scale-110 transition-all duration-300 group"
           title="Restaurar layout padrão"
         >
           <IconLayoutGrid size={20} />

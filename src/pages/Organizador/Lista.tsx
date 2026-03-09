@@ -71,8 +71,27 @@ const OrganizadorLista = () => {
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
   const [collapsedColumns, setCollapsedColumns] = useState<Record<string, boolean>>({});
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedClientIdFilter, setSelectedClientIdFilter] = useState<string>('all'); // Local filter if needed, but usually from context
+  const [selectedClientIdFilter, setSelectedClientIdFilter] = useState<string>(''); 
   const [updatingChecklist, setUpdatingChecklist] = useState<string | null>(null);
+  const [showClientSelect, setShowClientSelect] = useState(false);
+  const [clientSearchTerm, setClientSearchTerm] = useState('');
+  const dropdownRef = React.useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setShowClientSelect(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  useEffect(() => {
+    if (!showClientSelect) {
+      setClientSearchTerm('');
+    }
+  }, [showClientSelect]);
 
   useEffect(() => {
     if (selectedCompany) fetchData();
@@ -141,10 +160,22 @@ const OrganizadorLista = () => {
       const { data: clientsData } = await supabase
         .from('clients')
         .select('id, name')
-        .eq('company_id', selectedCompany.id);
+        .eq('company_id', selectedCompany.id)
+        .eq('status', 'active')
+        .order('name');
 
       if (clientsData) {
         setClientsMap(clientsData.reduce((acc, c) => ({ ...acc, [c.id]: c.name }), {}));
+        
+        setSelectedClientIdFilter(current => {
+          if (clientsData.length > 0 && (!current || !clientsData.find(c => c.id === current))) {
+            return clientsData[0].id; // Select first active client by default
+          }
+          if (clientsData.length === 0) {
+            return '';
+          }
+          return current;
+        });
       }
 
       const { data: membersData } = await supabase
@@ -218,11 +249,13 @@ const OrganizadorLista = () => {
         const matchesCol = c.column_id === col.id;
         const matchesSearch = c.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
           (c.client_id && clientsMap[c.client_id]?.toLowerCase().includes(searchTerm.toLowerCase()));
-        return matchesCol && matchesSearch;
+        const matchesClient = !selectedClientIdFilter || c.client_id === selectedClientIdFilter;
+
+        return matchesCol && matchesSearch && matchesClient;
       });
       return { ...col, cards: colCards };
     }); // We keep all columns, even empty ones, but could filter them out
-  }, [columns, cards, searchTerm, clientsMap]);
+  }, [columns, cards, searchTerm, clientsMap, selectedClientIdFilter]);
 
   const getPriorityBadge = (priority: string) => {
     const config = {
@@ -264,6 +297,62 @@ const OrganizadorLista = () => {
       <div className="flex justify-between items-center mb-6">
         <div className="flex-1"></div>
         <div className="flex items-center gap-3">
+          <div className="relative" ref={dropdownRef}>
+            <button
+              onClick={() => setShowClientSelect(!showClientSelect)}
+              className="bg-white/5 border border-white/10 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-primary hover:bg-white/10 transition-colors flex items-center justify-between min-w-[200px]"
+            >
+              <div className="flex items-center gap-2 overflow-hidden mr-3">
+                <div className="w-5 h-5 rounded-full bg-indigo-500/20 flex items-center justify-center text-[10px] font-bold text-indigo-400 shrink-0">
+                  {selectedClientIdFilter && clientsMap[selectedClientIdFilter] ? clientsMap[selectedClientIdFilter].charAt(0) : 'C'}
+                </div>
+                <span className="truncate text-sm font-medium">
+                  {selectedClientIdFilter && clientsMap[selectedClientIdFilter] ? clientsMap[selectedClientIdFilter] : 'Selecione um Cliente'}
+                </span>
+              </div>
+              <ChevronDown size={16} className={`text-gray-400 shrink-0 transition-transform ${showClientSelect ? 'rotate-180' : ''}`} />
+            </button>
+
+            {showClientSelect && (
+              <div className="absolute top-full right-0 mt-2 w-64 bg-[#1a1a2e] border border-white/10 rounded-xl shadow-xl z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+                <div className="p-2 border-b border-white/5">
+                  <input
+                    autoFocus
+                    placeholder="Buscar cliente..."
+                    value={clientSearchTerm}
+                    onChange={(e) => setClientSearchTerm(e.target.value)}
+                    className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white focus:border-primary/50 outline-none"
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                </div>
+                <div className="max-h-64 overflow-y-auto custom-scrollbar p-1">
+                  {Object.entries(clientsMap)
+                    .filter(([, name]) => name.toLowerCase().includes(clientSearchTerm.toLowerCase()))
+                    .sort(([, a], [, b]) => a.localeCompare(b))
+                    .map(([id, name]) => (
+                      <button
+                        key={id}
+                        onClick={() => {
+                          setSelectedClientIdFilter(id);
+                          setShowClientSelect(false);
+                        }}
+                        className={`w-full flex items-center gap-2 px-2 py-2 rounded-lg text-sm text-gray-300 hover:bg-white/5 hover:text-white transition-colors text-left ${selectedClientIdFilter === id ? 'bg-primary/10 text-primary' : ''}`}
+                      >
+                        <div className="w-6 h-6 rounded-full bg-white/10 flex items-center justify-center text-[10px] font-bold shrink-0">
+                          {name.charAt(0)}
+                        </div>
+                        <span className="truncate flex-1">{name}</span>
+                        {selectedClientIdFilter === id && <CheckSquare size={12} className="ml-auto text-primary shrink-0" />}
+                      </button>
+                    ))}
+                  {Object.keys(clientsMap).filter(k => clientsMap[k].toLowerCase().includes(clientSearchTerm.toLowerCase())).length === 0 && (
+                    <div className="p-2 text-xs text-center text-gray-500">Nenhum cliente encontrado</div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={18} />
             <input
