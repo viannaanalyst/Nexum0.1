@@ -31,7 +31,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  const [loadingPermissions, setLoadingPermissions] = useState(false);
+  const [loadingPermissions, setLoadingPermissions] = useState(true);
 
   useEffect(() => {
     // Check active session
@@ -60,7 +60,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     try {
       if (!session.user || !session.user.email) return;
 
-      // 1. Fetch Profile for is_super_admin
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
         .select('*')
@@ -72,13 +71,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
 
       const isSuperAdmin = profile?.is_super_admin || false;
-      let role: UserRole = isSuperAdmin ? 'SUPER ADMIN' : 'visualizador'; // Default to visualizador if not found
+      let role: UserRole = isSuperAdmin ? 'SUPER ADMIN' : 'visualizador';
       let name = profile?.full_name || session.user.user_metadata?.full_name || session.user.email;
       const mustChangePassword = session.user.user_metadata?.must_change_password || false;
       const avatarUrl = profile?.avatar_url;
 
-      // 2. If not Super Admin, try to fetch a membership role (just to populate the initial state)
-      // The CompanyContext will handle the specific company role later.
       if (!isSuperAdmin) {
          const { data: member } = await supabase
             .from('organization_members')
@@ -92,7 +89,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
          }
       }
 
-      setUser({
+      setUser(prev => ({
         id: session.user.id,
         email: session.user.email,
         name,
@@ -100,7 +97,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         is_super_admin: isSuperAdmin,
         avatar_url: avatarUrl,
         must_change_password: mustChangePassword,
-      });
+        permissions: prev?.permissions,
+      }));
     } catch (error) {
       console.error('Error in fetchProfile:', error);
     } finally {
@@ -124,6 +122,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const logout = async () => {
     await supabase.auth.signOut();
     setUser(null);
+    setLoadingPermissions(true);
   };
 
   const refreshUser = async () => {
@@ -134,20 +133,21 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const refreshPermissions = async (companyId: string) => {
-    if (!user) return;
+    const { data: { user: authUser } } = await supabase.auth.getUser();
+    if (!authUser) return;
+    
     setLoadingPermissions(true);
     try {
       const { data: member } = await supabase
         .from('organization_members')
         .select('permissions')
-        .eq('user_id', user.id)
+        .eq('user_id', authUser.id)
         .eq('company_id', companyId)
         .maybeSingle();
 
       if (member && member.permissions) {
         setUser(prev => prev ? { ...prev, permissions: member.permissions } : null);
       } else {
-        // Fallback to empty permissions instead of leaving it undefined
         setUser(prev => prev ? { ...prev, permissions: {} } : null);
       }
     } catch (error) {

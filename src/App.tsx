@@ -75,15 +75,16 @@ const RedirectToAllowed = () => {
   
   if (loadingPermissions) return <PermissionLoading />;
   if (user?.is_super_admin) return <Navigate to="/atividades" replace />;
-  if (!user?.permissions) return null;
+  if (!user?.permissions || Object.keys(user.permissions).length === 0) {
+    return <div className="h-screen bg-[#0a0a1a] flex items-center justify-center text-white">Sem permissões atribuídas.</div>;
+  }
 
-  // Ordered list of priority pages
   const priority = [
     'atividades', 'kanban', 'lista', 'cronograma', 'calendario', 
     'financeiro_geral', 'config_equipe', 'suporte'
   ];
   
-  const allowed = priority.find(p => user.permissions![p]);
+  const allowed = priority.find(p => user.permissions![p] === true);
   
   if (allowed) {
     const routeMap: Record<string, string> = {
@@ -106,9 +107,9 @@ const PermissionGate = ({ children, permission }: { children: React.ReactNode, p
   const { user, loadingPermissions } = useAuth();
   
   if (user?.is_super_admin) return <>{children}</>;
-  if (loadingPermissions) return null; // Avoid showing anything (blank is better than blocked here because of the outer layout)
+  if (loadingPermissions) return null;
   
-  if (!user?.permissions || user.permissions[permission] === false) {
+  if (!user?.permissions || user.permissions[permission] !== true) {
     return <Navigate to="/" replace />;
   }
   

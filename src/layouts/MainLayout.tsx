@@ -200,9 +200,9 @@ const MainLayout = () => {
   const { loadingPermissions } = useAuth();
   const hasPermission = (permissionKey: string) => {
     if (user?.is_super_admin) return true;
-    if (loadingPermissions) return true; // Show items while loading to avoid flicker, or return null for the whole nav if preferred
-    if (!user?.permissions) return true; // Default to true if not loaded yet
-    return user.permissions[permissionKey] !== false; // Explicit false check
+    if (loadingPermissions) return false;
+    if (!user?.permissions) return false;
+    return user.permissions[permissionKey] === true;
   };
 
   return (

@@ -24,17 +24,15 @@ interface CompanyContextType {
 const CompanyContext = createContext<CompanyContextType | undefined>(undefined);
 
 export const CompanyProvider = ({ children }: { children: ReactNode }) => {
-  const { user } = useAuth();
+  const { user, refreshPermissions } = useAuth();
   const [companies, setCompanies] = useState<Company[]>([]);
   const [selectedCompany, setSelectedCompany] = useState<Company | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (user) {
-      // Try to recover selected company from localStorage
       const savedCompanyId = localStorage.getItem('selectedCompanyId');
       
-      // If we already have companies loaded and one selected, don't refetch to avoid flicker
       if (companies.length > 0 && selectedCompany) {
           setLoading(false);
           return;
@@ -49,13 +47,11 @@ export const CompanyProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [user]);
 
-  // Handle permission refresh when company changes
-  const { refreshPermissions } = useAuth();
   useEffect(() => {
-    if (selectedCompany) {
+    if (user && selectedCompany) {
       refreshPermissions(selectedCompany.id);
     }
-  }, [selectedCompany?.id]);
+  }, [selectedCompany?.id, user?.id]);
 
   const fetchCompanies = async (savedCompanyId?: string | null) => {
     if (!user) return;
