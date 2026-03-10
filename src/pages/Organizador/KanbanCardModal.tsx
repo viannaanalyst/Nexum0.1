@@ -2223,6 +2223,17 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onRefresh
             if (status) {
                 const approverName = members.find(m => m.id === approverId)?.name || 'um gestor';
                 await createSystemLog(cardId, `Solicitou aprovacao de "${approverName}" para o item: "${itemDesc}".`, user?.id);
+                
+                if (approverId) {
+                    await createTaskNotification(
+                        approverId,
+                        'Aprovação Solicitada',
+                        `Você foi solicitado para aprovar o item "${itemDesc}" da tarefa: ${title}`,
+                        cardId,
+                        'approval'
+                    );
+                }
+
                 await createAuditLog('approve', 'card', cardId, { status: 'requested', checklist_item: itemDesc, approver: approverName });
             } else {
                 await createSystemLog(cardId, `Removeu a solicitacao de aprovacao do item: "${itemDesc}".`, user?.id);
@@ -2291,6 +2302,17 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onRefresh
             if (status) {
                 const approverName = members.find(m => m.id === approverId)?.name || 'um gestor';
                 await createSystemLog(cardId, `Solicitou aprovação de "${approverName}" para a subtarefa: "${subtaskTitle}".`, user?.id);
+                
+                if (approverId) {
+                    await createTaskNotification(
+                        approverId,
+                        'Aprovação de Subtarefa Solicitada',
+                        `Você foi solicitado para aprovar a subtarefa: ${subtaskTitle}`,
+                        subtaskId,
+                        'approval'
+                    );
+                }
+
                 toast.success(`Aprovação solicitada para ${approverName}.`, 'Aprovação');
             } else {
                 await createSystemLog(cardId, `Removeu a solicitação de aprovação da subtarefa: "${subtaskTitle}".`, user?.id);

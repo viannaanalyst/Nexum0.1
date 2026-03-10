@@ -218,21 +218,26 @@ const OrganizadorCronograma = () => {
         }
     };
 
-    const markAsDelivered = async () => {
-        if (!currentSchedule || currentSchedule.status !== 'draft') return;
+    const handleUpdateStatus = async (newStatus: 'draft' | 'pending' | 'approved') => {
+        if (!currentSchedule) return;
         try {
             const { error } = await supabase
                 .from('monthly_schedules')
-                .update({ status: 'pending' })
+                .update({ status: newStatus })
                 .eq('id', currentSchedule.id);
 
             if (!error) {
-                setCurrentSchedule(prev => prev ? ({ ...prev, status: 'pending' }) : null);
-                setSchedules(prev => prev.map(s => s.id === currentSchedule.id ? { ...s, status: 'pending' } : s));
+                setCurrentSchedule(prev => prev ? ({ ...prev, status: newStatus }) : null);
+                setSchedules(prev => prev.map(s => s.id === currentSchedule.id ? { ...s, status: newStatus } : s));
             }
         } catch (e) {
             console.error("Error updating status", e);
         }
+    };
+
+    const markAsDelivered = async () => {
+        if (!currentSchedule || currentSchedule.status !== 'draft') return;
+        await handleUpdateStatus('pending');
     };
 
     const handleAddPost = async (week: number) => {
@@ -394,7 +399,7 @@ const OrganizadorCronograma = () => {
                                 <p className="text-gray-400 text-sm mb-4">{MONTHS[schedule.month - 1]} / {schedule.year}</p>
 
                                 <div className="flex items-center gap-2 mb-6">
-                                    <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase border ${schedule.status === 'approved' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' :
+                                    <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${schedule.status === 'approved' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' :
                                         schedule.status === 'pending' ? 'bg-yellow-500/10 border-yellow-500/20 text-yellow-400' :
                                             'bg-gray-500/10 border-gray-500/20 text-gray-400'
                                         }`}>
@@ -406,7 +411,7 @@ const OrganizadorCronograma = () => {
                                     onClick={() => handleOpenSchedule(schedule)}
                                     className="w-full bg-white/5 hover:bg-white/10 text-white py-2 rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
                                 >
-                                    <Edit3 size={16} /> Editar Planejamento
+                                    <Edit3 size={16} /> Editar planejamento
                                 </button>
                             </div>
                         ))}
@@ -542,6 +547,22 @@ const OrganizadorCronograma = () => {
                         >
                             Visualizar
                         </button>
+                    </div>
+
+                    {/* Status Toggle */}
+                    <div className="flex bg-white/5 rounded-lg p-1 mr-4 border border-white/10">
+                        <select
+                            className={`bg-transparent text-xs font-bold rounded px-2 py-1.5 border-none focus:ring-0 cursor-pointer appearance-none ${currentSchedule?.status === 'approved' ? 'text-emerald-400' :
+                                currentSchedule?.status === 'pending' ? 'text-yellow-400' :
+                                    'text-gray-400'
+                                }`}
+                            value={currentSchedule?.status || 'draft'}
+                            onChange={(e) => handleUpdateStatus(e.target.value as any)}
+                        >
+                            <option value="draft" className="bg-[#0f0f1a] text-gray-400">Rascunho</option>
+                            <option value="pending" className="bg-[#0f0f1a] text-yellow-400">Pendente</option>
+                            <option value="approved" className="bg-[#0f0f1a] text-emerald-400">Aprovado</option>
+                        </select>
                     </div>
 
                     <button
@@ -762,7 +783,7 @@ const OrganizadorCronograma = () => {
 
                             {/* Footer */}
                             <div className="mt-auto pt-6 border-t border-white/10 text-center text-gray-500 text-sm flex justify-between items-center">
-                                <span>Gerado por Nexum</span>
+                                <span>Gerado por {selectedCompany?.name || 'Nexum'}</span>
                                 <span>{new Date().toLocaleDateString()}</span>
                             </div>
                         </div>
@@ -812,7 +833,7 @@ const OrganizadorCronograma = () => {
 
                                     {/* Footer */}
                                     <div className="mt-auto pt-6 border-t border-white/10 text-center text-gray-500 text-sm flex justify-between items-center">
-                                        <span>Gerado por Nexum</span>
+                                        <span>Gerado por {selectedCompany?.name || 'Nexum'}</span>
                                         <span>{new Date().toLocaleDateString()}</span>
                                     </div>
                                 </div>

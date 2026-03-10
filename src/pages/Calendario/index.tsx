@@ -395,14 +395,14 @@ const Calendario = () => {
               Mês
             </button>
             <button
-              onClick={() => handleViewChange('timeGridWeek')}
-              className={`px-3 py-1.5 rounded text-xs font-medium transition-all ${currentView === 'timeGridWeek' ? 'bg-primary text-white shadow-lg shadow-primary/25' : 'text-gray-400 hover:text-white hover:bg-white/10'}`}
+              onClick={() => handleViewChange('dayGridWeek')}
+              className={`px-3 py-1.5 rounded text-xs font-medium transition-all ${currentView === 'dayGridWeek' ? 'bg-primary text-white shadow-lg shadow-primary/25' : 'text-gray-400 hover:text-white hover:bg-white/10'}`}
             >
               Semana
             </button>
             <button
-              onClick={() => handleViewChange('timeGridDay')}
-              className={`px-3 py-1.5 rounded text-xs font-medium transition-all ${currentView === 'timeGridDay' ? 'bg-primary text-white shadow-lg shadow-primary/25' : 'text-gray-400 hover:text-white hover:bg-white/10'}`}
+              onClick={() => handleViewChange('dayGridDay')}
+              className={`px-3 py-1.5 rounded text-xs font-medium transition-all ${currentView === 'dayGridDay' ? 'bg-primary text-white shadow-lg shadow-primary/25' : 'text-gray-400 hover:text-white hover:bg-white/10'}`}
             >
               Dia
             </button>
@@ -413,7 +413,7 @@ const Calendario = () => {
       <div className="glass-card p-0 rounded-2xl border border-white/10 flex-1 overflow-hidden relative">
         <FullCalendar
           ref={calendarRef}
-          plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
+          plugins={[dayGridPlugin, interactionPlugin]}
           initialView="dayGridMonth"
           headerToolbar={false} // Hide default toolbar
           locale="pt-br"
@@ -422,7 +422,6 @@ const Calendario = () => {
           eventContent={renderEventContent}
           dayHeaderClassNames="text-gray-400 uppercase text-xs font-semibold tracking-wider py-4"
           dayCellClassNames="hover:bg-white/5 transition-colors cursor-pointer"
-          slotLabelClassNames="text-gray-400 text-xs"
           eventClassNames="rounded-md border-0 shadow-sm opacity-90 hover:opacity-100 transition-opacity"
           datesSet={updateTitle} // Keep title in sync
           eventClick={(info) => {
