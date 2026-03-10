@@ -79,20 +79,16 @@ interface KanbanCardModalProps {
 interface SortableChecklistItemProps {
     item: any;
     isFullScreen?: boolean;
-    currentUserApprover: boolean;
     userRole: string | null;
     handleToggleChecklist: (itemId: string, currentStatus: boolean, needsApproval: boolean, approverId: string | null) => void;
-    handleToggleApprovalReq: (e: React.MouseEvent, itemId: string, currentNeedsApproval: boolean) => void;
     handleDeleteChecklist: (itemId: string) => void;
 }
 
 const SortableChecklistItem = ({
     item,
     isFullScreen = false,
-    currentUserApprover,
     userRole,
     handleToggleChecklist,
-    handleToggleApprovalReq,
     handleDeleteChecklist
 }: SortableChecklistItemProps) => {
     const {
@@ -111,8 +107,6 @@ const SortableChecklistItem = ({
         zIndex: isDragging ? 100 : 'auto',
         position: 'relative' as const,
     };
-
-    const isApprover = currentUserApprover || (userRole === 'admin' || userRole === 'proprietario');
 
     return (
         <div
@@ -141,15 +135,6 @@ const SortableChecklistItem = ({
                     </span>
 
                     <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-                        {isApprover && (
-                            <button
-                                onClick={(e) => handleToggleApprovalReq(e, item.id, item.needs_approval)}
-                                className={`p-1.5 rounded hover:bg-white/10 transition-colors ${item.needs_approval ? 'text-primary' : 'text-gray-600 hover:text-gray-400'}`}
-                                title="Configurar Aprovacao"
-                            >
-                                <Lock size={isFullScreen ? 16 : 14} />
-                            </button>
-                        )}
                         <button
                             onClick={() => handleDeleteChecklist(item.id)}
                             className="p-1.5 rounded hover:bg-white/10 text-gray-600 hover:text-red-400 transition-colors"
@@ -159,22 +144,6 @@ const SortableChecklistItem = ({
                         </button>
                     </div>
                 </div>
-
-                {item.needs_approval && (
-                    <div className="flex flex-wrap gap-2 ml-7 mt-1">
-                        {item.is_approved ? (
-                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-emerald-500/10 text-emerald-400 text-[10px] font-bold border border-emerald-500/20">
-                                <CheckSquare size={10} />
-                                APROVADO
-                            </span>
-                        ) : (
-                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-amber-500/10 text-amber-400 text-[10px] font-bold border border-amber-500/20">
-                                <Lock size={10} />
-                                AGUARDANDO APROVA\u00C7\u00C3O
-                            </span>
-                        )}
-                    </div>
-                )}
             </div>
         </div>
     );
@@ -191,9 +160,7 @@ interface SortableChecklistGroupProps {
     newChecklistItems: Record<string, string>;
     setNewChecklistItems: React.Dispatch<React.SetStateAction<Record<string, string>>>;
     handleAddChecklistItem: (groupId: string) => void;
-    currentUserApprover: boolean;
     handleToggleChecklist: (itemId: string, currentStatus: boolean, needsApproval: boolean, approverId: string | null) => void;
-    handleToggleApprovalReq: (e: React.MouseEvent, itemId: string, currentNeedsApproval: boolean) => void;
     handleDeleteChecklist: (itemId: string) => void;
 }
 
@@ -208,9 +175,7 @@ const SortableChecklistGroup = ({
     newChecklistItems,
     setNewChecklistItems,
     handleAddChecklistItem,
-    currentUserApprover,
     handleToggleChecklist,
-    handleToggleApprovalReq,
     handleDeleteChecklist
 }: SortableChecklistGroupProps) => {
     const {
@@ -269,9 +234,7 @@ const SortableChecklistGroup = ({
                             item={item}
                             isFullScreen={isFullScreen}
                             userRole={userRole}
-                            currentUserApprover={currentUserApprover}
                             handleToggleChecklist={handleToggleChecklist}
-                            handleToggleApprovalReq={handleToggleApprovalReq}
                             handleDeleteChecklist={handleDeleteChecklist}
                         />
                     ))}
@@ -313,9 +276,7 @@ const SortableChecklistGroup = ({
                                         item={item}
                                         isFullScreen={isFullScreen}
                                         userRole={userRole}
-                                        currentUserApprover={currentUserApprover}
                                         handleToggleChecklist={handleToggleChecklist}
-                                        handleToggleApprovalReq={handleToggleApprovalReq}
                                         handleDeleteChecklist={handleDeleteChecklist}
                                     />
                                 ))}
@@ -346,6 +307,15 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onRefresh
     const [subcategory, setSubcategory] = useState('');
     const [clientId, setClientId] = useState(defaultClientId || '');
     const [parentId, setParentId] = useState<string | null>(null);
+
+    // Approval flow state (for when this card IS a subtask)
+    const [approvalNeeded, setApprovalNeeded] = useState(false);
+    const [approvalApproverId, setApprovalApproverId] = useState<string | null>(null);
+    const [approvalIsApproved, setApprovalIsApproved] = useState(false);
+    const [approvalStatus, setApprovalStatus] = useState<'pending' | 'approved' | 'rejected' | 'awaiting_adjustment'>('pending');
+    const [approvalHistory, setApprovalHistory] = useState<any[]>([]);
+    const [showRejectForm, setShowRejectForm] = useState(false);
+    const [rejectReason, setRejectReason] = useState('');
 
     const [checklist, setChecklist] = useState<any[]>([]);
     const [checklistGroups, setChecklistGroups] = useState<any[]>([{ id: 'default', title: 'Checklist Principal' }]);
@@ -534,6 +504,7 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onRefresh
             fetchComments();
             fetchFiles();
             fetchSubtasks();
+            fetchApprovalHistory();
         } else {
             setLoading(false);
             setTitle(mode === 'event' ? 'Novo Evento' : 'Nova tarefa');
@@ -753,6 +724,10 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onRefresh
                 setClientId(cardData.client_id || '');
                 setCurrentColumnId(cardData.column_id || '');
                 setParentId(cardData.parent_id || null);
+                setApprovalNeeded((cardData as any).needs_approval ?? false);
+                setApprovalApproverId((cardData as any).approver_id ?? null);
+                setApprovalIsApproved((cardData as any).is_approved ?? false);
+                setApprovalStatus((cardData as any).approval_status ?? 'pending');
 
                 const cardTags = (cardData as any).kanban_card_tags?.map((t: any) => t.tag_id) || [];
                 setSelectedTags(cardTags);
@@ -761,6 +736,24 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onRefresh
             console.error('Error fetching card details:', error);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const fetchApprovalHistory = async () => {
+        if (cardId === 'new') return;
+        try {
+            const { data, error } = await supabase
+                .from('kanban_approval_history')
+                .select('id, card_id, actor_id, action, note, created_at')
+                .eq('card_id', cardId)
+                .order('created_at', { ascending: true });
+            if (error) {
+                console.error('Error fetching approval history:', error);
+                return;
+            }
+            setApprovalHistory(data || []);
+        } catch (error) {
+            console.error('Error fetching approval history:', error);
         }
     };
 
@@ -1361,14 +1354,42 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onRefresh
                     </div>
 
                     {/* Ações */}
-                    <div className="flex justify-end pr-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button onClick={(e) => {
-                            e.stopPropagation();
-                            if (userRole === 'visualizador') return;
-                            handleUnlinkSubtask(task.id);
-                        }} className="text-gray-600 hover:text-red-400 transition-colors p-2 hover:bg-white/10 rounded-lg">
-                            <Trash2 size={16} />
-                        </button>
+                    <div className="flex justify-end items-center gap-1 pr-2">
+                        {/* Badge de aprovação — sempre visível */}
+                        {task.needs_approval && (
+                            task.approval_status === 'approved' ? (
+                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-emerald-500/10 text-emerald-400 text-[10px] font-bold border border-emerald-500/20 whitespace-nowrap">
+                                    <CheckSquare size={10} />APROVADO
+                                </span>
+                            ) : task.approval_status === 'awaiting_adjustment' ? (
+                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-red-500/10 text-red-400 text-[10px] font-bold border border-red-500/20 whitespace-nowrap">
+                                    <Lock size={10} />REPROVADO
+                                </span>
+                            ) : (
+                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-amber-500/10 text-amber-400 text-[10px] font-bold border border-amber-500/20 whitespace-nowrap">
+                                    <Lock size={10} />AGUARDANDO
+                                </span>
+                            )
+                        )}
+                        {/* Botão de config e excluir — só no hover */}
+                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            {(currentUserApprover || userRole === 'admin' || userRole === 'proprietario') && (
+                                <button
+                                    onClick={(e) => handleToggleSubtaskApprovalReq(e, task.id, task.needs_approval)}
+                                    className={`p-1.5 rounded-lg hover:bg-white/10 transition-colors ${task.needs_approval ? 'text-primary' : 'text-gray-600 hover:text-gray-400'}`}
+                                    title="Configurar Aprovação"
+                                >
+                                    <Lock size={16} />
+                                </button>
+                            )}
+                            <button onClick={(e) => {
+                                e.stopPropagation();
+                                if (userRole === 'visualizador') return;
+                                handleUnlinkSubtask(task.id);
+                            }} className="text-gray-600 hover:text-red-400 transition-colors p-2 hover:bg-white/10 rounded-lg">
+                                <Trash2 size={16} />
+                            </button>
+                        </div>
                     </div>
                 </div>
             );
@@ -1649,18 +1670,46 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onRefresh
                 </div>
 
                 {/* Ações */}
-                <div className="flex justify-end pr-2 opacity-0 group-hover:opacity-100 transition-all">
-                    <button
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            if (userRole === 'visualizador') return;
-                            handleUnlinkSubtask(task.id);
-                        }}
-                        className="text-gray-600 hover:text-red-400 transition-all p-1 hover:bg-white/5 rounded"
-                        title="Excluir"
-                    >
-                        <Trash2 size={14} />
-                    </button>
+                <div className="flex justify-end items-center gap-0.5 pr-2">
+                    {/* Badge de aprovação — sempre visível */}
+                    {task.needs_approval && (
+                        task.approval_status === 'approved' ? (
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 text-[9px] font-bold border border-emerald-500/20 whitespace-nowrap">
+                                <CheckSquare size={9} />APROVADO
+                            </span>
+                        ) : task.approval_status === 'awaiting_adjustment' ? (
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-red-500/10 text-red-400 text-[9px] font-bold border border-red-500/20 whitespace-nowrap">
+                                <Lock size={9} />REPROVADO
+                            </span>
+                        ) : (
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400 text-[9px] font-bold border border-amber-500/20 whitespace-nowrap">
+                                <Lock size={9} />AGUARDANDO
+                            </span>
+                        )
+                    )}
+                    {/* Botão de config e excluir — só no hover */}
+                    <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-all">
+                        {(currentUserApprover || userRole === 'admin' || userRole === 'proprietario') && (
+                            <button
+                                onClick={(e) => handleToggleSubtaskApprovalReq(e, task.id, task.needs_approval)}
+                                className={`p-1 rounded hover:bg-white/10 transition-colors ${task.needs_approval ? 'text-primary' : 'text-gray-600 hover:text-gray-400'}`}
+                                title="Configurar Aprovação"
+                            >
+                                <Lock size={13} />
+                            </button>
+                        )}
+                        <button
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                if (userRole === 'visualizador') return;
+                                handleUnlinkSubtask(task.id);
+                            }}
+                            className="text-gray-600 hover:text-red-400 transition-all p-1 hover:bg-white/5 rounded"
+                            title="Excluir"
+                        >
+                            <Trash2 size={14} />
+                        </button>
+                    </div>
                 </div>
             </div>
         );
@@ -2185,6 +2234,156 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onRefresh
         }
     };
 
+    const handleToggleSubtaskApprovalReq = (e: React.MouseEvent, subtaskId: string, currentStatus: boolean) => {
+        e.stopPropagation();
+        if (!currentStatus) {
+            const rect = e.currentTarget.getBoundingClientRect();
+            let left = rect.left;
+            const popoverWidth = 256;
+            if (left + popoverWidth > window.innerWidth - 20) {
+                left = window.innerWidth - popoverWidth - 20;
+            }
+            setPopoverPos({ top: rect.bottom + 8, left });
+            setShowApproverModal(`subtask:${subtaskId}`);
+        } else {
+            updateSubtaskApprovalStatus(subtaskId, false, null);
+        }
+    };
+
+    const updateSubtaskApprovalStatus = async (subtaskId: string, status: boolean, approverId: string | null) => {
+        try {
+            const { error } = await supabase
+                .from('kanban_cards')
+                .update({
+                    needs_approval: status,
+                    approver_id: approverId,
+                    is_approved: false,
+                    approval_status: status ? 'pending' : null,
+                })
+                .eq('id', subtaskId);
+
+            if (error) throw error;
+            setSubtasks(subtasks.map(t =>
+                t.id === subtaskId ? { ...t, needs_approval: status, approver_id: approverId, is_approved: false, approval_status: status ? 'pending' : null } : t
+            ));
+
+            // If this IS the current open card (subtask), update inline states too
+            if (subtaskId === cardId) {
+                setApprovalNeeded(status);
+                setApprovalApproverId(approverId);
+                setApprovalIsApproved(false);
+                setApprovalStatus(status ? 'pending' : 'pending');
+            }
+
+            if (status) {
+                await supabase.from('kanban_approval_history').insert({
+                    card_id: subtaskId,
+                    actor_id: currentUserId,
+                    action: 'requested',
+                    note: null,
+                });
+            }
+
+            setShowApproverModal(null);
+
+            const subtaskTitle = subtasks.find(t => t.id === subtaskId)?.title || 'subtarefa';
+            const { data: { user } } = await supabase.auth.getUser();
+            if (status) {
+                const approverName = members.find(m => m.id === approverId)?.name || 'um gestor';
+                await createSystemLog(cardId, `Solicitou aprovação de "${approverName}" para a subtarefa: "${subtaskTitle}".`, user?.id);
+                toast.success(`Aprovação solicitada para ${approverName}.`, 'Aprovação');
+            } else {
+                await createSystemLog(cardId, `Removeu a solicitação de aprovação da subtarefa: "${subtaskTitle}".`, user?.id);
+            }
+            if (subtaskId === cardId) await fetchApprovalHistory();
+        } catch (error) {
+            console.error('Error updating subtask approval status:', error);
+            toast.error('Erro ao configurar aprovação.', 'Erro');
+        }
+    };
+
+    const handleApproveSubtask = async () => {
+        try {
+            const { error } = await supabase
+                .from('kanban_cards')
+                .update({ is_approved: true, approval_status: 'approved' })
+                .eq('id', cardId);
+            if (error) throw error;
+
+            await supabase.from('kanban_approval_history').insert({
+                card_id: cardId,
+                actor_id: currentUserId,
+                action: 'approved',
+                note: null,
+            });
+
+            setApprovalIsApproved(true);
+            setApprovalStatus('approved');
+            setShowRejectForm(false);
+            await fetchApprovalHistory();
+            toast.success('Subtarefa aprovada com sucesso!', 'Aprovação');
+        } catch (error) {
+            console.error('Error approving subtask:', error);
+            toast.error('Erro ao aprovar subtarefa.', 'Erro');
+        }
+    };
+
+    const handleRejectSubtask = async () => {
+        if (!rejectReason.trim()) {
+            toast.warning('Informe a justificativa antes de devolver para ajuste.', 'Atenção');
+            return;
+        }
+        try {
+            const { error } = await supabase
+                .from('kanban_cards')
+                .update({ is_approved: false, approval_status: 'awaiting_adjustment' })
+                .eq('id', cardId);
+            if (error) throw error;
+
+            await supabase.from('kanban_approval_history').insert({
+                card_id: cardId,
+                actor_id: currentUserId,
+                action: 'rejected',
+                note: rejectReason.trim(),
+            });
+
+            setApprovalIsApproved(false);
+            setApprovalStatus('awaiting_adjustment');
+            setShowRejectForm(false);
+            setRejectReason('');
+            await fetchApprovalHistory();
+            toast.warning('Subtarefa devolvida para ajuste.', 'Reprovado');
+        } catch (error) {
+            console.error('Error rejecting subtask:', error);
+            toast.error('Erro ao reprovar subtarefa.', 'Erro');
+        }
+    };
+
+    const handleResubmitSubtask = async () => {
+        try {
+            const { error } = await supabase
+                .from('kanban_cards')
+                .update({ is_approved: false, approval_status: 'pending' })
+                .eq('id', cardId);
+            if (error) throw error;
+
+            await supabase.from('kanban_approval_history').insert({
+                card_id: cardId,
+                actor_id: currentUserId,
+                action: 'resubmitted',
+                note: null,
+            });
+
+            setApprovalIsApproved(false);
+            setApprovalStatus('pending');
+            await fetchApprovalHistory();
+            toast.success('Subtarefa reenviada para aprovação!', 'Reenvio');
+        } catch (error) {
+            console.error('Error resubmitting subtask:', error);
+            toast.error('Erro ao reenviar subtarefa.', 'Erro');
+        }
+    };
+
     const handleDeleteChecklist = async (itemId: string) => {
         // Local delete for temp items
         if (itemId.startsWith('temp-')) {
@@ -2669,9 +2868,7 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onRefresh
                                                         newChecklistItems={newChecklistItems}
                                                         setNewChecklistItems={setNewChecklistItems}
                                                         handleAddChecklistItem={handleAddChecklistItem}
-                                                        currentUserApprover={currentUserApprover}
                                                         handleToggleChecklist={handleToggleChecklist}
-                                                        handleToggleApprovalReq={handleToggleApprovalReq}
                                                         handleDeleteChecklist={handleDeleteChecklist}
                                                     />
                                                 ))}
@@ -3243,6 +3440,148 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onRefresh
 
                                     <div className="h-px bg-white/5 w-full" />
 
+                                    {/* Bloco de Aprovação (apenas em subtarefas com aprovação ativa) */}
+                                    {parentId && approvalNeeded && (
+                                        <div className="space-y-3">
+                                            {/* Header */}
+                                            <div className="flex items-center gap-2">
+                                                <Lock size={15} className={approvalStatus === 'approved' ? 'text-emerald-400' : approvalStatus === 'awaiting_adjustment' ? 'text-red-400' : 'text-amber-400'} />
+                                                <h3 className="text-base font-semibold tracking-tight text-[#EEEEEE]">Aprovação</h3>
+                                                <span className={`ml-auto text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                                                    approvalStatus === 'approved'
+                                                        ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                                                        : approvalStatus === 'awaiting_adjustment'
+                                                        ? 'bg-red-500/10 text-red-400 border-red-500/20'
+                                                        : 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                                                }`}>
+                                                    {approvalStatus === 'approved' ? 'APROVADO' : approvalStatus === 'awaiting_adjustment' ? 'AGUARDANDO AJUSTE' : 'AGUARDANDO APROVAÇÃO'}
+                                                </span>
+                                            </div>
+
+                                            {/* Aprovador */}
+                                            {approvalApproverId && (
+                                                <div className="flex items-center gap-2 text-xs text-gray-400">
+                                                    <span>Aprovador:</span>
+                                                    <div className="flex items-center gap-1.5">
+                                                        <div className="w-5 h-5 rounded-full bg-primary/20 flex items-center justify-center text-[9px] font-bold text-primary overflow-hidden">
+                                                            {members.find(m => m.id === approvalApproverId)?.avatar_url
+                                                                ? <img src={members.find(m => m.id === approvalApproverId)!.avatar_url} className="w-full h-full object-cover" />
+                                                                : (members.find(m => m.id === approvalApproverId)?.name?.charAt(0) || '?')}
+                                                        </div>
+                                                        <span className="text-gray-300 font-medium">{members.find(m => m.id === approvalApproverId)?.name || 'Desconhecido'}</span>
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {/* Histórico — visível para todos */}
+                                            {approvalHistory.length > 0 && (
+                                                <div className="space-y-2">
+                                                    <p className="text-[11px] text-gray-500 font-medium uppercase tracking-wider">Histórico</p>
+                                                    <div className="space-y-3 border-l-2 border-white/5 pl-3">
+                                                        {approvalHistory.map((entry, idx) => {
+                                                            const actor = members.find(m => m.id === entry.actor_id);
+                                                            const actorName = actor?.name || 'Usuário';
+                                                            const actorAvatar = actor?.avatar_url;
+                                                            return (
+                                                            <div key={entry.id || idx} className="relative">
+                                                                <div className="absolute -left-[17px] top-1.5 w-2 h-2 rounded-full bg-[#050510] border-2" style={{
+                                                                    borderColor: entry.action === 'approved' ? '#34d399' : entry.action === 'rejected' ? '#f87171' : entry.action === 'resubmitted' ? '#60a5fa' : '#a78bfa'
+                                                                }} />
+                                                                <div className="flex items-start gap-2">
+                                                                    <div className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center text-[10px] font-bold text-primary overflow-hidden shrink-0">
+                                                                        {actorAvatar
+                                                                            ? <img src={actorAvatar} alt={actorName} className="w-full h-full object-cover" />
+                                                                            : actorName.charAt(0).toUpperCase()}
+                                                                    </div>
+                                                                    <div className="flex-1 min-w-0 space-y-1">
+                                                                        <div className="flex items-center gap-1.5 flex-wrap">
+                                                                            <span className="text-xs text-gray-200 font-semibold">{actorName}</span>
+                                                                            <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${
+                                                                                entry.action === 'approved' ? 'bg-emerald-500/15 text-emerald-400'
+                                                                                : entry.action === 'rejected' ? 'bg-red-500/15 text-red-400'
+                                                                                : entry.action === 'resubmitted' ? 'bg-blue-500/15 text-blue-400'
+                                                                                : 'bg-purple-500/15 text-purple-400'
+                                                                            }`}>
+                                                                                {entry.action === 'approved' ? 'APROVOU' : entry.action === 'rejected' ? 'REPROVADO' : entry.action === 'resubmitted' ? 'REENVIADO PARA APROVAÇÃO' : 'SOLICITOU APROVAÇÃO'}
+                                                                            </span>
+                                                                            <span className="text-[9px] text-gray-600 ml-auto whitespace-nowrap">{new Date(entry.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })}</span>
+                                                                        </div>
+                                                                        {entry.note && (
+                                                                            <div className="flex items-start gap-1.5 bg-red-500/5 border border-red-500/10 rounded-lg px-2.5 py-2">
+                                                                                <Lock size={10} className="text-red-400 mt-0.5 shrink-0" />
+                                                                                <p className="text-[11px] text-red-200/80 leading-relaxed">{entry.note}</p>
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {/* Ações do aprovador: visível só para o aprovador quando status é pending */}
+                                            {currentUserId === approvalApproverId && approvalStatus === 'pending' && (
+                                                <div className="space-y-2">
+                                                    {!showRejectForm ? (
+                                                        <div className="flex gap-2">
+                                                            <button
+                                                                onClick={handleApproveSubtask}
+                                                                className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 text-emerald-400 text-xs font-bold rounded-xl transition-colors"
+                                                            >
+                                                                <CheckSquare size={14} />Aprovar
+                                                            </button>
+                                                            <button
+                                                                onClick={() => setShowRejectForm(true)}
+                                                                className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 text-red-400 text-xs font-bold rounded-xl transition-colors"
+                                                            >
+                                                                <Lock size={14} />Reprovar
+                                                            </button>
+                                                        </div>
+                                                    ) : (
+                                                        <div className="space-y-2 p-3 bg-red-500/5 border border-red-500/10 rounded-xl">
+                                                            <p className="text-xs text-red-400 font-semibold">Justificativa / Solicitação de ajuste *</p>
+                                                            <textarea
+                                                                value={rejectReason}
+                                                                onChange={(e) => setRejectReason(e.target.value)}
+                                                                placeholder="Descreva o que precisa ser ajustado..."
+                                                                rows={3}
+                                                                className="w-full bg-white/[0.03] border border-white/10 rounded-lg px-3 py-2 text-xs text-white placeholder-gray-600 focus:border-red-500/30 outline-none resize-none"
+                                                            />
+                                                            <div className="flex gap-2">
+                                                                <button
+                                                                    onClick={handleRejectSubtask}
+                                                                    className="flex-1 px-3 py-2 bg-red-500/15 hover:bg-red-500/25 border border-red-500/20 text-red-400 text-xs font-bold rounded-xl transition-colors"
+                                                                >
+                                                                    Devolver para Ajuste
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => { setShowRejectForm(false); setRejectReason(''); }}
+                                                                    className="px-3 py-2 bg-white/5 hover:bg-white/10 text-gray-400 text-xs rounded-xl transition-colors"
+                                                                >
+                                                                    Cancelar
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
+
+                                            {/* Botão de reenvio: visível para todos quando aguardando ajuste (exceto se já estiver como aprovador mostrando os botões de aprovar/reprovar) */}
+                                            {approvalStatus === 'awaiting_adjustment' && (
+                                                <button
+                                                    onClick={handleResubmitSubtask}
+                                                    className="w-full flex items-center justify-center gap-1.5 px-3 py-2 bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/20 text-blue-400 text-xs font-bold rounded-xl transition-colors"
+                                                >
+                                                    <Send size={13} />Reenviar para Aprovação
+                                                </button>
+                                            )}
+
+                                            <div className="h-px bg-white/5 w-full" />
+                                        </div>
+                                    )}
+
                                     {/* 2. Descricao */}
                                     <div className="space-y-3 group">
                                         {(!description && !isEditingDescription) ? (
@@ -3461,9 +3800,7 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onRefresh
                                                             newChecklistItems={newChecklistItems}
                                                             setNewChecklistItems={setNewChecklistItems}
                                                             handleAddChecklistItem={handleAddChecklistItem}
-                                                            currentUserApprover={currentUserApprover}
                                                             handleToggleChecklist={handleToggleChecklist}
-                                                            handleToggleApprovalReq={handleToggleApprovalReq}
                                                             handleDeleteChecklist={handleDeleteChecklist}
                                                         />
                                                     ))}
@@ -3579,25 +3916,25 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onRefresh
                         {/* Header Lateral */}
                         <div className="p-4 border-b border-white/5 flex items-center gap-2">
                             <MessageSquare size={16} className="text-primary" />
-                            <h3 className="text-base font-semibold text-[#EEEEEE] tracking-tight">Atividade</h3>
+                            <h3 className="text-base font-semibold text-[#EEEEEE] tracking-tight">Comentários</h3>
                         </div>
 
                         {/* Feed Scrollavel */}
                         <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar bg-[#050510]/50 flex flex-col-reverse">
-                            {comments.length === 0 ? (
+                            {comments.filter(c => !c.is_system_log).length === 0 ? (
                                 <div className="text-center py-10 opacity-30">
                                     <MessageSquare size={32} className="mx-auto mb-2" />
-                                    <p className="text-xs">Nenhuma atividade registrada.</p>
+                                    <p className="text-xs">Nenhum comentário registrado.</p>
                                 </div>
                             ) : (
-                                comments.map(comment => {
+                                comments.filter(c => !c.is_system_log).map(comment => {
                                     const hasUser = !!comment.user_id;
                                     const userAvatar = comment.user?.avatar_url;
                                     const userInitial = (comment.user?.email?.[0] || comment.user?.full_name?.[0] || 'S').toUpperCase();
                                     const userName = comment.user_id ? (comment.user?.email || 'Usuario') : 'Sistema';
 
                                     return (
-                                        <div key={comment.id} className={`flex gap-3 ${comment.is_system_log ? 'opacity-70' : ''}`}>
+                                        <div key={comment.id} className="flex gap-3">
                                             <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 overflow-hidden border border-white/10 ${hasUser ? 'bg-primary/20 text-primary' : 'bg-white/5 text-gray-400'}`}>
                                                 {userAvatar ? (
                                                     <img src={userAvatar} alt={userName} className="w-full h-full object-cover" />
@@ -3607,12 +3944,12 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onRefresh
                                             </div>
                                             <div className="flex-1 min-w-0">
                                                 <div className="flex justify-between items-baseline mb-0.5">
-                                                    <span className={`text-xs font-bold ${comment.is_system_log ? 'text-gray-400' : 'text-gray-200'}`}>
+                                                    <span className="text-xs font-bold text-gray-200">
                                                         {userName}
                                                     </span>
                                                     <span className="text-[9px] text-gray-600">{new Date(comment.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                                                 </div>
-                                                <p className={`text-xs ${comment.is_system_log ? 'text-gray-500' : 'text-gray-300'} break-words leading-relaxed`}>
+                                                <p className="text-xs text-gray-300 break-words leading-relaxed">
                                                     {comment.content}
                                                 </p>
                                             </div>
@@ -3689,7 +4026,15 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onRefresh
                             {approvers.map(approver => (
                                 <button
                                     key={approver.id}
-                                    onClick={() => updateApprovalStatus(showApproverModal, true, approver.id)}
+                                    onClick={() => {
+                                        const isSubtask = showApproverModal!.startsWith('subtask:');
+                                        const id = isSubtask ? showApproverModal!.replace('subtask:', '') : showApproverModal!;
+                                        if (isSubtask) {
+                                            updateSubtaskApprovalStatus(id, true, approver.id);
+                                        } else {
+                                            updateApprovalStatus(id, true, approver.id);
+                                        }
+                                    }}
                                     className="w-full flex items-center gap-3 p-2 rounded-lg hover:bg-white/5 text-left transition-colors group/opt"
                                 >
                                     <div className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center text-[10px] font-bold text-primary shrink-0 group-hover/opt:bg-primary group-hover/opt:text-white transition-colors">
