@@ -197,6 +197,14 @@ const MainLayout = () => {
     navigate('/super-admin');
   };
 
+  const { loadingPermissions } = useAuth();
+  const hasPermission = (permissionKey: string) => {
+    if (user?.is_super_admin) return true;
+    if (loadingPermissions) return true; // Show items while loading to avoid flicker, or return null for the whole nav if preferred
+    if (!user?.permissions) return true; // Default to true if not loaded yet
+    return user.permissions[permissionKey] !== false; // Explicit false check
+  };
+
   return (
     <div className="flex flex-col h-screen overflow-hidden bg-[#0a0a1a] text-white font-sans">
       {/* Background Layer */}
@@ -496,173 +504,187 @@ const MainLayout = () => {
           >
             {/* Navigation */}
             <nav className={`flex-1 overflow-y-auto py-4 ${sidebarOpen ? 'px-3' : 'px-2'} space-y-2 scrollbar-thin scrollbar-thumb-white/10`}>
-              <NavItem to="/atividades" icon={<IconLayoutDashboard />} label="Atividades" expanded={sidebarOpen} />
+              {hasPermission('atividades') && (
+                <NavItem to="/atividades" icon={<IconLayoutDashboard />} label="Atividades" expanded={sidebarOpen} />
+              )}
 
               {/* Organizador with Submenu */}
-              <div className="relative">
-                <button
-                  onClick={(e) => {
-                    if (sidebarOpen) { toggleOrganizador(); }
-                    else {
-                      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-                      setFlyoutY(rect.top);
-                      setFlyoutMenu(flyoutMenu === 'organizador' ? null : 'organizador');
-                    }
-                  }}
-                  className={`w-full flex items-center ${sidebarOpen ? 'justify-between' : 'justify-center'} p-3 rounded-2xl transition-all duration-300 group ${location.pathname.includes('/organizador')
-                    ? 'text-primary bg-primary/5 shadow-[0_4px_12px_rgba(0,0,0,0.1)]'
-                    : 'text-gray-400 hover:bg-white/5 hover:text-white'
-                    }`}
-                >
-                  <div className={`flex items-center ${sidebarOpen ? 'space-x-3' : 'justify-center'}`}>
-                    <IconSubtask className={`w-5 h-5 transition-transform duration-300 group-hover:scale-110 ${location.pathname.includes('/organizador') ? 'text-primary' : ''}`} />
-                     {sidebarOpen && <span className="text-sm font-medium" translate="no">Organizador</span>}
-                  </div>
-                  {sidebarOpen && (
-                    <div className="transition-transform duration-300">
-                      {organizadorOpen ? <ChevronDown size={14} className="opacity-50" /> : <ChevronRight size={14} className="opacity-50" />}
+              {(hasPermission('kanban') || hasPermission('lista') || hasPermission('historico_tarefas') || hasPermission('cronograma')) && (
+                <div className="relative">
+                  <button
+                    onClick={(e) => {
+                      if (sidebarOpen) { toggleOrganizador(); }
+                      else {
+                        const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                        setFlyoutY(rect.top);
+                        setFlyoutMenu(flyoutMenu === 'organizador' ? null : 'organizador');
+                      }
+                    }}
+                    className={`w-full flex items-center ${sidebarOpen ? 'justify-between' : 'justify-center'} p-3 rounded-2xl transition-all duration-300 group ${location.pathname.includes('/organizador')
+                      ? 'text-primary bg-primary/5 shadow-[0_4px_12_rgba(0,0,0,0.1)]'
+                      : 'text-gray-400 hover:bg-white/5 hover:text-white'
+                      }`}
+                  >
+                    <div className={`flex items-center ${sidebarOpen ? 'space-x-3' : 'justify-center'}`}>
+                      <IconSubtask className={`w-5 h-5 transition-transform duration-300 group-hover:scale-110 ${location.pathname.includes('/organizador') ? 'text-primary' : ''}`} />
+                       {sidebarOpen && <span className="text-sm font-medium" translate="no">Organizador</span>}
                     </div>
+                    {sidebarOpen && (
+                      <div className="transition-transform duration-300">
+                        {organizadorOpen ? <ChevronDown size={14} className="opacity-50" /> : <ChevronRight size={14} className="opacity-50" />}
+                      </div>
+                    )}
+                  </button>
+
+                  {/* Submenu - expanded sidebar */}
+                  <div className={`overflow-hidden transition-all duration-300 ${organizadorOpen && sidebarOpen ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'
+                    }`}>
+                    <div className="ml-4 mt-2 space-y-1 border-l border-white/10 pl-2">
+                       {hasPermission('kanban') && <SubNavItem to="/organizador/kanban" icon={<IconLayoutKanban size={16} />} label="Kanban" translate="no" />}
+                       {hasPermission('lista') && <SubNavItem to="/organizador/lista" icon={<IconList size={16} />} label="Lista" translate="no" />}
+                       {hasPermission('historico_tarefas') && <SubNavItem to="/organizador/historico" icon={<IconChecks size={16} />} label="Histórico" translate="no" />}
+                       {hasPermission('cronograma') && <SubNavItem to="/organizador/cronograma" icon={<IconClock size={16} />} label="Cronograma" translate="no" />}
+                    </div>
+                  </div>
+
+                  {/* Flyout - collapsed sidebar */}
+                  {!sidebarOpen && flyoutMenu === 'organizador' && (
+                    <>
+                      <div className="fixed inset-0 z-[80]" onClick={() => setFlyoutMenu(null)}></div>
+                      <div style={{ top: flyoutY - 44, left: '4.5rem' }} className="fixed w-52 bg-[#161635]/95 backdrop-blur-md border border-white/10 rounded-2xl shadow-[0_10px_40px_rgba(0,0,0,0.7)] z-[90] p-2 animate-in fade-in slide-in-from-left-2 duration-200">
+                        <p className="text-[11px] font-medium text-[#6e6e6e] tracking-tight px-3 py-2">Organizador</p>
+                        {hasPermission('kanban') && <SubNavItem to="/organizador/kanban" icon={<IconLayoutKanban size={16} />} label="Quadro kanban" />}
+                        {hasPermission('lista') && <SubNavItem to="/organizador/lista" icon={<IconList size={16} />} label="Lista" />}
+                        {hasPermission('historico_tarefas') && <SubNavItem to="/organizador/historico" icon={<IconChecks size={16} />} label="Histórico" />}
+                        {hasPermission('cronograma') && <SubNavItem to="/organizador/cronograma" icon={<IconClock size={16} />} label="Cronograma" />}
+                      </div>
+                    </>
                   )}
-                </button>
-
-                {/* Submenu - expanded sidebar */}
-                <div className={`overflow-hidden transition-all duration-300 ${organizadorOpen && sidebarOpen ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'
-                  }`}>
-                  <div className="ml-4 mt-2 space-y-1 border-l border-white/10 pl-2">
-                     <SubNavItem to="/organizador/kanban" icon={<IconLayoutKanban size={16} />} label="Kanban" translate="no" />
-                     <SubNavItem to="/organizador/lista" icon={<IconList size={16} />} label="Lista" translate="no" />
-                     <SubNavItem to="/organizador/historico" icon={<IconChecks size={16} />} label="Histórico" translate="no" />
-                     <SubNavItem to="/organizador/cronograma" icon={<IconClock size={16} />} label="Cronograma" translate="no" />
-                  </div>
                 </div>
+              )}
 
-                {/* Flyout - collapsed sidebar */}
-                {!sidebarOpen && flyoutMenu === 'organizador' && (
-                  <>
-                    <div className="fixed inset-0 z-[80]" onClick={() => setFlyoutMenu(null)}></div>
-                    <div style={{ top: flyoutY - 44, left: '4.5rem' }} className="fixed w-52 bg-[#161635]/95 backdrop-blur-md border border-white/10 rounded-2xl shadow-[0_10px_40px_rgba(0,0,0,0.7)] z-[90] p-2 animate-in fade-in slide-in-from-left-2 duration-200">
-                      <p className="text-[11px] font-medium text-[#6e6e6e] tracking-tight px-3 py-2">Organizador</p>
-                      <SubNavItem to="/organizador/kanban" icon={<IconLayoutKanban size={16} />} label="Quadro kanban" />
-                      <SubNavItem to="/organizador/lista" icon={<IconList size={16} />} label="Lista" />
-                      <SubNavItem to="/organizador/historico" icon={<IconChecks size={16} />} label="Histórico" />
-                      <SubNavItem to="/organizador/cronograma" icon={<IconClock size={16} />} label="Cronograma" />
-                    </div>
-                  </>
-                )}
-              </div>
-
-              <NavItem to="/relatorios" icon={<IconBrandOpenai />} label="Nexum intelligence" expanded={sidebarOpen} />
-              <NavItem to="/calendario" icon={<IconCalendar />} label="Calendário" expanded={sidebarOpen} />
+              {hasPermission('inteligencia_artificial') && (
+                <NavItem to="/relatorios" icon={<IconBrandOpenai />} label="Nexum intelligence" expanded={sidebarOpen} />
+              )}
+              {hasPermission('calendario') && (
+                <NavItem to="/calendario" icon={<IconCalendar />} label="Calendário" expanded={sidebarOpen} />
+              )}
 
               {/* Financeiro with Submenu */}
-              <div className="relative">
-                <button
-                  onClick={(e) => {
-                    if (sidebarOpen) { toggleFinanceiro(); }
-                    else {
-                      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-                      setFlyoutY(rect.top);
-                      setFlyoutMenu(flyoutMenu === 'financeiro' ? null : 'financeiro');
-                    }
-                  }}
-                  className={`w-full flex items-center ${sidebarOpen ? 'justify-between' : 'justify-center'} p-3 rounded-2xl transition-all duration-300 group ${location.pathname.includes('/financeiro')
-                    ? 'text-primary bg-primary/5 shadow-[0_4px_12px_rgba(0,0,0,0.1)]'
-                    : 'text-gray-400 hover:bg-white/5 hover:text-white'
-                    }`}
-                >
-                  <div className={`flex items-center ${sidebarOpen ? 'space-x-3' : 'justify-center'}`}>
-                    <IconCurrencyDollar className={`w-5 h-5 transition-transform duration-300 group-hover:scale-110 ${location.pathname.includes('/financeiro') ? 'text-primary' : ''}`} />
-                     {sidebarOpen && <span className="text-sm font-medium" translate="no">Financeiro</span>}
-                  </div>
-                  {sidebarOpen && (
-                    <div className="transition-transform duration-300">
-                      {financeiroOpen ? <ChevronDown size={14} className="opacity-50" /> : <ChevronRight size={14} className="opacity-50" />}
+              {(hasPermission('financeiro_geral') || hasPermission('financeiro_lancamentos') || hasPermission('financeiro_comissoes') || hasPermission('financeiro_cobranca')) && (
+                <div className="relative">
+                  <button
+                    onClick={(e) => {
+                      if (sidebarOpen) { toggleFinanceiro(); }
+                      else {
+                        const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                        setFlyoutY(rect.top);
+                        setFlyoutMenu(flyoutMenu === 'financeiro' ? null : 'financeiro');
+                      }
+                    }}
+                    className={`w-full flex items-center ${sidebarOpen ? 'justify-between' : 'justify-center'} p-3 rounded-2xl transition-all duration-300 group ${location.pathname.includes('/financeiro')
+                      ? 'text-primary bg-primary/5 shadow-[0_4px_12px_rgba(0,0,0,0.1)]'
+                      : 'text-gray-400 hover:bg-white/5 hover:text-white'
+                      }`}
+                  >
+                    <div className={`flex items-center ${sidebarOpen ? 'space-x-3' : 'justify-center'}`}>
+                      <IconCurrencyDollar className={`w-5 h-5 transition-transform duration-300 group-hover:scale-110 ${location.pathname.includes('/financeiro') ? 'text-primary' : ''}`} />
+                       {sidebarOpen && <span className="text-sm font-medium" translate="no">Financeiro</span>}
                     </div>
+                    {sidebarOpen && (
+                      <div className="transition-transform duration-300">
+                        {financeiroOpen ? <ChevronDown size={14} className="opacity-50" /> : <ChevronRight size={14} className="opacity-50" />}
+                      </div>
+                    )}
+                  </button>
+
+                  {/* Submenu - expanded sidebar */}
+                  <div className={`overflow-hidden transition-all duration-300 ${financeiroOpen && sidebarOpen ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'
+                    }`}>
+                    <div className="ml-4 mt-2 space-y-1 border-l border-white/10 pl-2">
+                      {hasPermission('financeiro_geral') && <SubNavItem to="/financeiro/visao-geral" icon={<IconChartPie size={16} />} label="Visão Geral" />}
+                      {hasPermission('financeiro_lancamentos') && <SubNavItem to="/financeiro/lancamentos" icon={<IconReceipt size={16} />} label="Lançamentos" />}
+                      {hasPermission('financeiro_comissoes') && <SubNavItem to="/financeiro/comissoes" icon={<IconUsers size={16} />} label="Comissões e Sócios" />}
+                      {hasPermission('financeiro_cobranca') && <SubNavItem to="/financeiro/cobranca" icon={<IconSettings size={16} />} label="Cobrança" />}
+                    </div>
+                  </div>
+
+                  {/* Flyout - collapsed sidebar */}
+                  {!sidebarOpen && flyoutMenu === 'financeiro' && (
+                    <>
+                      <div className="fixed inset-0 z-[80]" onClick={() => setFlyoutMenu(null)}></div>
+                      <div style={{ top: flyoutY - 44, left: '4.5rem' }} className="fixed w-52 bg-[#161635]/95 backdrop-blur-md border border-white/10 rounded-2xl shadow-[0_10px_40px_rgba(0,0,0,0.7)] z-[90] p-2 animate-in fade-in slide-in-from-left-2 duration-200">
+                        <p className="text-[11px] font-medium text-[#6e6e6e] tracking-tight px-3 py-2">Financeiro</p>
+                        {hasPermission('financeiro_geral') && <SubNavItem to="/financeiro/visao-geral" icon={<IconChartPie size={16} />} label="Visão geral" translate="no" />}
+                        {hasPermission('financeiro_lancamentos') && <SubNavItem to="/financeiro/lancamentos" icon={<IconReceipt size={16} />} label="Lançamentos" translate="no" />}
+                        {hasPermission('financeiro_comissoes') && <SubNavItem to="/financeiro/comissoes" icon={<IconUsers size={16} />} label="Comissões e sócios" translate="no" />}
+                        {hasPermission('financeiro_cobranca') && <SubNavItem to="/financeiro/cobranca" icon={<IconSettings size={16} />} label="Cobrança" translate="no" />}
+                      </div>
+                    </>
                   )}
-                </button>
-
-                {/* Submenu - expanded sidebar */}
-                <div className={`overflow-hidden transition-all duration-300 ${financeiroOpen && sidebarOpen ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'
-                  }`}>
-                  <div className="ml-4 mt-2 space-y-1 border-l border-white/10 pl-2">
-                    <SubNavItem to="/financeiro/visao-geral" icon={<IconChartPie size={16} />} label="Visão Geral" />
-                    <SubNavItem to="/financeiro/lancamentos" icon={<IconReceipt size={16} />} label="Lançamentos" />
-                    <SubNavItem to="/financeiro/comissoes" icon={<IconUsers size={16} />} label="Comissões e Sócios" />
-                    <SubNavItem to="/financeiro/cobranca" icon={<IconSettings size={16} />} label="Cobrança" />
-                  </div>
                 </div>
-
-                {/* Flyout - collapsed sidebar */}
-                {!sidebarOpen && flyoutMenu === 'financeiro' && (
-                  <>
-                    <div className="fixed inset-0 z-[80]" onClick={() => setFlyoutMenu(null)}></div>
-                    <div style={{ top: flyoutY - 44, left: '4.5rem' }} className="fixed w-52 bg-[#161635]/95 backdrop-blur-md border border-white/10 rounded-2xl shadow-[0_10px_40px_rgba(0,0,0,0.7)] z-[90] p-2 animate-in fade-in slide-in-from-left-2 duration-200">
-                      <p className="text-[11px] font-medium text-[#6e6e6e] tracking-tight px-3 py-2">Financeiro</p>
-                      <SubNavItem to="/financeiro/visao-geral" icon={<IconChartPie size={16} />} label="Visão geral" translate="no" />
-                      <SubNavItem to="/financeiro/lancamentos" icon={<IconReceipt size={16} />} label="Lançamentos" translate="no" />
-                      <SubNavItem to="/financeiro/comissoes" icon={<IconUsers size={16} />} label="Comissões e sócios" translate="no" />
-                      <SubNavItem to="/financeiro/cobranca" icon={<IconSettings size={16} />} label="Cobrança" translate="no" />
-                    </div>
-                  </>
-                )}
-              </div>
+              )}
 
               {/* Configuração with Submenu */}
-              <div className="relative">
-                <button
-                  onClick={(e) => {
-                    if (sidebarOpen) { toggleConfig(); }
-                    else {
-                      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-                      setFlyoutY(rect.top);
-                      setFlyoutMenu(flyoutMenu === 'config' ? null : 'config');
-                    }
-                  }}
-                  className={`w-full flex items-center ${sidebarOpen ? 'justify-between' : 'justify-center'} p-3 rounded-2xl transition-all duration-300 group ${location.pathname.includes('/configuracao')
-                    ? 'text-primary bg-primary/5 shadow-[0_4px_12px_rgba(0,0,0,0.1)]'
-                    : 'text-gray-400 hover:bg-white/5 hover:text-white'
-                    }`}
-                >
-                  <div className={`flex items-center ${sidebarOpen ? 'space-x-3' : 'justify-center'}`}>
-                    <IconSettings className={`w-5 h-5 transition-transform duration-300 group-hover:scale-110 ${location.pathname.includes('/configuracao') ? 'text-primary' : ''}`} />
-                     {sidebarOpen && <span className="text-sm font-medium" translate="no">Configuração</span>}
-                  </div>
-                  {sidebarOpen && (
-                    <div className="transition-transform duration-300">
-                      {configOpen ? <ChevronDown size={14} className="opacity-50" /> : <ChevronRight size={14} className="opacity-50" />}
+              {(hasPermission('config_empresa') || hasPermission('config_regras') || hasPermission('config_clientes') || hasPermission('config_ia') || hasPermission('config_equipe')) && (
+                <div className="relative">
+                  <button
+                    onClick={(e) => {
+                      if (sidebarOpen) { toggleConfig(); }
+                      else {
+                        const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                        setFlyoutY(rect.top);
+                        setFlyoutMenu(flyoutMenu === 'config' ? null : 'config');
+                      }
+                    }}
+                    className={`w-full flex items-center ${sidebarOpen ? 'justify-between' : 'justify-center'} p-3 rounded-2xl transition-all duration-300 group ${location.pathname.includes('/configuracao')
+                      ? 'text-primary bg-primary/5 shadow-[0_4px_12px_rgba(0,0,0,0.1)]'
+                      : 'text-gray-400 hover:bg-white/5 hover:text-white'
+                      }`}
+                  >
+                    <div className={`flex items-center ${sidebarOpen ? 'space-x-3' : 'justify-center'}`}>
+                      <IconSettings className={`w-5 h-5 transition-transform duration-300 group-hover:scale-110 ${location.pathname.includes('/configuracao') ? 'text-primary' : ''}`} />
+                       {sidebarOpen && <span className="text-sm font-medium" translate="no">Configuração</span>}
                     </div>
+                    {sidebarOpen && (
+                      <div className="transition-transform duration-300">
+                        {configOpen ? <ChevronDown size={14} className="opacity-50" /> : <ChevronRight size={14} className="opacity-50" />}
+                      </div>
+                    )}
+                  </button>
+
+                  {/* Submenu - expanded sidebar */}
+                  <div className={`overflow-hidden transition-all duration-300 ${configOpen && sidebarOpen ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'
+                    }`}>
+                    <div className="ml-4 mt-2 space-y-1 border-l border-white/10 pl-2">
+                       {hasPermission('config_empresa') && <SubNavItem to="/configuracao/empresa" icon={<IconBuilding size={16} />} label="Empresa" translate="no" />}
+                       {hasPermission('config_regras') && <SubNavItem to="/configuracao/regras-financeiras" icon={<IconFileDescription size={16} />} label="Regras Financeiras" translate="no" />}
+                       {hasPermission('config_clientes') && <SubNavItem to="/configuracao/clientes" icon={<IconUsers size={16} />} label="Gestão de Clientes" translate="no" />}
+                       {hasPermission('config_ia') && <SubNavItem to="/configuracao/ia-automacao" icon={<IconCpu size={16} />} label="IA e Automação" translate="no" />}
+                       {hasPermission('config_equipe') && <SubNavItem to="/configuracao/equipe" icon={<IconUserCheck size={16} />} label="Equipe" translate="no" />}
+                    </div>
+                  </div>
+
+                  {/* Flyout - collapsed sidebar */}
+                  {!sidebarOpen && flyoutMenu === 'config' && (
+                    <>
+                      <div className="fixed inset-0 z-[80]" onClick={() => setFlyoutMenu(null)}></div>
+                      <div style={{ top: flyoutY - 44, left: '4.5rem' }} className="fixed w-52 bg-[#161635]/95 backdrop-blur-md border border-white/10 rounded-2xl shadow-[0_10px_40px_rgba(0,0,0,0.7)] z-[90] p-2 animate-in fade-in slide-in-from-left-2 duration-200">
+                        <p className="text-[11px] font-medium text-[#6e6e6e] tracking-tight px-3 py-2">Configuração</p>
+                        {hasPermission('config_empresa') && <SubNavItem to="/configuracao/empresa" icon={<IconBuilding size={16} />} label="Empresa" />}
+                        {hasPermission('config_regras') && <SubNavItem to="/configuracao/regras-financeiras" icon={<IconFileDescription size={16} />} label="Regras financeiras" />}
+                        {hasPermission('config_clientes') && <SubNavItem to="/configuracao/clientes" icon={<IconUsers size={16} />} label="Gestão de clientes" />}
+                        {hasPermission('config_ia') && <SubNavItem to="/configuracao/ia-automacao" icon={<IconCpu size={16} />} label="IA e automação" />}
+                        {hasPermission('config_equipe') && <SubNavItem to="/configuracao/equipe" icon={<IconUserCheck size={16} />} label="Equipe" />}
+                      </div>
+                    </>
                   )}
-                </button>
-
-                {/* Submenu - expanded sidebar */}
-                <div className={`overflow-hidden transition-all duration-300 ${configOpen && sidebarOpen ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'
-                  }`}>
-                  <div className="ml-4 mt-2 space-y-1 border-l border-white/10 pl-2">
-                     <SubNavItem to="/configuracao/empresa" icon={<IconBuilding size={16} />} label="Empresa" translate="no" />
-                     <SubNavItem to="/configuracao/regras-financeiras" icon={<IconFileDescription size={16} />} label="Regras Financeiras" translate="no" />
-                     <SubNavItem to="/configuracao/clientes" icon={<IconUsers size={16} />} label="Gestão de Clientes" translate="no" />
-                     <SubNavItem to="/configuracao/ia-automacao" icon={<IconCpu size={16} />} label="IA e Automação" translate="no" />
-                     <SubNavItem to="/configuracao/equipe" icon={<IconUserCheck size={16} />} label="Equipe" translate="no" />
-                  </div>
                 </div>
+              )}
 
-                {/* Flyout - collapsed sidebar */}
-                {!sidebarOpen && flyoutMenu === 'config' && (
-                  <>
-                    <div className="fixed inset-0 z-[80]" onClick={() => setFlyoutMenu(null)}></div>
-                    <div style={{ top: flyoutY - 44, left: '4.5rem' }} className="fixed w-52 bg-[#161635]/95 backdrop-blur-md border border-white/10 rounded-2xl shadow-[0_10px_40px_rgba(0,0,0,0.7)] z-[90] p-2 animate-in fade-in slide-in-from-left-2 duration-200">
-                      <p className="text-[11px] font-medium text-[#6e6e6e] tracking-tight px-3 py-2">Configuração</p>
-                      <SubNavItem to="/configuracao/empresa" icon={<IconBuilding size={16} />} label="Empresa" />
-                      <SubNavItem to="/configuracao/regras-financeiras" icon={<IconFileDescription size={16} />} label="Regras financeiras" />
-                      <SubNavItem to="/configuracao/clientes" icon={<IconUsers size={16} />} label="Gestão de clientes" />
-                      <SubNavItem to="/configuracao/ia-automacao" icon={<IconCpu size={16} />} label="IA e automação" />
-                      <SubNavItem to="/configuracao/equipe" icon={<IconUserCheck size={16} />} label="Equipe" />
-                    </div>
-                  </>
-                )}
-              </div>
-
-              <NavItem to="/suporte" icon={<IconHelpCircle />} label="Suporte" expanded={sidebarOpen} />
+              {hasPermission('suporte') && (
+                <NavItem to="/suporte" icon={<IconHelpCircle />} label="Suporte" expanded={sidebarOpen} />
+              )}
             </nav>
           </aside>
         )}

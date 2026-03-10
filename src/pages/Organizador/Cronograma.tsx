@@ -15,7 +15,8 @@ import {
     Presentation,
     Save,
     CheckCircle2,
-    X
+    X,
+    ChevronDown
 } from 'lucide-react';
 import { useCompany } from '../../context/CompanyContext';
 import { supabase } from '../../lib/supabase';
@@ -92,6 +93,18 @@ const OrganizadorCronograma = () => {
 
     // PDF Ref - Using multiple refs for pages
     const pagesRef = useRef<(HTMLDivElement | null)[]>([]);
+    const [showStatusDropdown, setShowStatusDropdown] = useState(false);
+    const statusDropdownRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (statusDropdownRef.current && !statusDropdownRef.current.contains(event.target as Node)) {
+                setShowStatusDropdown(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
 
     useEffect(() => {
         if (selectedCompany) {
@@ -549,20 +562,56 @@ const OrganizadorCronograma = () => {
                         </button>
                     </div>
 
-                    {/* Status Toggle */}
-                    <div className="flex bg-white/5 rounded-lg p-1 mr-4 border border-white/10">
-                        <select
-                            className={`bg-transparent text-xs font-bold rounded px-2 py-1.5 border-none focus:ring-0 cursor-pointer appearance-none ${currentSchedule?.status === 'approved' ? 'text-emerald-400' :
-                                currentSchedule?.status === 'pending' ? 'text-yellow-400' :
-                                    'text-gray-400'
-                                }`}
-                            value={currentSchedule?.status || 'draft'}
-                            onChange={(e) => handleUpdateStatus(e.target.value as any)}
+                    {/* Custom Status Dropdown */}
+                    <div className="relative mr-4" ref={statusDropdownRef}>
+                        <button
+                            onClick={() => setShowStatusDropdown(!showStatusDropdown)}
+                            className={`
+                                flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-all text-[10px] font-bold tracking-wider
+                                ${currentSchedule?.status === 'approved' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/20' :
+                                    currentSchedule?.status === 'pending' ? 'bg-yellow-500/10 border-yellow-500/20 text-yellow-400 hover:bg-yellow-500/20' :
+                                        'bg-white/5 border-white/10 text-gray-400 hover:bg-white/10'
+                                }
+                            `}
                         >
-                            <option value="draft" className="bg-[#0f0f1a] text-gray-400">Rascunho</option>
-                            <option value="pending" className="bg-[#0f0f1a] text-yellow-400">Pendente</option>
-                            <option value="approved" className="bg-[#0f0f1a] text-emerald-400">Aprovado</option>
-                        </select>
+                            <div className={`w-1.5 h-1.5 rounded-full ${currentSchedule?.status === 'approved' ? 'bg-emerald-400' :
+                                currentSchedule?.status === 'pending' ? 'bg-yellow-400' :
+                                    'bg-gray-400'
+                                }`} />
+                            {currentSchedule?.status === 'approved' ? 'Aprovado' :
+                                currentSchedule?.status === 'pending' ? 'Pendente' :
+                                    'Rascunho'}
+                            <ChevronDown size={14} className={`transition-transform duration-200 ${showStatusDropdown ? 'rotate-180' : ''}`} />
+                        </button>
+
+                        {showStatusDropdown && (
+                            <div className="absolute top-full right-0 mt-2 w-48 bg-[#0f0f1a] border border-white/10 rounded-xl shadow-2xl z-[110] overflow-hidden p-1 animate-in fade-in zoom-in-95 duration-200">
+                                {[
+                                    { id: 'draft', label: 'Rascunho', color: 'text-gray-400', dot: 'bg-gray-400' },
+                                    { id: 'pending', label: 'Pendente', color: 'text-yellow-400', dot: 'bg-yellow-400' },
+                                    { id: 'approved', label: 'Aprovado', color: 'text-emerald-400', dot: 'bg-emerald-400' }
+                                ].map((item) => (
+                                    <button
+                                        key={item.id}
+                                        onClick={() => {
+                                            handleUpdateStatus(item.id as any);
+                                            setShowStatusDropdown(false);
+                                        }}
+                                        className={`
+                                            w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-xs font-medium transition-colors text-left
+                                            hover:bg-white/5 group
+                                            ${currentSchedule?.status === item.id ? 'bg-white/5' : ''}
+                                        `}
+                                    >
+                                        <div className={`w-2 h-2 rounded-full ${item.dot} shadow-[0_0_8px_rgba(0,0,0,0.5)]`} />
+                                        <span className={`${item.color} group-hover:text-white transition-colors`}>{item.label}</span>
+                                        {currentSchedule?.status === item.id && (
+                                            <div className="ml-auto w-1 h-1 rounded-full bg-primary shadow-[0_0_5px_var(--primary)]" />
+                                        )}
+                                    </button>
+                                ))}
+                            </div>
+                        )}
                     </div>
 
                     <button

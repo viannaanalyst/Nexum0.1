@@ -49,6 +49,14 @@ export const CompanyProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [user]);
 
+  // Handle permission refresh when company changes
+  const { refreshPermissions } = useAuth();
+  useEffect(() => {
+    if (selectedCompany) {
+      refreshPermissions(selectedCompany.id);
+    }
+  }, [selectedCompany?.id]);
+
   const fetchCompanies = async (savedCompanyId?: string | null) => {
     if (!user) return;
     try {

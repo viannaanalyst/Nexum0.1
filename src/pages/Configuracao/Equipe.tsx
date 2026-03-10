@@ -12,6 +12,7 @@ interface Member {
   role: 'admin' | 'editor' | 'visualizador';
   is_approver: boolean;
   status: 'active' | 'inactive' | 'invited';
+  permissions?: Record<string, boolean>;
   profiles: {
     full_name: string;
     email: string;
@@ -19,6 +20,16 @@ interface Member {
     whatsapp?: string;
   };
 }
+
+const ALL_PERMS = [
+  'atividades', 'kanban', 'lista', 'historico_tarefas', 'cronograma',
+  'inteligencia_artificial', 'calendario', 'financeiro_geral',
+  'financeiro_lancamentos', 'financeiro_comissoes', 'financeiro_cobranca',
+  'config_empresa', 'config_regras', 'config_clientes', 'config_ia',
+  'config_equipe', 'suporte'
+] as const;
+
+const DEFAULT_PERMISSIONS = ALL_PERMS.reduce((acc, perm) => ({ ...acc, [perm]: true }), {});
 
 const Equipe = () => {
   const { toast } = useUI();
@@ -37,7 +48,8 @@ const Equipe = () => {
     whatsapp: '',
     role: 'visualizador',
     is_approver: false,
-    status: true // true = active, false = inactive
+    status: true, // true = active, false = inactive
+    permissions: { ...DEFAULT_PERMISSIONS } as any
   });
 
   useEffect(() => {
@@ -56,7 +68,8 @@ const Equipe = () => {
         whatsapp: '',
         role: 'visualizador',
         is_approver: false,
-        status: true
+        status: true,
+        permissions: { ...DEFAULT_PERMISSIONS } as any
       });
       setIsModalOpen(true);
     };
@@ -76,7 +89,8 @@ const Equipe = () => {
           user_id,
           role,
           is_approver,
-          status
+          status,
+          permissions
         `)
         .eq('company_id', selectedCompany.id);
 
@@ -115,7 +129,11 @@ const Equipe = () => {
       whatsapp: member.profiles?.whatsapp || '',
       role: member.role,
       is_approver: member.is_approver,
-      status: member.status === 'active'
+      status: member.status === 'active',
+      permissions: {
+        ...DEFAULT_PERMISSIONS,
+        ...(member.permissions || {})
+      } as any
     });
     setIsModalOpen(true);
   };
@@ -130,7 +148,8 @@ const Equipe = () => {
       whatsapp: '',
       role: 'visualizador',
       is_approver: false,
-      status: true
+      status: true,
+      permissions: { ...DEFAULT_PERMISSIONS } as any
     });
   };
 
@@ -146,7 +165,8 @@ const Equipe = () => {
           .update({
             role: formData.role,
             is_approver: formData.is_approver,
-            status: formData.status ? 'active' : 'inactive'
+            status: formData.status ? 'active' : 'inactive',
+            permissions: formData.permissions
           })
           .eq('id', editingMember.id);
 
@@ -179,7 +199,8 @@ const Equipe = () => {
             company_id: selectedCompany?.id,
             role: formData.role,
             is_approver: formData.is_approver,
-            status: formData.status ? 'active' : 'inactive'
+            status: formData.status ? 'active' : 'inactive',
+            permissions: formData.permissions
           }
         });
 
@@ -377,6 +398,79 @@ const Equipe = () => {
                     <option value="editor" className="bg-[#0a0a1a]">Editor</option>
                     <option value="visualizador" className="bg-[#0a0a1a]">Visualizador</option>
                   </select>
+                </div>
+              </div>
+
+              {/* Permissões Detalhadas */}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between px-1">
+                  <h3 className="text-[11px] tracking-wide font-bold text-gray-400 uppercase">Permissões detalhadas</h3>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const permissions = formData.permissions as Record<string, boolean>;
+                      const allOn = ALL_PERMS.every(k => permissions[k]);
+                      const newPerms = { ...permissions };
+                      ALL_PERMS.forEach(k => {
+                        newPerms[k] = !allOn;
+                      });
+                      setFormData({ ...formData, permissions: newPerms });
+                    }}
+                    className="text-[10px] text-primary hover:text-white transition-colors"
+                  >
+                    {ALL_PERMS.every(k => (formData.permissions as any)[k]) ? 'Desmarcar todas' : 'Marcar todas'}
+                  </button>
+                </div>
+
+                <div className="bg-white/[0.02] border border-white/5 rounded-2xl p-4">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-y-4 gap-x-2">
+                    {[
+                      { id: 'atividades', label: 'Dashboard' },
+                      { id: 'kanban', label: 'Kanban' },
+                      { id: 'lista', label: 'Lista' },
+                      { id: 'historico_tarefas', label: 'Histórico' },
+                      { id: 'cronograma', label: 'Cronograma' },
+                      { id: 'inteligencia_artificial', label: 'Nexum Intelligence' },
+                      { id: 'calendario', label: 'Calendário' },
+                      { id: 'financeiro_geral', label: 'Financeiro (Geral)' },
+                      { id: 'financeiro_lancamentos', label: 'Financeiro (Lanc.)' },
+                      { id: 'financeiro_comissoes', label: 'Comissões/Sócios' },
+                      { id: 'financeiro_cobranca', label: 'Cobrança' },
+                      { id: 'config_empresa', label: 'Empresa' },
+                      { id: 'config_regras', label: 'Regras Fin.' },
+                      { id: 'config_clientes', label: 'Clientes' },
+                      { id: 'config_ia', label: 'Config. IA' },
+                      { id: 'config_equipe', label: 'Equipe' },
+                      { id: 'suporte', label: 'Suporte' },
+                    ].map((perm) => {
+                      const permId = perm.id as keyof typeof formData.permissions;
+                      return (
+                        <div
+                          key={perm.id}
+                          onClick={() => setFormData({
+                            ...formData,
+                            permissions: {
+                              ...formData.permissions,
+                              [permId]: !formData.permissions[permId]
+                            }
+                          })}
+                          className="flex items-center gap-2 cursor-pointer group"
+                        >
+                          <div className={`
+                            w-4 h-4 rounded border flex items-center justify-center transition-all duration-200
+                            ${formData.permissions[permId]
+                              ? 'bg-primary border-primary shadow-[0_0_8px_rgba(99,102,241,0.4)]'
+                              : 'border-white/20 bg-white/5 group-hover:border-white/40'}
+                          `}>
+                            {formData.permissions[permId] && <CheckCircle2 size={10} className="text-white" />}
+                          </div>
+                          <span className={`text-[11px] transition-colors ${formData.permissions[permId] ? 'text-white' : 'text-gray-500 group-hover:text-gray-300'}`}>
+                            {perm.label}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
 

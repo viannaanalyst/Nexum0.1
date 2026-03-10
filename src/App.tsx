@@ -63,6 +63,58 @@ const ProtectedRoute = ({ children, allowedRoles }: { children: React.ReactNode,
   return <>{children}</>;
 };
 
+const PermissionLoading = () => (
+  <div className="h-screen bg-[#0a0a1a] flex flex-col items-center justify-center text-white">
+    <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin mb-4"></div>
+    <p className="text-gray-400 animate-pulse">Carregando permissões...</p>
+  </div>
+);
+
+const RedirectToAllowed = () => {
+  const { user, loadingPermissions } = useAuth();
+  
+  if (loadingPermissions) return <PermissionLoading />;
+  if (user?.is_super_admin) return <Navigate to="/atividades" replace />;
+  if (!user?.permissions) return null;
+
+  // Ordered list of priority pages
+  const priority = [
+    'atividades', 'kanban', 'lista', 'cronograma', 'calendario', 
+    'financeiro_geral', 'config_equipe', 'suporte'
+  ];
+  
+  const allowed = priority.find(p => user.permissions![p]);
+  
+  if (allowed) {
+    const routeMap: Record<string, string> = {
+      atividades: '/atividades',
+      kanban: '/organizador/kanban',
+      lista: '/organizador/lista',
+      cronograma: '/organizador/cronograma',
+      calendario: '/calendario',
+      financeiro_geral: '/financeiro/visao-geral',
+      config_equipe: '/configuracao/equipe',
+      suporte: '/suporte'
+    };
+    return <Navigate to={routeMap[allowed]} replace />;
+  }
+
+  return <div className="h-screen bg-[#0a0a1a] flex items-center justify-center text-white">Sem permissões atribuídas.</div>;
+};
+
+const PermissionGate = ({ children, permission }: { children: React.ReactNode, permission: string }) => {
+  const { user, loadingPermissions } = useAuth();
+  
+  if (user?.is_super_admin) return <>{children}</>;
+  if (loadingPermissions) return null; // Avoid showing anything (blank is better than blocked here because of the outer layout)
+  
+  if (!user?.permissions || user.permissions[permission] === false) {
+    return <Navigate to="/" replace />;
+  }
+  
+  return <>{children}</>;
+};
+
 const SuperAdminRoute = ({ children }: { children: React.ReactNode }) => {
   const { user, isAuthenticated } = useAuth();
 
@@ -99,34 +151,34 @@ function App() {
                   <MainLayout />
                 </ProtectedRoute>
               }>
-                <Route index element={<Navigate to="/atividades" replace />} />
-                <Route path="atividades" element={<Atividades />} />
+                <Route index element={<RedirectToAllowed />} />
+                <Route path="atividades" element={<PermissionGate permission="atividades"><Atividades /></PermissionGate>} />
 
                 {/* Configuração Sub-routes */}
-                <Route path="configuracao/empresa" element={<EmpresaConfig />} />
-                <Route path="configuracao/regras-financeiras" element={<RegrasFinanceiras />} />
-                <Route path="configuracao/clientes" element={<Clientes />} />
-                <Route path="configuracao/ia-automacao" element={<div className="text-white p-8">IA e Automação (Em construção)</div>} />
-                <Route path="configuracao/equipe" element={<EquipeConfig />} />
+                <Route path="configuracao/empresa" element={<PermissionGate permission="config_empresa"><EmpresaConfig /></PermissionGate>} />
+                <Route path="configuracao/regras-financeiras" element={<PermissionGate permission="config_regras"><RegrasFinanceiras /></PermissionGate>} />
+                <Route path="configuracao/clientes" element={<PermissionGate permission="config_clientes"><Clientes /></PermissionGate>} />
+                <Route path="configuracao/ia-automacao" element={<PermissionGate permission="config_ia"><div className="text-white p-8">IA e Automação (Em construção)</div></PermissionGate>} />
+                <Route path="configuracao/equipe" element={<PermissionGate permission="config_equipe"><EquipeConfig /></PermissionGate>} />
 
                 {/* Organizador Sub-routes */}
                 <Route path="organizador" element={<Navigate to="/organizador/kanban" replace />} />
-                <Route path="organizador/kanban" element={<OrganizadorKanban />} />
-                <Route path="organizador/lista" element={<OrganizadorLista />} />
-                <Route path="organizador/historico" element={<OrganizadorAtividades />} />
-                <Route path="organizador/cronograma" element={<OrganizadorCronograma />} />
+                <Route path="organizador/kanban" element={<PermissionGate permission="kanban"><OrganizadorKanban /></PermissionGate>} />
+                <Route path="organizador/lista" element={<PermissionGate permission="lista"><OrganizadorLista /></PermissionGate>} />
+                <Route path="organizador/historico" element={<PermissionGate permission="historico_tarefas"><OrganizadorAtividades /></PermissionGate>} />
+                <Route path="organizador/cronograma" element={<PermissionGate permission="cronograma"><OrganizadorCronograma /></PermissionGate>} />
 
                 {/* Other Sidebar Routes */}
-                <Route path="relatorios" element={<div className="text-white p-8">Nexum Intelligence (Em construção)</div>} />
-                <Route path="calendario" element={<Calendario />} />
-                <Route path="suporte" element={<Suporte />} />
+                <Route path="relatorios" element={<PermissionGate permission="inteligencia_artificial"><div className="text-white p-8">Nexum Intelligence (Em construção)</div></PermissionGate>} />
+                <Route path="calendario" element={<PermissionGate permission="calendario"><Calendario /></PermissionGate>} />
+                <Route path="suporte" element={<PermissionGate permission="suporte"><Suporte /></PermissionGate>} />
 
                 {/* Financeiro Sub-routes */}
                 <Route path="financeiro" element={<Navigate to="/financeiro/visao-geral" replace />} />
-                <Route path="financeiro/visao-geral" element={<FinanceiroVisaoGeral />} />
-                <Route path="financeiro/lancamentos" element={<FinanceiroLancamentos />} />
-                <Route path="financeiro/comissoes" element={<FinanceiroComissoes />} />
-                <Route path="financeiro/cobranca" element={<FinanceiroCobranca />} />
+                <Route path="financeiro/visao-geral" element={<PermissionGate permission="financeiro_geral"><FinanceiroVisaoGeral /></PermissionGate>} />
+                <Route path="financeiro/lancamentos" element={<PermissionGate permission="financeiro_lancamentos"><FinanceiroLancamentos /></PermissionGate>} />
+                <Route path="financeiro/comissoes" element={<PermissionGate permission="financeiro_comissoes"><FinanceiroComissoes /></PermissionGate>} />
+                <Route path="financeiro/cobranca" element={<PermissionGate permission="financeiro_cobranca"><FinanceiroCobranca /></PermissionGate>} />
               </Route>
 
               <Route path="*" element={<Navigate to="/" replace />} />

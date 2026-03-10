@@ -12,6 +12,7 @@ export interface User {
   is_super_admin: boolean;
   avatar_url?: string;
   must_change_password?: boolean;
+  permissions?: Record<string, boolean>;
 }
 
 interface AuthContextType {
@@ -19,8 +20,10 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<boolean>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
+  refreshPermissions: (companyId: string) => Promise<void>;
   isAuthenticated: boolean;
   loading: boolean;
+  loadingPermissions: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -28,6 +31,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadingPermissions, setLoadingPermissions] = useState(false);
 
   useEffect(() => {
     // Check active session
@@ -129,8 +133,42 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+  const refreshPermissions = async (companyId: string) => {
+    if (!user) return;
+    setLoadingPermissions(true);
+    try {
+      const { data: member } = await supabase
+        .from('organization_members')
+        .select('permissions')
+        .eq('user_id', user.id)
+        .eq('company_id', companyId)
+        .maybeSingle();
+
+      if (member && member.permissions) {
+        setUser(prev => prev ? { ...prev, permissions: member.permissions } : null);
+      } else {
+        // Fallback to empty permissions instead of leaving it undefined
+        setUser(prev => prev ? { ...prev, permissions: {} } : null);
+      }
+    } catch (error) {
+      console.error('Error refreshing permissions:', error);
+      setUser(prev => prev ? { ...prev, permissions: {} } : null);
+    } finally {
+      setLoadingPermissions(false);
+    }
+  };
+
   return (
-    <AuthContext.Provider value={{ user, login, logout, refreshUser, isAuthenticated: !!user, loading }}>
+    <AuthContext.Provider value={{
+      user,
+      login,
+      logout,
+      refreshUser,
+      refreshPermissions,
+      isAuthenticated: !!user,
+      loading,
+      loadingPermissions
+    }}>
       {!loading && children}
     </AuthContext.Provider>
   );
