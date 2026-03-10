@@ -215,7 +215,7 @@ const MainLayout = () => {
           <div className="flex items-center space-x-6">
             {/* Logo Area */}
             <div className="flex items-center space-x-3">
-              <h1 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-primary to-accent">
+              <h1 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-primary to-accent" translate="no">
                 Nexum
               </h1>
               <button onClick={toggleSidebar} className="text-gray-400 hover:text-white transition-colors ml-2">
@@ -518,7 +518,7 @@ const MainLayout = () => {
                 >
                   <div className={`flex items-center ${sidebarOpen ? 'space-x-3' : 'justify-center'}`}>
                     <IconSubtask className={`w-5 h-5 transition-transform duration-300 group-hover:scale-110 ${location.pathname.includes('/organizador') ? 'text-primary' : ''}`} />
-                    {sidebarOpen && <span className="text-sm font-medium">Organizador</span>}
+                     {sidebarOpen && <span className="text-sm font-medium" translate="no">Organizador</span>}
                   </div>
                   {sidebarOpen && (
                     <div className="transition-transform duration-300">
@@ -531,10 +531,10 @@ const MainLayout = () => {
                 <div className={`overflow-hidden transition-all duration-300 ${organizadorOpen && sidebarOpen ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'
                   }`}>
                   <div className="ml-4 mt-2 space-y-1 border-l border-white/10 pl-2">
-                    <SubNavItem to="/organizador/kanban" icon={<IconLayoutKanban size={16} />} label="Kanban" />
-                    <SubNavItem to="/organizador/lista" icon={<IconList size={16} />} label="Lista" />
-                    <SubNavItem to="/organizador/historico" icon={<IconChecks size={16} />} label="Histórico" />
-                    <SubNavItem to="/organizador/cronograma" icon={<IconClock size={16} />} label="Cronograma" />
+                     <SubNavItem to="/organizador/kanban" icon={<IconLayoutKanban size={16} />} label="Kanban" translate="no" />
+                     <SubNavItem to="/organizador/lista" icon={<IconList size={16} />} label="Lista" translate="no" />
+                     <SubNavItem to="/organizador/historico" icon={<IconChecks size={16} />} label="Histórico" translate="no" />
+                     <SubNavItem to="/organizador/cronograma" icon={<IconClock size={16} />} label="Cronograma" translate="no" />
                   </div>
                 </div>
 
@@ -574,7 +574,7 @@ const MainLayout = () => {
                 >
                   <div className={`flex items-center ${sidebarOpen ? 'space-x-3' : 'justify-center'}`}>
                     <IconCurrencyDollar className={`w-5 h-5 transition-transform duration-300 group-hover:scale-110 ${location.pathname.includes('/financeiro') ? 'text-primary' : ''}`} />
-                    {sidebarOpen && <span className="text-sm font-medium">Financeiro</span>}
+                     {sidebarOpen && <span className="text-sm font-medium" translate="no">Financeiro</span>}
                   </div>
                   {sidebarOpen && (
                     <div className="transition-transform duration-300">
@@ -600,10 +600,10 @@ const MainLayout = () => {
                     <div className="fixed inset-0 z-[80]" onClick={() => setFlyoutMenu(null)}></div>
                     <div style={{ top: flyoutY - 44, left: '4.5rem' }} className="fixed w-52 bg-[#161635]/95 backdrop-blur-md border border-white/10 rounded-2xl shadow-[0_10px_40px_rgba(0,0,0,0.7)] z-[90] p-2 animate-in fade-in slide-in-from-left-2 duration-200">
                       <p className="text-[11px] font-medium text-[#6e6e6e] tracking-tight px-3 py-2">Financeiro</p>
-                      <SubNavItem to="/financeiro/visao-geral" icon={<IconChartPie size={16} />} label="Visão geral" />
-                      <SubNavItem to="/financeiro/lancamentos" icon={<IconReceipt size={16} />} label="Lançamentos" />
-                      <SubNavItem to="/financeiro/comissoes" icon={<IconUsers size={16} />} label="Comissões e sócios" />
-                      <SubNavItem to="/financeiro/cobranca" icon={<IconSettings size={16} />} label="Cobrança" />
+                      <SubNavItem to="/financeiro/visao-geral" icon={<IconChartPie size={16} />} label="Visão geral" translate="no" />
+                      <SubNavItem to="/financeiro/lancamentos" icon={<IconReceipt size={16} />} label="Lançamentos" translate="no" />
+                      <SubNavItem to="/financeiro/comissoes" icon={<IconUsers size={16} />} label="Comissões e sócios" translate="no" />
+                      <SubNavItem to="/financeiro/cobranca" icon={<IconSettings size={16} />} label="Cobrança" translate="no" />
                     </div>
                   </>
                 )}
@@ -627,7 +627,7 @@ const MainLayout = () => {
                 >
                   <div className={`flex items-center ${sidebarOpen ? 'space-x-3' : 'justify-center'}`}>
                     <IconSettings className={`w-5 h-5 transition-transform duration-300 group-hover:scale-110 ${location.pathname.includes('/configuracao') ? 'text-primary' : ''}`} />
-                    {sidebarOpen && <span className="text-sm font-medium">Configuração</span>}
+                     {sidebarOpen && <span className="text-sm font-medium" translate="no">Configuração</span>}
                   </div>
                   {sidebarOpen && (
                     <div className="transition-transform duration-300">
@@ -640,11 +640,11 @@ const MainLayout = () => {
                 <div className={`overflow-hidden transition-all duration-300 ${configOpen && sidebarOpen ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'
                   }`}>
                   <div className="ml-4 mt-2 space-y-1 border-l border-white/10 pl-2">
-                    <SubNavItem to="/configuracao/empresa" icon={<IconBuilding size={16} />} label="Empresa" />
-                    <SubNavItem to="/configuracao/regras-financeiras" icon={<IconFileDescription size={16} />} label="Regras Financeiras" />
-                    <SubNavItem to="/configuracao/clientes" icon={<IconUsers size={16} />} label="Gestão de Clientes" />
-                    <SubNavItem to="/configuracao/ia-automacao" icon={<IconCpu size={16} />} label="IA e Automação" />
-                    <SubNavItem to="/configuracao/equipe" icon={<IconUserCheck size={16} />} label="Equipe" />
+                     <SubNavItem to="/configuracao/empresa" icon={<IconBuilding size={16} />} label="Empresa" translate="no" />
+                     <SubNavItem to="/configuracao/regras-financeiras" icon={<IconFileDescription size={16} />} label="Regras Financeiras" translate="no" />
+                     <SubNavItem to="/configuracao/clientes" icon={<IconUsers size={16} />} label="Gestão de Clientes" translate="no" />
+                     <SubNavItem to="/configuracao/ia-automacao" icon={<IconCpu size={16} />} label="IA e Automação" translate="no" />
+                     <SubNavItem to="/configuracao/equipe" icon={<IconUserCheck size={16} />} label="Equipe" translate="no" />
                   </div>
                 </div>
 
@@ -739,14 +739,14 @@ const NavItem = ({ to, icon, label, expanded }: { to: string, icon: React.ReactN
               className: `w-5 h-5`
             })}
           </div>
-          {expanded && <span className="font-medium">{label}</span>}
+           {expanded && <span className="font-medium" translate="no">{label}</span>}
         </>
       )}
     </NavLink>
   );
 };
 
-const SubNavItem = ({ to, icon, label }: { to: string, icon: React.ReactNode, label: string }) => {
+const SubNavItem = ({ to, icon, label, translate }: { to: string, icon: React.ReactNode, label: string, translate?: "no" | "yes" }) => {
   return (
     <NavLink
       to={to}

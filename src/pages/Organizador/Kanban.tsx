@@ -830,7 +830,7 @@ const OrganizadorKanban = () => {
             <div className="absolute top-0 left-1/2 -translate-x-1/2 w-1/3 h-[1px] bg-gradient-to-r from-transparent via-primary/50 to-transparent"></div>
 
             <div className="p-8 pb-4 relative z-20">
-              <h2 className="text-xl font-bold text-[#EEEEEE] mb-1">Nova coluna</h2>
+              <h2 className="text-xl font-bold text-[#EEEEEE] mb-1" translate="no">Nova coluna</h2>
               <p className="text-xs text-[#6e6e6e] font-light">Adicione uma nova etapa ao seu fluxo de trabalho.</p>
             </div>
 
@@ -914,7 +914,7 @@ const OrganizadorKanban = () => {
             <div className="absolute top-0 left-1/2 -translate-x-1/2 w-1/3 h-[1px] bg-gradient-to-r from-transparent via-primary/50 to-transparent"></div>
 
             <div className="p-8 pb-4 relative z-20">
-              <h2 className="text-xl font-bold text-[#EEEEEE] mb-1">Editar coluna</h2>
+              <h2 className="text-xl font-bold text-[#EEEEEE] mb-1" translate="no">Editar coluna</h2>
               <p className="text-xs text-[#6e6e6e] font-light">Personalize as configurações desta etapa.</p>
             </div>
 
@@ -1063,7 +1063,7 @@ const KanbanColumn = ({
           <div className="flex items-center gap-2">
             <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-[12px] font-semibold tracking-tight shadow-sm" style={{ backgroundColor: column.color + '20', color: column.color || '#3b82f6', border: `1px solid ${column.color}30` }}>
               <div className="w-2 h-2 rounded-full animate-pulse" style={{ backgroundColor: column.color || '#3b82f6' }} />
-              {column.title}
+              <span translate="no">{column.title}</span>
             </div>
             <span className="text-[10px] text-gray-500 font-bold bg-white/5 px-2 py-0.5 rounded-full">{cards.length}</span>
           </div>
