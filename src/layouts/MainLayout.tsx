@@ -212,13 +212,11 @@ const MainLayout = () => {
       {/* Full-width Header */}
       {layoutMode === 'normal' && (
         <header className="h-[52px] glass-card border-b border-white/10 flex items-center justify-between px-6 bg-[#0a0a1a]/80 backdrop-blur-md relative z-50 shrink-0">
-          <div className="flex items-center space-x-6">
+          <div className="flex items-center">
             {/* Logo Area */}
-            <div className="flex items-center space-x-3">
-              <h1 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-primary to-accent" translate="no">
-                Nexum
-              </h1>
-              <button onClick={toggleSidebar} className="text-gray-400 hover:text-white transition-colors ml-2">
+            <div className="flex items-center">
+              <img src="/logo_X_nexum.svg" alt="Nexum Logo" style={{ width: '62px', height: '62px' }} className="object-contain -ml-[28px]" />
+              <button onClick={toggleSidebar} className="text-gray-400 hover:text-white transition-colors">
                 <IconMenu2 size={24} />
               </button>
             </div>

@@ -1,10 +1,113 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Building2, ExternalLink, LogOut, Loader2, Bug, Lightbulb, Link as LinkIcon, Image as ImageIcon, CheckCircle2, AlertCircle, Clock, User as UserIcon, Building2 as CompanyIcon, ChevronRight } from 'lucide-react';
+import { Plus, Building2, ExternalLink, LogOut, Loader2, Bug, Lightbulb, Link as LinkIcon, Image as ImageIcon, CheckCircle2, AlertCircle, Clock, User as UserIcon, Building2 as CompanyIcon, ChevronRight, ChevronDown, MessageSquare } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useCompany, type Company } from '../../context/CompanyContext';
 import { useNavigate } from 'react-router-dom';
 import { IMaskInput } from 'react-imask';
 import { supabase } from '../../lib/supabase';
+import SupportTicketModal from '../../components/SupportTicketModal';
+
+const TicketStatusDropdown = ({ 
+  currentStatus, 
+  onStatusChange 
+}: { 
+  currentStatus: string, 
+  onStatusChange: (status: string) => void 
+}) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const containerRef = React.useRef<HTMLDivElement>(null);
+
+  const statusConfig = {
+    open: {
+      label: 'Aberto',
+      color: 'text-blue-400',
+      bg: 'bg-blue-400/10',
+      border: 'border-blue-400/20',
+      icon: Clock
+    },
+    in_progress: {
+      label: 'Em Progresso',
+      color: 'text-amber-400',
+      bg: 'bg-amber-400/10',
+      border: 'border-amber-400/20',
+      icon: Loader2
+    },
+    resolved: {
+      label: 'Resolvido',
+      color: 'text-emerald-400',
+      bg: 'bg-emerald-400/10',
+      border: 'border-emerald-400/20',
+      icon: CheckCircle2
+    },
+    closed: {
+      label: 'Fechado',
+      color: 'text-gray-400',
+      bg: 'bg-gray-400/10',
+      border: 'border-gray-400/20',
+      icon: AlertCircle
+    }
+  };
+
+  const current = statusConfig[currentStatus as keyof typeof statusConfig] || statusConfig.open;
+  const Icon = current.icon;
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  return (
+    <div className="relative w-full" ref={containerRef}>
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className={`w-full flex items-center justify-between p-2.5 rounded-xl border border-white/10 bg-white/5 transition-all duration-300 hover:bg-white/10 group ${isOpen ? 'ring-2 ring-primary/40 border-primary/40' : ''}`}
+      >
+        <div className="flex items-center gap-2">
+          <div className={`p-1 rounded-lg ${current.bg} ${current.border}`}>
+            <Icon size={12} className={current.color + (currentStatus === 'in_progress' ? ' animate-spin' : '')} />
+          </div>
+          <span className="text-xs font-medium text-gray-300 group-hover:text-white transition-colors">{current.label}</span>
+        </div>
+        <ChevronDown size={14} className={`text-gray-500 transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`} />
+      </button>
+
+      {isOpen && (
+        <div className="absolute z-50 mt-2 w-full bg-[#0d0d20] border border-white/10 rounded-xl shadow-2xl overflow-hidden backdrop-blur-xl animate-in fade-in slide-in-from-top-2 duration-200">
+          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-2/3 h-[1px] bg-gradient-to-r from-transparent via-primary/50 to-transparent"></div>
+          <div className="py-1">
+            {Object.entries(statusConfig).map(([key, config]) => {
+              const StatusIcon = config.icon;
+              const isSelected = currentStatus === key;
+              return (
+                <button
+                  key={key}
+                  onClick={() => {
+                    onStatusChange(key);
+                    setIsOpen(false);
+                  }}
+                  className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-all duration-200 hover:bg-white/5 ${isSelected ? 'bg-white/5' : ''}`}
+                >
+                  <div className={`p-1.5 rounded-lg ${config.bg} ${config.border}`}>
+                    <StatusIcon size={12} className={config.color + (key === 'in_progress' && isSelected ? ' animate-spin' : '')} />
+                  </div>
+                  <span className={`text-xs font-medium transition-colors ${isSelected ? 'text-white' : 'text-gray-400 group-hover:text-gray-200'}`}>{config.label}</span>
+                  {isSelected && (
+                    <div className="ml-auto w-1.5 h-1.5 rounded-full bg-primary shadow-[0_0_8px_rgba(0,186,255,0.8)]"></div>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
 
 const SuperAdminDashboard = () => {
   const { user, logout } = useAuth();
@@ -19,6 +122,8 @@ const SuperAdminDashboard = () => {
   const [activeTab, setActiveTab] = useState<'companies' | 'tickets'>('companies');
   const [tickets, setTickets] = useState<any[]>([]);
   const [loadingTickets, setLoadingTickets] = useState(false);
+  const [selectedTicket, setSelectedTicket] = useState<any>(null);
+  const [isSupportModalOpen, setIsSupportModalOpen] = useState(false);
 
   const fetchTickets = async () => {
     setLoadingTickets(true);
@@ -45,12 +150,31 @@ const SuperAdminDashboard = () => {
 
   const handleUpdateTicketStatus = async (ticketId: string, status: string) => {
     try {
+      const ticket = tickets.find(t => t.id === ticketId);
+      if (!ticket) return;
+
       const { error } = await supabase
         .from('support_tickets')
         .update({ status })
         .eq('id', ticketId);
       
       if (error) throw error;
+
+      // Notify the ticket owner
+      const statusLabels: Record<string, string> = {
+        open: 'Aberto',
+        in_progress: 'Em Progresso',
+        resolved: 'Resolvido',
+        closed: 'Fechado'
+      };
+
+      await supabase.from('notifications').insert([{
+        user_id: ticket.user_id,
+        title: 'Status do chamado atualizado',
+        description: `O status do seu chamado #${ticket.id.slice(0, 8)} foi alterado para: ${statusLabels[status] || status}`,
+        type: 'support'
+      }]);
+
       setTickets(tickets.map(t => t.id === ticketId ? { ...t, status } : t));
     } catch (error) {
       console.error('Error updating ticket status:', error);
@@ -213,16 +337,21 @@ const SuperAdminDashboard = () => {
 
                       <div className="mt-6 space-y-2">
                         <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest ml-1">Status</p>
-                        <select
-                          value={ticket.status}
-                          onChange={(e) => handleUpdateTicketStatus(ticket.id, e.target.value)}
-                          className="w-full bg-white/5 border border-white/10 rounded-lg p-2 text-xs text-white focus:outline-none focus:border-primary"
+                        <TicketStatusDropdown 
+                          currentStatus={ticket.status} 
+                          onStatusChange={(status) => handleUpdateTicketStatus(ticket.id, status)} 
+                        />
+                        
+                        <button
+                          onClick={() => {
+                            setSelectedTicket(ticket);
+                            setIsSupportModalOpen(true);
+                          }}
+                          className="w-full mt-4 flex items-center justify-center space-x-2 bg-primary/10 hover:bg-primary/20 text-primary py-2 rounded-lg border border-primary/20 transition-all text-xs font-medium"
                         >
-                          <option value="open">Aberto</option>
-                          <option value="in_progress">Em Progresso</option>
-                          <option value="resolved">Resolvido</option>
-                          <option value="closed">Fechado</option>
-                        </select>
+                          <MessageSquare size={14} />
+                          <span>Interagir</span>
+                        </button>
                       </div>
                     </div>
 
@@ -349,6 +478,19 @@ const SuperAdminDashboard = () => {
             </form>
           </div>
         </div>
+      )}
+
+      {/* Modal de Suporte para Interação */}
+      {isSupportModalOpen && (
+        <SupportTicketModal
+          isOpen={isSupportModalOpen}
+          ticket={selectedTicket}
+          onClose={() => {
+            setIsSupportModalOpen(false);
+            setSelectedTicket(null);
+            fetchTickets(); // Atualiza a lista caso tenha havido mudanças
+          }}
+        />
       )}
     </div>
   );

@@ -79,14 +79,14 @@ const Login = () => {
       <div className="fixed inset-0 z-0 bg-gradient-to-br from-[#0a0a1a]/95 via-[#0a0a1a]/80 to-[#6366f1]/20"></div>
 
       {/* Conteúdo */}
-      <div className="relative z-10 w-full max-w-md p-8">
-        <div className="glass-card p-8 rounded-2xl border border-white/10 shadow-2xl backdrop-blur-xl">
-          <div className="text-center mb-8">
-            <h1 className="text-4xl font-bold mb-2 tracking-tight text-white">Nexum</h1>
-            <p className="text-gray-400">Faça login para continuar</p>
+      <div className="relative z-10 w-full max-w-lg p-8 md:p-16 flex flex-col items-start justify-center min-h-screen">
+        <div className="w-full">
+          {/* Logo centralizada onde estava o título */}
+          <div className="text-center -mb-10">
+            <img src="/logo_nexum.svg" alt="Nexum Logo" className="w-72 h-auto object-contain mx-auto" />
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-6">
+          <form onSubmit={handleSubmit} className="space-y-6 w-full max-w-md">
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-2">Email</label>
               <div className="relative">
@@ -105,7 +105,12 @@ const Login = () => {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">Senha</label>
+              <div className="flex items-center justify-between mb-2">
+                <label className="block text-sm font-medium text-gray-300">Senha</label>
+                <a href="#" className="text-sm font-medium text-primary hover:text-secondary transition-colors">
+                  Esqueceu a senha?
+                </a>
+              </div>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                   <IconLock className="h-5 w-5 text-gray-500" />
@@ -132,30 +137,22 @@ const Login = () => {
               </div>
             </div>
 
-            <div className="flex items-center justify-between">
-              <div className="flex items-center">
-                <input
-                  id="remember-me"
-                  name="remember-me"
-                  type="checkbox"
-                  className="h-4 w-4 text-primary focus:ring-primary border-white/10 rounded bg-white/5"
-                  checked={rememberMe}
-                  onChange={(e) => setRememberMe(e.target.checked)}
-                />
-                <label htmlFor="remember-me" className="ml-2 block text-sm text-gray-300 cursor-pointer">
-                  Lembrar de mim
-                </label>
-              </div>
-
-              <div className="text-sm">
-                <a href="#" className="font-medium text-primary hover:text-secondary transition-colors">
-                  Esqueceu a senha?
-                </a>
-              </div>
+            <div className="flex items-center">
+              <input
+                id="remember-me"
+                name="remember-me"
+                type="checkbox"
+                className="h-4 w-4 text-primary focus:ring-primary border-white/10 rounded bg-white/5"
+                checked={rememberMe}
+                onChange={(e) => setRememberMe(e.target.checked)}
+              />
+              <label htmlFor="remember-me" className="ml-2 block text-sm text-gray-300 cursor-pointer">
+                Lembrar de mim
+              </label>
             </div>
 
             {error && (
-              <div className="text-red-400 text-sm text-center bg-red-500/10 p-2 rounded border border-red-500/20">
+              <div className="text-red-400 text-sm text-left bg-red-500/10 p-2 rounded border border-red-500/20">
                 {error}
               </div>
             )}
@@ -163,11 +160,15 @@ const Login = () => {
             <button
               type="submit"
               disabled={loading}
-              className="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-primary hover:bg-secondary focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary transition-all duration-300 transform hover:scale-[1.02] active:scale-[0.98]"
+              className="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-primary hover:bg-secondary focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary transition-all duration-300 transform hover:scale-[1.01] active:scale-[0.99]"
             >
               {loading ? 'Entrando...' : 'Entrar'}
             </button>
           </form>
+
+          <p className="text-gray-400 text-sm mt-8">
+            Não tem uma conta? <a href="#" className="text-primary hover:underline font-medium">Fale conosco</a>
+          </p>
         </div>
       </div>
     </div>

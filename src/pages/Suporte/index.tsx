@@ -11,8 +11,11 @@ import {
   ChevronRight,
   ExternalLink,
   ImageIcon,
-  Loader2
+  Loader2,
+  CalendarDays
 } from 'lucide-react';
+import { addBusinessDays, format } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../context/AuthContext';
 import { useCompany } from '../../context/CompanyContext';
@@ -138,8 +141,8 @@ const Suporte = () => {
                 }}
                 className="glass-card rounded-2xl border border-white/5 hover:border-white/10 transition-all duration-300 group overflow-hidden flex flex-col cursor-pointer hover:bg-white/[0.02]"
               >
-                {/* Header with Type and Date */}
-                <div className="p-5 border-b border-white/5 flex items-start justify-between">
+                {/* Header with Type, Date and Deadline */}
+                <div className="p-5 border-b border-white/5 flex items-center justify-between">
                   <div className="flex items-center space-x-3">
                     <div className={`p-2 rounded-lg ${ticket.type === 'bug' ? 'bg-red-500/10 text-red-400 border-red-500/20' : 'bg-primary/10 text-primary border-primary/20'}`}>
                       {ticket.type === 'bug' ? <Bug size={16} /> : <Lightbulb size={16} />}
@@ -148,19 +151,31 @@ const Suporte = () => {
                       <p className={`text-[11px] font-bold ${ticket.type === 'bug' ? 'text-red-400' : 'text-primary'}`}>
                         {ticket.type === 'bug' ? 'Bug' : 'Melhoria'}
                       </p>
-                      <p className="text-[10px] text-gray-500">{new Date(ticket.created_at).toLocaleDateString('pt-BR')}</p>
+                      <p className="text-[10px] text-gray-500">{format(new Date(ticket.created_at), "dd 'de' MMM", { locale: ptBR })}</p>
                     </div>
                   </div>
-                  {ticket.screenshot_url && (
-                    <a
-                      href={ticket.screenshot_url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="p-1.5 rounded-lg bg-white/5 border border-white/10 text-gray-500 hover:text-white transition-all"
-                    >
-                      <ImageIcon size={14} />
-                    </a>
-                  )}
+                  
+                  <div className="flex items-center gap-4">
+                    <div className="text-right">
+                      <p className="text-[9px] text-gray-500 font-bold tracking-tight opacity-60">Prazo estimado</p>
+                      <p className="text-[11px] font-bold text-amber-500/90 flex items-center gap-1 justify-end">
+                        <Clock size={11} className="animate-pulse" />
+                        {format(addBusinessDays(new Date(ticket.created_at), 3), 'dd/MM/yy')}
+                      </p>
+                    </div>
+
+                    {ticket.screenshot_url && (
+                      <a
+                        href={ticket.screenshot_url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="p-1.5 rounded-lg bg-white/5 border border-white/10 text-gray-500 hover:text-white transition-all"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <ImageIcon size={14} />
+                      </a>
+                    )}
+                  </div>
                 </div>
 
                 {/* Content */}
