@@ -29,7 +29,49 @@ const ALL_PERMS = [
   'config_equipe', 'suporte'
 ] as const;
 
-const DEFAULT_PERMISSIONS = ALL_PERMS.reduce((acc, perm) => ({ ...acc, [perm]: true }), {});
+const ROLE_DEFAULT_PERMISSIONS: Record<string, Record<string, boolean>> = {
+  admin: ALL_PERMS.reduce((acc, perm) => ({ ...acc, [perm]: true }), {}),
+  editor: {
+    atividades: true,
+    kanban: true,
+    lista: true,
+    historico_tarefas: true,
+    cronograma: true,
+    calendario: true,
+    inteligencia_artificial: true,
+    suporte: true,
+    financeiro_geral: false,
+    financeiro_lancamentos: false,
+    financeiro_comissoes: false,
+    financeiro_cobranca: false,
+    config_empresa: false,
+    config_regras: false,
+    config_clientes: false,
+    config_ia: false,
+    config_equipe: false,
+  },
+  visualizador: {
+    atividades: true,
+    kanban: true,
+    lista: true,
+    calendario: true,
+    suporte: true,
+    historico_tarefas: false,
+    cronograma: false,
+    inteligencia_artificial: false,
+    financeiro_geral: false,
+    financeiro_lancamentos: false,
+    financeiro_comissoes: false,
+    financeiro_cobranca: false,
+    config_empresa: false,
+    config_regras: false,
+    config_clientes: false,
+    config_ia: false,
+    config_equipe: false,
+  }
+};
+
+const DEFAULT_PERMISSIONS = ROLE_DEFAULT_PERMISSIONS.visualizador;
 
 const Equipe = () => {
   const { toast } = useUI();
@@ -391,7 +433,14 @@ const Equipe = () => {
                   <label className="text-[11px] tracking-wide font-medium text-[#6e6e6e] ml-1 mb-1 block">Perfil de acesso</label>
                   <select
                     value={formData.role}
-                    onChange={e => setFormData({ ...formData, role: e.target.value as any })}
+                    onChange={e => {
+                      const newRole = e.target.value as any;
+                      setFormData({ 
+                        ...formData, 
+                        role: newRole,
+                        permissions: { ...ROLE_DEFAULT_PERMISSIONS[newRole] }
+                      });
+                    }}
                     className="w-full bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.08] rounded-xl px-4 py-3 text-white/90 focus:bg-white/[0.08] focus:border-primary/30 focus:ring-0 outline-none appearance-none cursor-pointer transition-all duration-300 text-sm font-light"
                   >
                     <option value="admin" className="bg-[#0a0a1a]">Admin</option>

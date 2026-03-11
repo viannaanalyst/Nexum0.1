@@ -44,6 +44,8 @@ const Atividades = () => {
         productivityData,
         upcomingDeadlines,
         completedTasksToday,
+        completedParentTasksToday,
+        completedSubtasksToday,
         loading,
         filterRange,
         setFilterRange,
@@ -248,47 +250,99 @@ const Atividades = () => {
 
                         <div className="absolute top-0 right-0 w-full h-full bg-gradient-to-b from-emerald-500/5 to-transparent pointer-events-none"></div>
 
-                        <div className="flex-1 flex flex-col items-center justify-center z-10 w-full" style={{ minHeight: '200px' }}>
-                            {/* Donut Chart */}
-                            <div className="relative w-48 h-48 flex items-center justify-center">
-                                {loading ? (
-                                    <div className="w-32 h-32 rounded-full border-4 border-white/10 animate-spin border-t-emerald-500"></div>
-                                ) : (
-                                    <div style={{ width: '100%', height: '100%' }}>
-                                        <ResponsiveContainer width="100%" height="100%" minWidth={100} minHeight={100}>
-                                            <PieChart>
-                                                <Pie
-                                                    data={[
-                                                        { name: 'Feito', value: metrics.completedToday },
-                                                        { name: 'Restante', value: Math.max(1, 10 - metrics.completedToday) } // Dummy max target 10 for visual
-                                                    ]}
-                                                    cx="50%"
-                                                    cy="50%"
-                                                    innerRadius={60}
-                                                    outerRadius={80}
-                                                    startAngle={90}
-                                                    endAngle={-270}
-                                                    dataKey="value"
-                                                    stroke="none"
-                                                >
-                                                    <Cell fill="#10b981" />
-                                                    <Cell fill="#ffffff10" />
-                                                </Pie>
-                                            </PieChart>
-                                        </ResponsiveContainer>
-                                        <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                                            <span className="text-4xl font-bold text-white">{metrics.completedToday}</span>
-                                            <span className="text-[10px] text-gray-400 uppercase tracking-widest">Tarefas</span>
-                                        </div>
+                        <div className="flex-1 flex flex-col items-center justify-center z-10 w-full">
+                            <div className="flex gap-8 w-full justify-center">
+                                {/* Tasks PAI */}
+                                <div className="flex flex-col items-center">
+                                    <div className="relative w-28 h-28 flex items-center justify-center">
+                                        {loading ? (
+                                            <div className="w-20 h-20 rounded-full border-4 border-white/10 animate-spin border-t-emerald-500"></div>
+                                        ) : (
+                                            <div style={{ width: '100%', height: '100%' }}>
+                                                <ResponsiveContainer width="100%" height="100%" minWidth={80} minHeight={80}>
+                                                    <PieChart>
+                                                        <Pie
+                                                            data={[
+                                                                { name: 'Tasks', value: metrics.completedParentToday },
+                                                                { name: 'Restante', value: Math.max(1, 10 - metrics.completedParentToday) }
+                                                            ]}
+                                                            cx="50%"
+                                                            cy="50%"
+                                                            innerRadius={35}
+                                                            outerRadius={50}
+                                                            startAngle={90}
+                                                            endAngle={-270}
+                                                            dataKey="value"
+                                                            stroke="none"
+                                                        >
+                                                            <Cell fill="#10b981" />
+                                                            <Cell fill="#ffffff10" />
+                                                        </Pie>
+                                                    </PieChart>
+                                                </ResponsiveContainer>
+                                                <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                                                    <span className="text-2xl font-bold text-white">{metrics.completedParentToday}</span>
+                                                </div>
+                                            </div>
+                                        )}
                                     </div>
-                                )}
+                                    <span className="text-[10px] text-gray-400 uppercase tracking-widest mt-2">Tasks PAI</span>
+                                </div>
+
+                                {/* Subtarefas */}
+                                <div className="flex flex-col items-center">
+                                    <div className="relative w-28 h-28 flex items-center justify-center">
+                                        {loading ? (
+                                            <div className="w-20 h-20 rounded-full border-4 border-white/10 animate-spin border-t-amber-500"></div>
+                                        ) : (
+                                            <div style={{ width: '100%', height: '100%' }}>
+                                                <ResponsiveContainer width="100%" height="100%" minWidth={80} minHeight={80}>
+                                                    <PieChart>
+                                                        <Pie
+                                                            data={[
+                                                                { name: 'Subs', value: metrics.completedSubtasksToday },
+                                                                { name: 'Restante', value: Math.max(1, 10 - metrics.completedSubtasksToday) }
+                                                            ]}
+                                                            cx="50%"
+                                                            cy="50%"
+                                                            innerRadius={35}
+                                                            outerRadius={50}
+                                                            startAngle={90}
+                                                            endAngle={-270}
+                                                            dataKey="value"
+                                                            stroke="none"
+                                                        >
+                                                            <Cell fill="#f59e0b" />
+                                                            <Cell fill="#ffffff10" />
+                                                        </Pie>
+                                                    </PieChart>
+                                                </ResponsiveContainer>
+                                                <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                                                    <span className="text-2xl font-bold text-white">{metrics.completedSubtasksToday}</span>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                    <span className="text-[10px] text-gray-400 uppercase tracking-widest mt-2">Subtarefas</span>
+                                </div>
+                            </div>
+
+                            <div className="flex items-center gap-4 mt-4 text-xs text-gray-400">
+                                <div className="flex items-center gap-2">
+                                    <div className="w-3 h-3 rounded-full bg-emerald-500"></div>
+                                    <span>Tasks PAI</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <div className="w-3 h-3 rounded-full bg-amber-500"></div>
+                                    <span>Subtarefas</span>
+                                </div>
                             </div>
                         </div>
 
                         {/* Recent Completed List */}
                         <div className="mt-4 border-t border-white/10 pt-4 z-10">
                             <div className="text-xs font-bold text-emerald-400 mb-2 uppercase">Finalizados Hoje</div>
-                            <div className="space-y-2 max-h-[100px] overflow-y-auto custom-scrollbar">
+                            <div className="space-y-2 max-h-[80px] overflow-y-auto custom-scrollbar">
                                 {loading ? (
                                     <div className="space-y-2">
                                         <div className="h-4 bg-white/5 rounded w-3/4 animate-pulse"></div>
@@ -397,7 +451,7 @@ const Atividades = () => {
                         <h3 className="text-lg font-bold text-white flex items-center gap-2">
                             <TrendingUp size={20} className="text-primary" /> Produtividade
                         </h3>
-                        <p className="text-xs text-gray-400">Análise de desempenho temporal ({filterRange === 7 ? 'Últimos 7 dias' : 'Últimos 30 dias'})</p>
+                        <p className="text-xs text-gray-400">Análise de desempenho temporal ({filterRange === 7 ? 'Últimos 7 dias' : 'Mês atual'})</p>
                     </div>
 
                     <div className="relative">

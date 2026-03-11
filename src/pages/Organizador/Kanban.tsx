@@ -45,6 +45,7 @@ import { CSS } from '@dnd-kit/utilities';
 import KanbanCardModal from './KanbanCardModal';
 import { useUI } from '../../context/UIContext';
 import { Select } from '../../components/ui/Select';
+import PageLoading from '../../components/PageLoading';
 
 
 // --- Tipos ---
@@ -726,7 +727,7 @@ const OrganizadorKanban = () => {
     return map;
   }, [cards]);
 
-  if (loading && columns.length === 0) return <div className="p-8 text-white">Carregando quadro...</div>;
+  if (loading && columns.length === 0) return <PageLoading />;
 
   // Filter cards by client
   const filteredCards = selectedClient

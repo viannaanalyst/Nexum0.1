@@ -23,6 +23,7 @@ import { supabase } from '../../lib/supabase';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import { useUI } from '../../context/UIContext';
+import PageLoading from '../../components/PageLoading';
 
 // --- Types ---
 interface MonthlySchedule {
@@ -386,7 +387,7 @@ const OrganizadorCronograma = () => {
                 </div>
 
                 {loading ? (
-                    <div className="text-white">Carregando...</div>
+                    <PageLoading />
                 ) : schedules.length === 0 ? (
                     <div className="text-center py-20 bg-white/5 rounded-2xl border border-white/10">
                         <Calendar size={48} className="mx-auto text-gray-500 mb-4" />

@@ -18,6 +18,8 @@ interface CompanyContextType {
   addCompany: (company: Omit<Company, 'id' | 'status'>) => Promise<void>;
   selectCompany: (companyId: string) => void;
   updateCompany: (id: string, data: Partial<Company>) => Promise<void>;
+  deleteCompany: (id: string) => Promise<void>;
+  toggleCompanyStatus: (id: string) => Promise<void>;
   loading: boolean;
 }
 
@@ -177,6 +179,35 @@ export const CompanyProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+  const deleteCompany = async (id: string) => {
+    try {
+      const { error } = await supabase
+        .from('companies')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+
+      setCompanies((prev) => prev.filter((c) => c.id !== id));
+      
+      if (selectedCompany?.id === id) {
+        setSelectedCompany(null);
+        localStorage.removeItem('selectedCompanyId');
+      }
+    } catch (error) {
+      console.error('Error deleting company:', error);
+      throw error;
+    }
+  };
+
+  const toggleCompanyStatus = async (id: string) => {
+    const company = companies.find((c) => c.id === id);
+    if (!company) return;
+    
+    const newStatus = company.status === 'active' ? 'inactive' : 'active';
+    await updateCompany(id, { status: newStatus });
+  };
+
   return (
     <CompanyContext.Provider
       value={{
@@ -185,6 +216,8 @@ export const CompanyProvider = ({ children }: { children: ReactNode }) => {
         addCompany,
         selectCompany,
         updateCompany,
+        deleteCompany,
+        toggleCompanyStatus,
         loading,
       }}
     >

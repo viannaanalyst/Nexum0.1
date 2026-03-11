@@ -1,27 +1,29 @@
-import React, { useEffect } from 'react';
+import React, { Suspense, lazy } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { CompanyProvider, useCompany } from './context/CompanyContext';
 import { DashboardProvider } from './context/DashboardContext';
-import Login from './pages/Login';
+import PageLoading from './components/PageLoading';
+
+const Login = lazy(() => import('./pages/Login'));
 import MainLayout from './layouts/MainLayout';
-import EmpresaConfig from './pages/Configuracao/Empresa';
-import EquipeConfig from './pages/Configuracao/Equipe';
-import RegrasFinanceiras from './pages/Configuracao/RegrasFinanceiras';
-import Clientes from './pages/Configuracao/Clientes';
-import Atividades from './pages/Atividades';
-import SuperAdminDashboard from './pages/SuperAdmin/Dashboard';
-import TrocarSenha from './pages/TrocarSenha';
-import Calendario from './pages/Calendario';
-import FinanceiroVisaoGeral from './pages/Financeiro/VisaoGeral';
-import FinanceiroLancamentos from './pages/Financeiro/Lancamentos';
-import FinanceiroComissoes from './pages/Financeiro/Comissoes';
-import FinanceiroCobranca from './pages/Financeiro/Cobranca';
-import OrganizadorKanban from './pages/Organizador/Kanban';
-import OrganizadorLista from './pages/Organizador/Lista';
-import OrganizadorAtividades from './pages/Organizador/Atividades';
-import OrganizadorCronograma from './pages/Organizador/Cronograma';
-import Suporte from './pages/Suporte';
+const EmpresaConfig = lazy(() => import('./pages/Configuracao/Empresa'));
+const EquipeConfig = lazy(() => import('./pages/Configuracao/Equipe'));
+const RegrasFinanceiras = lazy(() => import('./pages/Configuracao/RegrasFinanceiras'));
+const Clientes = lazy(() => import('./pages/Configuracao/Clientes'));
+const Atividades = lazy(() => import('./pages/Atividades'));
+const SuperAdminDashboard = lazy(() => import('./pages/SuperAdmin/Dashboard'));
+const TrocarSenha = lazy(() => import('./pages/TrocarSenha'));
+const Calendario = lazy(() => import('./pages/Calendario'));
+const FinanceiroVisaoGeral = lazy(() => import('./pages/Financeiro/VisaoGeral'));
+const FinanceiroLancamentos = lazy(() => import('./pages/Financeiro/Lancamentos'));
+const FinanceiroComissoes = lazy(() => import('./pages/Financeiro/Comissoes'));
+const FinanceiroCobranca = lazy(() => import('./pages/Financeiro/Cobranca'));
+const OrganizadorKanban = lazy(() => import('./pages/Organizador/Kanban'));
+const OrganizadorLista = lazy(() => import('./pages/Organizador/Lista'));
+const OrganizadorAtividades = lazy(() => import('./pages/Organizador/Atividades'));
+const OrganizadorCronograma = lazy(() => import('./pages/Organizador/Cronograma'));
+const Suporte = lazy(() => import('./pages/Suporte'));
 
 // Component to protect routes based on authentication and roles
 const ProtectedRoute = ({ children, allowedRoles }: { children: React.ReactNode, allowedRoles?: string[] }) => {
@@ -29,14 +31,7 @@ const ProtectedRoute = ({ children, allowedRoles }: { children: React.ReactNode,
   const { selectedCompany, companies, selectCompany, loading } = useCompany();
 
   if (loading) {
-    // return <div className="h-screen bg-[#0a0a1a] flex items-center justify-center text-white">Carregando...</div>;
-    // Return null or a skeleton to prevent "flashing" a loading screen on small updates, 
-    // or just render children if we trust the previous state.
-    // But for initial load we need to block.
-    // Let's just return nothing to avoid the flash if it's very fast, or keep the spinner if it's slow?
-    // The "flash" is the spinner appearing and disappearing.
-    // If we are already authenticated, we might want to show the app structure skeleton.
-    return <div className="h-screen bg-[#0a0a1a]"></div>;
+    return <PageLoading />;
   }
 
   if (!isAuthenticated) {
@@ -138,13 +133,15 @@ function App() {
         <CompanyProvider>
           <DashboardProvider>
             <Routes>
-              <Route path="/login" element={<Login />} />
-              <Route path="/trocar-senha" element={<TrocarSenha />} />
+              <Route path="/login" element={<Suspense fallback={<PageLoading />}><Login /></Suspense>} />
+              <Route path="/trocar-senha" element={<Suspense fallback={<PageLoading />}><TrocarSenha /></Suspense>} />
 
               <Route path="/super-admin" element={
-                <SuperAdminRoute>
-                  <SuperAdminDashboard />
-                </SuperAdminRoute>
+                <Suspense fallback={<PageLoading />}>
+                  <SuperAdminRoute>
+                    <SuperAdminDashboard />
+                  </SuperAdminRoute>
+                </Suspense>
               } />
 
               <Route path="/" element={
@@ -153,33 +150,33 @@ function App() {
                 </ProtectedRoute>
               }>
                 <Route index element={<RedirectToAllowed />} />
-                <Route path="atividades" element={<PermissionGate permission="atividades"><Atividades /></PermissionGate>} />
+                <Route path="atividades" element={<Suspense fallback={<PageLoading />}><PermissionGate permission="atividades"><Atividades /></PermissionGate></Suspense>} />
 
                 {/* Configuração Sub-routes */}
-                <Route path="configuracao/empresa" element={<PermissionGate permission="config_empresa"><EmpresaConfig /></PermissionGate>} />
-                <Route path="configuracao/regras-financeiras" element={<PermissionGate permission="config_regras"><RegrasFinanceiras /></PermissionGate>} />
-                <Route path="configuracao/clientes" element={<PermissionGate permission="config_clientes"><Clientes /></PermissionGate>} />
+                <Route path="configuracao/empresa" element={<Suspense fallback={<PageLoading />}><PermissionGate permission="config_empresa"><EmpresaConfig /></PermissionGate></Suspense>} />
+                <Route path="configuracao/regras-financeiras" element={<Suspense fallback={<PageLoading />}><PermissionGate permission="config_regras"><RegrasFinanceiras /></PermissionGate></Suspense>} />
+                <Route path="configuracao/clientes" element={<Suspense fallback={<PageLoading />}><PermissionGate permission="config_clientes"><Clientes /></PermissionGate></Suspense>} />
                 <Route path="configuracao/ia-automacao" element={<PermissionGate permission="config_ia"><div className="text-white p-8">IA e Automação (Em construção)</div></PermissionGate>} />
-                <Route path="configuracao/equipe" element={<PermissionGate permission="config_equipe"><EquipeConfig /></PermissionGate>} />
+                <Route path="configuracao/equipe" element={<Suspense fallback={<PageLoading />}><PermissionGate permission="config_equipe"><EquipeConfig /></PermissionGate></Suspense>} />
 
                 {/* Organizador Sub-routes */}
                 <Route path="organizador" element={<Navigate to="/organizador/kanban" replace />} />
-                <Route path="organizador/kanban" element={<PermissionGate permission="kanban"><OrganizadorKanban /></PermissionGate>} />
-                <Route path="organizador/lista" element={<PermissionGate permission="lista"><OrganizadorLista /></PermissionGate>} />
-                <Route path="organizador/historico" element={<PermissionGate permission="historico_tarefas"><OrganizadorAtividades /></PermissionGate>} />
-                <Route path="organizador/cronograma" element={<PermissionGate permission="cronograma"><OrganizadorCronograma /></PermissionGate>} />
+                <Route path="organizador/kanban" element={<Suspense fallback={<PageLoading />}><PermissionGate permission="kanban"><OrganizadorKanban /></PermissionGate></Suspense>} />
+                <Route path="organizador/lista" element={<Suspense fallback={<PageLoading />}><PermissionGate permission="lista"><OrganizadorLista /></PermissionGate></Suspense>} />
+                <Route path="organizador/historico" element={<Suspense fallback={<PageLoading />}><PermissionGate permission="historico_tarefas"><OrganizadorAtividades /></PermissionGate></Suspense>} />
+                <Route path="organizador/cronograma" element={<Suspense fallback={<PageLoading />}><PermissionGate permission="cronograma"><OrganizadorCronograma /></PermissionGate></Suspense>} />
 
                 {/* Other Sidebar Routes */}
                 <Route path="relatorios" element={<PermissionGate permission="inteligencia_artificial"><div className="text-white p-8">Nexum Intelligence (Em construção)</div></PermissionGate>} />
-                <Route path="calendario" element={<PermissionGate permission="calendario"><Calendario /></PermissionGate>} />
-                <Route path="suporte" element={<PermissionGate permission="suporte"><Suporte /></PermissionGate>} />
+                <Route path="calendario" element={<Suspense fallback={<PageLoading />}><PermissionGate permission="calendario"><Calendario /></PermissionGate></Suspense>} />
+                <Route path="suporte" element={<Suspense fallback={<PageLoading />}><PermissionGate permission="suporte"><Suporte /></PermissionGate></Suspense>} />
 
                 {/* Financeiro Sub-routes */}
                 <Route path="financeiro" element={<Navigate to="/financeiro/visao-geral" replace />} />
-                <Route path="financeiro/visao-geral" element={<PermissionGate permission="financeiro_geral"><FinanceiroVisaoGeral /></PermissionGate>} />
-                <Route path="financeiro/lancamentos" element={<PermissionGate permission="financeiro_lancamentos"><FinanceiroLancamentos /></PermissionGate>} />
-                <Route path="financeiro/comissoes" element={<PermissionGate permission="financeiro_comissoes"><FinanceiroComissoes /></PermissionGate>} />
-                <Route path="financeiro/cobranca" element={<PermissionGate permission="financeiro_cobranca"><FinanceiroCobranca /></PermissionGate>} />
+                <Route path="financeiro/visao-geral" element={<Suspense fallback={<PageLoading />}><PermissionGate permission="financeiro_geral"><FinanceiroVisaoGeral /></PermissionGate></Suspense>} />
+                <Route path="financeiro/lancamentos" element={<Suspense fallback={<PageLoading />}><PermissionGate permission="financeiro_lancamentos"><FinanceiroLancamentos /></PermissionGate></Suspense>} />
+                <Route path="financeiro/comissoes" element={<Suspense fallback={<PageLoading />}><PermissionGate permission="financeiro_comissoes"><FinanceiroComissoes /></PermissionGate></Suspense>} />
+                <Route path="financeiro/cobranca" element={<Suspense fallback={<PageLoading />}><PermissionGate permission="financeiro_cobranca"><FinanceiroCobranca /></PermissionGate></Suspense>} />
               </Route>
 
               <Route path="*" element={<Navigate to="/" replace />} />

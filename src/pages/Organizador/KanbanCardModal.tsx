@@ -42,6 +42,7 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import { useCompany } from '../../context/CompanyContext';
 import { supabase } from '../../lib/supabase';
+import PageLoading from '../../components/PageLoading';
 import { useUI } from '../../context/UIContext';
 import { createTaskNotification } from '../../lib/notificationService';
 
@@ -2686,7 +2687,17 @@ const KanbanCardModal = ({ cardId, columnId, defaultClientId, onClose, onRefresh
 
     const isNew = cardId === 'new';
 
-    if (loading) return createPortal(<div className="fixed inset-0 z-[100] bg-black/80 flex items-center justify-center text-white">Carregando...</div>, document.body);
+    if (loading) return createPortal(
+        <div className="fixed inset-0 z-[100] bg-black/80 flex items-center justify-center">
+            <div className="flex flex-col items-center gap-4">
+                <img src="/logo_X_nexum.svg" className="w-16 animate-pulse-loading" alt="Nexum Logo" />
+                <div className="flex items-center text-base text-gray-400 tracking-wide">
+                    Carregando<span className="dots"></span>
+                </div>
+            </div>
+        </div>, 
+        document.body
+    );
 
     return createPortal(
         <>

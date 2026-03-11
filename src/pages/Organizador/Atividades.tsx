@@ -17,6 +17,7 @@ import { useCompany } from '../../context/CompanyContext';
 import { supabase } from '../../lib/supabase';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import PageLoading from '../../components/PageLoading';
 
 // --- Tipos ---
 interface AuditLog {
@@ -232,7 +233,7 @@ const OrganizadorAtividades = () => {
     }
   };
 
-  if (loading) return <div className="p-8 text-white">Carregando feed de atividades...</div>;
+  if (loading) return <PageLoading />;
 
   return (
     <div className="p-8 h-full flex flex-col max-w-5xl mx-auto">

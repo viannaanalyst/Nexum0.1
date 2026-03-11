@@ -17,6 +17,7 @@ import {
 import { useCompany } from '../../context/CompanyContext';
 import { supabase } from '../../lib/supabase';
 import KanbanCardModal from './KanbanCardModal';
+import PageLoading from '../../components/PageLoading';
 
 // --- Tipos ---
 interface Column {
@@ -310,7 +311,7 @@ const OrganizadorLista = () => {
     );
   };
 
-  if (loading) return <div className="p-8 text-white">Carregando lista...</div>;
+  if (loading) return <PageLoading />;
 
   return (
     <div className="p-8 h-full flex flex-col overflow-hidden">

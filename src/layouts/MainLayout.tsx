@@ -42,6 +42,7 @@ import UserSettingsModal from '../components/UserSettingsModal';
 import type { UserSettingsTab } from '../components/UserSettingsModal';
 import NotificationsHistoryModal from '../components/NotificationsHistoryModal';
 import { useUI } from '../context/UIContext';
+import PageLoading from '../components/PageLoading';
 import GlobalFAB from '../components/GlobalFAB';
 import CommandPalette from '../components/CommandPalette';
 import KanbanCardModal from '../pages/Organizador/KanbanCardModal';
@@ -692,7 +693,9 @@ const MainLayout = () => {
         {/* Main Content Area */}
         <main className="flex-1 overflow-hidden relative flex flex-col">
           <div className="flex-1 overflow-y-auto p-4 md:p-8 scrollbar-thin scrollbar-thumb-white/10">
-            <Outlet />
+            <React.Suspense fallback={<PageLoading />}>
+              <Outlet />
+            </React.Suspense>
           </div>
         </main>
       </div>

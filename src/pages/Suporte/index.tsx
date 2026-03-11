@@ -11,7 +11,6 @@ import {
   ChevronRight,
   ExternalLink,
   ImageIcon,
-  Loader2,
   CalendarDays
 } from 'lucide-react';
 import { addBusinessDays, format } from 'date-fns';
@@ -20,6 +19,7 @@ import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../context/AuthContext';
 import { useCompany } from '../../context/CompanyContext';
 import SupportTicketModal from '../../components/SupportTicketModal';
+import PageLoading from '../../components/PageLoading';
 
 const Suporte = () => {
   const { user } = useAuth();
@@ -126,10 +126,7 @@ const Suporte = () => {
         </div>
 
         {loading ? (
-          <div className="flex flex-col items-center justify-center py-20 text-gray-500 space-y-4">
-            <Loader2 className="w-10 h-10 animate-spin text-primary" />
-            <p className="font-light">Carregando seus chamados...</p>
-          </div>
+          <PageLoading />
         ) : filteredTickets.length > 0 ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {filteredTickets.map((ticket) => (

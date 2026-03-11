@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Building2, ExternalLink, LogOut, Loader2, Bug, Lightbulb, Link as LinkIcon, Image as ImageIcon, CheckCircle2, AlertCircle, Clock, User as UserIcon, Building2 as CompanyIcon, ChevronRight, ChevronDown, MessageSquare } from 'lucide-react';
+import { Plus, Building2, ExternalLink, LogOut, Loader2, Bug, Lightbulb, Link as LinkIcon, Image as ImageIcon, CheckCircle2, AlertCircle, Clock, User as UserIcon, Building2 as CompanyIcon, ChevronRight, ChevronDown, MessageSquare, Power, Trash2, MoreVertical } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useCompany, type Company } from '../../context/CompanyContext';
 import { useNavigate } from 'react-router-dom';
 import { IMaskInput } from 'react-imask';
 import { supabase } from '../../lib/supabase';
 import SupportTicketModal from '../../components/SupportTicketModal';
+import { addBusinessDays, format } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 
 const TicketStatusDropdown = ({ 
   currentStatus, 
@@ -111,7 +113,7 @@ const TicketStatusDropdown = ({
 
 const SuperAdminDashboard = () => {
   const { user, logout } = useAuth();
-  const { companies, addCompany, selectCompany } = useCompany();
+  const { companies, addCompany, selectCompany, deleteCompany, toggleCompanyStatus } = useCompany();
   const navigate = useNavigate();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [newCompany, setNewCompany] = useState<Partial<Company>>({
@@ -124,6 +126,8 @@ const SuperAdminDashboard = () => {
   const [loadingTickets, setLoadingTickets] = useState(false);
   const [selectedTicket, setSelectedTicket] = useState<any>(null);
   const [isSupportModalOpen, setIsSupportModalOpen] = useState(false);
+  const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
 
   const fetchTickets = async () => {
     setLoadingTickets(true);
@@ -147,6 +151,17 @@ const SuperAdminDashboard = () => {
       fetchTickets();
     }
   }, [activeTab]);
+
+  React.useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (!target.closest('.company-dropdown')) {
+        setActiveDropdown(null);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const handleUpdateTicketStatus = async (ticketId: string, status: string) => {
     try {
@@ -193,6 +208,36 @@ const SuperAdminDashboard = () => {
   const handleAccessPanel = (companyId: string) => {
     selectCompany(companyId);
     navigate('/');
+  };
+
+  const handleDeleteCompany = async (companyId: string, companyName: string) => {
+    if (!confirm(`Tem certeza que deseja excluir a empresa "${companyName}"? Esta ação não pode ser desfeita.`)) {
+      return;
+    }
+
+    setActionLoading(companyId);
+    try {
+      await deleteCompany(companyId);
+    } catch (error) {
+      console.error('Erro ao excluir empresa:', error);
+      alert('Erro ao excluir empresa. Tente novamente.');
+    } finally {
+      setActionLoading(null);
+      setActiveDropdown(null);
+    }
+  };
+
+  const handleToggleStatus = async (companyId: string) => {
+    setActionLoading(companyId);
+    try {
+      await toggleCompanyStatus(companyId);
+    } catch (error) {
+      console.error('Erro ao alterar status da empresa:', error);
+      alert('Erro ao alterar status da empresa. Tente novamente.');
+    } finally {
+      setActionLoading(null);
+      setActiveDropdown(null);
+    }
   };
 
   return (
@@ -258,17 +303,68 @@ const SuperAdminDashboard = () => {
         {activeTab === 'companies' ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             {companies.map((company) => (
-              <div key={company.id} className="glass-card p-6 rounded-2xl border border-white/10 hover:border-primary/50 transition-all duration-300 group">
+              <div key={company.id} className="glass-card p-6 rounded-2xl border border-white/10 hover:border-primary/50 transition-all duration-300 group relative">
                 <div className="flex items-start justify-between mb-6">
                   <div className="p-3 bg-primary/10 rounded-xl">
                     <CompanyIcon className="w-8 h-8 text-primary group-hover:scale-110 transition-transform duration-300" />
                   </div>
-                  <span className={`px-3 py-1 rounded-full text-xs font-medium border ${company.status === 'active'
-                    ? 'bg-green-500/10 text-green-400 border-green-500/20'
-                    : 'bg-red-500/10 text-red-400 border-red-500/20'
-                    }`}>
-                    {company.status === 'active' ? 'Ativo' : 'Inativo'}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className={`px-3 py-1 rounded-full text-xs font-medium border ${company.status === 'active'
+                      ? 'bg-green-500/10 text-green-400 border-green-500/20'
+                      : 'bg-red-500/10 text-red-400 border-red-500/20'
+                      }`}>
+                      {company.status === 'active' ? 'Ativo' : 'Inativo'}
+                    </span>
+                    <div className="relative company-dropdown">
+                      <button
+                        onClick={() => setActiveDropdown(activeDropdown === company.id ? null : company.id)}
+                        className="p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition-all"
+                        disabled={actionLoading === company.id}
+                      >
+                        {actionLoading === company.id ? (
+                          <Loader2 size={16} className="animate-spin" />
+                        ) : (
+                          <MoreVertical size={16} />
+                        )}
+                      </button>
+                      {activeDropdown === company.id && (
+                        <div className="absolute right-0 top-full mt-2 w-48 bg-[#0d0d20] border border-white/10 rounded-xl shadow-2xl overflow-hidden backdrop-blur-xl z-50 animate-in fade-in slide-in-from-top-2 duration-200">
+                          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-2/3 h-[1px] bg-gradient-to-r from-transparent via-primary/50 to-transparent"></div>
+                          <div className="py-1">
+                            <button
+                              onClick={() => handleToggleStatus(company.id)}
+                              className="w-full flex items-center gap-3 px-4 py-3 text-left transition-all duration-200 hover:bg-white/5"
+                            >
+                              {company.status === 'active' ? (
+                                <>
+                                  <div className="p-1.5 rounded-lg bg-red-500/10 border border-red-500/20">
+                                    <Power size={12} className="text-red-400" />
+                                  </div>
+                                  <span className="text-xs font-medium text-gray-300">Desativar</span>
+                                </>
+                              ) : (
+                                <>
+                                  <div className="p-1.5 rounded-lg bg-green-500/10 border border-green-500/20">
+                                    <Power size={12} className="text-green-400" />
+                                  </div>
+                                  <span className="text-xs font-medium text-gray-300">Ativar</span>
+                                </>
+                              )}
+                            </button>
+                            <button
+                              onClick={() => handleDeleteCompany(company.id, company.name)}
+                              className="w-full flex items-center gap-3 px-4 py-3 text-left transition-all duration-200 hover:bg-white/5"
+                            >
+                              <div className="p-1.5 rounded-lg bg-red-500/10 border border-red-500/20">
+                                <Trash2 size={12} className="text-red-400" />
+                              </div>
+                              <span className="text-xs font-medium text-red-400">Excluir</span>
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </div>
 
                 <h3 className="text-xl font-bold text-white mb-2">{company.name}</h3>
@@ -292,10 +388,7 @@ const SuperAdminDashboard = () => {
         ) : (
           <div className="space-y-6">
             {loadingTickets ? (
-              <div className="text-center py-20">
-                <Loader2 className="w-10 h-10 text-primary animate-spin mx-auto mb-4" />
-                <p className="text-gray-400">Carregando chamados...</p>
-              </div>
+              <PageLoading />
             ) : tickets.length > 0 ? (
               tickets.map((ticket) => (
                 <div key={ticket.id} className="glass-card p-6 rounded-2xl border border-white/10 hover:border-white/20 transition-all">
@@ -312,11 +405,20 @@ const SuperAdminDashboard = () => {
                             <Lightbulb size={18} />
                           </div>
                         )}
-                        <div>
-                          <p className={`text-[10px] font-bold uppercase tracking-wider ${ticket.type === 'bug' ? 'text-red-500' : 'text-primary'}`}>
-                            {ticket.type}
-                          </p>
-                          <p className="text-xs text-gray-500">{new Date(ticket.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</p>
+                        <div className="flex-1">
+                          <div className="flex items-center justify-between">
+                            <p className={`text-[10px] font-bold uppercase tracking-wider ${ticket.type === 'bug' ? 'text-red-500' : 'text-primary'}`}>
+                              {ticket.type}
+                            </p>
+                            <div className="text-right">
+                              <p className="text-[9px] text-gray-500 font-bold tracking-tight opacity-60">Prazo estimado</p>
+                              <p className="text-[11px] font-bold text-amber-500/90 flex items-center gap-1 justify-end">
+                                <Clock size={11} className="animate-pulse" />
+                                {format(addBusinessDays(new Date(ticket.created_at), 3), 'dd/MM/yy')}
+                              </p>
+                            </div>
+                          </div>
+                          <p className="text-xs text-gray-500">{format(new Date(ticket.created_at), "dd 'de' MMM, HH:mm", { locale: ptBR })}</p>
                         </div>
                       </div>
 
